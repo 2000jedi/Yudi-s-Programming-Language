@@ -26,7 +26,12 @@
 *.a
 *.lib
 
+# VSCode
+*.vscode
+.vscode/*
+
 # Executables
 *.exe
 *.out
 *.app
+auto

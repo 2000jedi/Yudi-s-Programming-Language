@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include "scanner.hpp"
+#include "lexical.hpp"
 
 std::vector<std::pair<std::string, std::regex>> ScanTable;
 
@@ -19,8 +20,8 @@ void scanner::initialize(std::string file) {
     }
 }
 
-std::string scanner::scan(std::string orig) {
-    std::vector<std::string> StringBuilder;
+std::vector<Lexical> scanner::scan(std::string orig) {
+    std::vector<Lexical> result;
     std::smatch search;
     bool match;
 
@@ -31,6 +32,8 @@ std::string scanner::scan(std::string orig) {
         match = false;
         for (std::pair<std::string, std::regex> kv : ScanTable) {
             if (std::regex_search(iter, iter_end, search, kv.second)) {
+                Lexical current;
+
                 match = true;
 
                 if (kv.first == "EPS") {
@@ -38,17 +41,17 @@ std::string scanner::scan(std::string orig) {
                     break;
                 }
                 if (kv.first[0] == '_') {
-                    StringBuilder.push_back(kv.first.substr(1));
+                    current.name = kv.first.substr(1);
                 } else {
-                    StringBuilder.push_back(kv.first);
+                    current.name = kv.first;
                 }
 
-                StringBuilder.push_back("(");
                 if (kv.first[0] != '_') {
-                    StringBuilder.push_back(search[0]);
+                    current.data = search[0];
                 }
-                StringBuilder.push_back(")");
                 iter = search[0].second;
+
+                result.push_back(current);
                 break;
             }
         }
@@ -58,7 +61,5 @@ std::string scanner::scan(std::string orig) {
         }
     }
 
-    std::string result = "";
-    result = std::accumulate(StringBuilder.begin(), StringBuilder.end(), result);
     return result;
 }
