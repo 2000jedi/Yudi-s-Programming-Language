@@ -2,8 +2,11 @@ STRING="(\\"|[^"\n\r])*"
 INT=[0-9]+
 FLOAT=[0-9]+.[0-9]*|[0-9]*.[0-9]+
 EPS=[\s\n\r]
-_SELECT=SELECT
-_FROM=FROM
-_EVERYTHING=\*
+_FOR=for
+_IF=if
+_LPAR=\(
+_RPAR=\)
+_EQU==
+_COMMA=,
 _EOL=;
 VAR=[a-zA-Z]\w*

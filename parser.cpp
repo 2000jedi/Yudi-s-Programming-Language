@@ -218,7 +218,7 @@ void initialize_table(std::string parse_table) {
   print_rules();
 }
 
-Node<std::string> parser(std::string input) {
+Node<Lexical> parser(std::vector<Lexical> input) {
   Node<std::string> PA = PushdownAutomata(input);
   #ifdef DEBUG_PA
   std::cout << "Printing Parse Tree: " << std::endl;

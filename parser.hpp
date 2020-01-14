@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "tree.hpp"
+#include "lexical.hpp"
 
 class catagory {
 public:
@@ -16,4 +17,4 @@ public:
 };
 
 extern void initialize_table(std::string file);
-extern Node<std::string> parser(std::string input);
+extern Node<Lexical> parser(std::vector<Lexical> input);
