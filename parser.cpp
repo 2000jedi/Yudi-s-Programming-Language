@@ -164,7 +164,7 @@ void TableConstructor(std::ifstream *fd) {
         if (selection[cur_rule][q] == -1)
           selection[cur_rule][q] = rules.size() - 1;
       }
-    } else {
+    } else { // non-epsilon
       if (rules.back().reps[0][0] == '<') {
         for (int k = 0; rule_table[k][0] != 0; ++k) {
           if (rule_table[k] == rules.back().reps[0]) {
