@@ -1,5 +1,6 @@
 #include "lexical.hpp"
 #include "scanner.hpp"
+#include "parser.hpp"
 
 int main(int argc, char** argv) {
   scanner::initialize("scan_table");
@@ -8,5 +9,7 @@ int main(int argc, char** argv) {
   for (auto i : result) {
     i.print();
   }
+  parser::initialize("parse_table");
+
   return 0;
 }

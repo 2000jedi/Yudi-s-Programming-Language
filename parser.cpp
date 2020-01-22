@@ -3,28 +3,31 @@
  */
 
 #include <string>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <vector>
+#include <map>
 #include <stack>
 #include <algorithm>
 #include <cstring>
 #include "tree.hpp"
 #include "parser.hpp"
 
-#define MAX_RULE 500
 #define BUFFER 255
 
 int start_rule;
+
+std::vector<std::string> lexicals;
 std::vector<std::string> rule_table;
 std::vector<catagory> rules;
-int selection[MAX_RULE][255];
+int selection[100][255];
 
 void print_rules() {
   /** debug use only
    * print_rules - print all catagory rules out
    */
   #ifdef DEBUG_RULES
+  std::cout << "RULES:" << std::endl;
   for (unsigned int i = 0; i < rules.size(); ++i) {
     std::cout << rules[i].name << " ";
     for (unsigned int j = 0; j < rules[i].reps.size() ; ++j)
@@ -32,6 +35,19 @@ void print_rules() {
     std::cout << std::endl;
   }
   #endif
+}
+
+void push_lexical(std::string lex) {
+  for (auto i : lexicals) {
+    if (i == lex) return;
+  }
+  lexicals.push_back(lex);
+}
+
+int get_lexical(std::string lex) {
+  for (int i = 0; i < (int) lexicals.size(); ++i)
+    if (lexicals[i] == lex) return i;
+  return -1;
 }
 
 int find_rule(std::string rule) {
@@ -73,9 +89,10 @@ Node<std::string> FilterEmpty(Node<std::string> root) {
 
 // construct parse table from file
 void TableConstructor(std::ifstream *fd) {
+  // initialize rule tables
   rules.clear();
   rule_table.clear();
-  for (int i = 0; i < MAX_RULE; ++i) {
+  for (int i = 0; i < 100; ++i) {
     for (int j = 0; j < 255; ++j)
       selection[i][j] = -1;
   }
@@ -93,9 +110,9 @@ void TableConstructor(std::ifstream *fd) {
     // find rule for non-terminal
 
     // get substring for catagory name
-    std::string s = buf.substr(0, buf.find("="));
+    std::string s = buf.substr(0, buf.find(" "));
     rules.push_back(catagory(s));
-    int j = buf.find("=") + 1;
+    int j = buf.find("=") + 2;
 
     // get each identifier
     while (j < (int) buf.length()) {
@@ -107,14 +124,15 @@ void TableConstructor(std::ifstream *fd) {
         }
         s += '>';
         rules.back().reps.push_back(s);
+        j++;
       } else {
         s = "";
-        while ((j < (int) buf.size() - 2) && (buf[j+1] == '|')) { // concats a|b
+        while (j < (int) buf.length() && buf[j] != ' ') {
           s += buf[j];
-          j += 2;
+          j++;
         }
-        s += buf[j];
         rules.back().reps.push_back(s);
+        push_lexical(s);
       }
       j++;
     }
@@ -150,12 +168,13 @@ void TableConstructor(std::ifstream *fd) {
               }
             }
             break;
+          } else {
+            std::cerr << "Rule " << rules.back().reps[0] << " Not Found" << std::endl;
           }
         }
       } else {
-        for (auto c : rules.back().reps[0]) { // terminals
-          selection[cur_rule][(int) c] = rules.size() - 1;
-        }
+        int c = get_lexical(rules.back().reps[0]);
+        selection[cur_rule][c] = rules.size() - 1;
       }
     }
   }
@@ -166,8 +185,8 @@ void TableConstructor(std::ifstream *fd) {
     exit(-1);
   }
 }
-
-Node<std::string> PushdownAutomata(std::string str) {
+/*
+Node<std::string> PushdownAutomata(std::vector<Lexical> str) {
   auto tree = Node<std::string>(rule_table[start_rule]);
   std::stack<Node<std::string>*> stk;
   stk.push(&tree);
@@ -211,13 +230,13 @@ Node<std::string> PushdownAutomata(std::string str) {
   }
   return tree;
 }
-
-void initialize_table(std::string parse_table) {
+*/
+void parser::initialize(std::string parse_table) {
   std::ifstream fp(parse_table);
   TableConstructor(&fp);
   print_rules();
 }
-
+/*
 Node<Lexical> parser(std::vector<Lexical> input) {
   Node<std::string> PA = PushdownAutomata(input);
   #ifdef DEBUG_PA
@@ -234,4 +253,4 @@ Node<Lexical> parser(std::vector<Lexical> input) {
   FE.print();
   #endif
   return FE;
-}
+}*/

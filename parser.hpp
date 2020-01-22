@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+
 #include "tree.hpp"
 #include "lexical.hpp"
 
@@ -16,5 +17,7 @@ public:
   }
 };
 
-extern void initialize_table(std::string file);
-extern Node<Lexical> parser(std::vector<Lexical> input);
+namespace parser {
+  extern void initialize(std::string file);
+  // extern Node<Lexical> parser(std::vector<Lexical> input);
+}
