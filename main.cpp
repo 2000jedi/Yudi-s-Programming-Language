@@ -6,7 +6,7 @@ int main(int argc, char** argv) {
   scanner::initialize("scan_table");
   parser::initialize("parse_table");
   
-  auto result = scanner::scan("a=for();");
+  auto result = scanner::scan("a=for(b,c);");
   for (auto i : result) {
     i.print();
   }

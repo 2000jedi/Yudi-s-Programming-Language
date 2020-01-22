@@ -13,6 +13,8 @@
 #include "tree.hpp"
 #include "parser.hpp"
 
+#define RULE_LEN 100
+#define LEX_LEN  255
 #define BUFFER 255
 
 class catagory {
@@ -31,13 +33,17 @@ int start_rule;
 std::vector<std::string> lexicals;
 std::vector<std::string> rule_table;
 std::vector<catagory> rules;
-int selection[100][255];
+int selection[RULE_LEN][LEX_LEN];
 
 void print_rules() {
   /** debug use only
    * print_rules - print all catagory rules out
    */
   #ifdef DEBUG_RULES
+  std::cout << "RULE TABLE" << std::endl;
+  for (unsigned int i = 0; i < rule_table.size(); ++i)
+    std::cout << "  " << i << ':' << rule_table[i] << std::endl; 
+
   std::cout << "RULES:" << std::endl;
   for (unsigned int i = 0; i < rules.size(); ++i) {
     std::cout << rules[i].name << " ";
@@ -98,8 +104,8 @@ void TableConstructor(std::ifstream *fd) {
   // initialize rule tables
   rules.clear();
   rule_table.clear();
-  for (int i = 0; i < 100; ++i) {
-    for (int j = 0; j < 255; ++j)
+  for (int i = 0; i < RULE_LEN; ++i) {
+    for (int j = 0; j < LEX_LEN; ++j)
       selection[i][j] = -1;
   }
 
@@ -198,12 +204,14 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
   int p;
   while (stk.size() > 0) {
     if (it == str.end()) {
-      p = -1;
+      p = LEX_LEN - 1;
     } else {
       p = get_lexical(it->name);
     }
 
     auto cur_node = stk.top();
+
+    // std::cout << "DEBUG: " << p << cur_node->t << "STK: " << stk.size() << std::endl;
     stk.pop();
     if (cur_node->t.name == "<EPS>") { // epsilon, skip
       continue;
@@ -212,6 +220,7 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
       int cur_sym_int = find_rule(cur_node->t.name);
       if (selection[cur_sym_int][p] != -1) { // the rule is found
         int cur_rul = selection[cur_sym_int][p];
+        // std::cout << "RULE: " << cur_rul << std::endl;
         for (auto i = rules[cur_rul].reps.begin(); i != rules[cur_rul].reps.end(); ++i) {
           cur_node->child.push_back(Node<Lexical>(Lexical(*i, "")));
         }
