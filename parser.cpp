@@ -85,15 +85,16 @@ int find_rule(std::string rule) {
 
 // filter empty non-terminals (epsilons)
 Node<Lexical> FilterEmpty(Node<Lexical> root) {
-  if (root.t.name[0] == '<' && root.child.size() == 0)
-    return Node<Lexical>(Lexical());
-
   auto tree = Node<Lexical>(root.t);
 
   for (unsigned int i = 0; i < root.child.size(); ++i) {
     auto fe = FilterEmpty(root.child[i]);
-    if (fe.t.name != "")
+    if (fe.t.name.size() != 0)
       tree.child.push_back(fe);
+  }
+
+  if (tree.t.name[0] == '<' && tree.child.size() == 0) {
+    return Node<Lexical>(Lexical());
   }
 
   return tree;
@@ -213,7 +214,7 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
 
     // std::cout << "DEBUG: " << p << cur_node->t << "STK: " << stk.size() << std::endl;
     stk.pop();
-    if (cur_node->t.name == "<EPS>") { // epsilon, skip
+    if (cur_node->t.name.compare("<EPS>") == 0) { // epsilon, skip
       continue;
     }
     if (cur_node->t.name[0] == '<') { // non-terminal
