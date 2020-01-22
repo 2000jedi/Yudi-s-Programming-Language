@@ -4,12 +4,15 @@
 
 int main(int argc, char** argv) {
   scanner::initialize("scan_table");
+  parser::initialize("parse_table");
   
-  auto result = scanner::scan("a=for(b,c);");
+  auto result = scanner::scan("a=for();");
   for (auto i : result) {
     i.print();
   }
-  parser::initialize("parse_table");
+  
+  auto result_2 = parser::parse(result);
+  result_2.print();
 
   return 0;
 }

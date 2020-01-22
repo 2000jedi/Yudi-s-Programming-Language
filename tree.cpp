@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include "tree.hpp"
+#include "lexical.hpp"
 
 template <class T> 
 Node<T>::Node(T x) {
@@ -40,4 +41,4 @@ void Node<T>::reduce(std::string catagory) {
    */
 }
 
-template class Node<std::string>;
+template class Node<Lexical>;
