@@ -168,8 +168,6 @@ void TableConstructor(std::ifstream *fd) {
               }
             }
             break;
-          } else {
-            std::cerr << "Rule " << rules.back().reps[0] << " Not Found" << std::endl;
           }
         }
       } else {
