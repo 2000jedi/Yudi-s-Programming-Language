@@ -49,6 +49,7 @@
 	\paragraph{Basics} var const function class this enum
 	\paragraph{Types} bool char uint8 uint16 uint32 uint64 int8 int16 int32 int64 fp16 fp32 fp64 str
 	\paragraph{Control Flow} if else match while for break continue return
+	\paragraph{Constants} True False
 	
 \section{Grammar}
 \subsection{Naming}
@@ -65,7 +66,8 @@ var Var3 : Type3[];  // an array with type Type3 defined on the heap which requi
 var Var4 = val;      // a variable with value equals to val and type is infered;
 const Const1 = val;  // a constant with value equals to val
 \end{lstlisting}
-\paragraph{Functions}
+\paragraph{Function}
+Definition.
 \begin{lstlisting}
 function Fun1(Var1 : Type1, Var2 : Type2) : ReturnType {
 	// Function Scope
@@ -78,7 +80,8 @@ function Fun1 <T> (Var1 : T, Var2 : Type2) : ReturnType {
 // Function Scope
 }
 \end{lstlisting}
-\paragraph{Classes}
+\paragraph{Class}
+types.
 \begin{lstlisting}
 class ClassName {
 	// instance variables
@@ -108,7 +111,8 @@ class ClassName <T, T1> {
 	}
 }
 \end{lstlisting}
-\paragraph{Enums}
+\paragraph{Enum}
+types.
 \begin{lstlisting}
 enum EnumName {
 	Name1;
@@ -119,11 +123,48 @@ enum EnumName {
 \subsection{Function Scope}
 In the scope of functions, it is the actual program runs. There are several grammars
 \paragraph{Evaluations and Assignment}
+Basic statements.
 \begin{lstlisting}
-var a : int32 = 0; // variable definition and initialization
-var b = ClassA(a); // class must have initializer
-a = 3 * Func1(b);  // assigning to a variable
-ClassA.call(a);    // evaluating a function
+var a : int32 = 0;            // variable definition and initialization
+var b = ClassA(a);            // class must have initializer
+var c = EnumName.Name2(val1); // enum must have initializer
+a = 3 * Func1(b);             // assigning to a variable
+ClassA.call(a);               // evaluating a function
 \end{lstlisting}
-\paragraph{Branches}
+\paragraph{Branching}
+if-else branch (else may be omitted)
+\begin{lstlisting}
+if (statement) {
+  // if-true
+} else {
+  // if-false
+}
+\end{lstlisting}
+\paragraph{Pattern Matching}
+an Enum type.
+\begin{lstlisting}
+Var enum1 : Enum1 = Val1;
+match (enum1) {
+	Enum1.Name1(): enum1 = Enum1.Name2();
+	Enum1.Name2: {
+		statement1;
+		statement2;
+	}
+	Enum1.Name3(a, b): enum1 = Enum1.Name3(a+1, b+1);
+}
+\end{lstlisting}
+Note that pattern matching must cover all cases of possible enumerate types.
+\paragraph{Loop} 
+For loops
+\begin{lstlisting}
+for (var i = 1; i < 100; i += 1) {
+	statement;
+}
+\end{lstlisting}
+While Loops
+\begin{lstlisting}
+while (condition) {
+statement;
+}
+\end{lstlisting}
 \end{document}
