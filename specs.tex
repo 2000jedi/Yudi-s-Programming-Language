@@ -1,0 +1,129 @@
+\documentclass[12pt, a4paper]{IEEEtran}
+\title{Specifications for Yudi's Checked Programming Language}
+\author{Yudi Yang}
+
+\usepackage{indentfirst}
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+	language=Java,
+	aboveskip=3mm,
+	belowskip=3mm,
+	showstringspaces=false,
+	columns=flexible,
+	basicstyle={\small\ttfamily},
+	numbers=none,
+	numberstyle=\tiny\color{gray},
+	keywordstyle=\color{blue},
+	commentstyle=\color{dkgreen},
+	stringstyle=\color{mauve},
+	breaklines=true,
+	breakatwhitespace=true,
+	tabsize=3
+}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+	Yudi's Checked Programming Language (YCPL) is a new programming language aims at enhancing statically checking program correctness including sanity type checking and avoidance of pointer related security vulnerabilities including dangling pointer and illegal access of pointers. It is mostly inspired by Rust, but with a major difference that the code generated would be entirely in C, and the original coding structure would be preserved at best. That means that the C compiler (gcc, llvm) would handle all the code optimization. Also, programmers can provide additional information to the YCPL compiler to do additional code optimization.
+
+\section{Types}
+	\paragraph{Boolean} bool
+	\paragraph{Integers} char, uint8, uint16, uint32, uint64, int8, int16, int32, int64
+	\paragraph{Floating Points} fp16, fp32, fp64
+	\paragraph{Immutable String} str
+	\paragraph{Array} for any type T can be defined with T[len], where len is a constant that specifies the length of array. An array with variable length can be specified with T[], which is stored in heap. Variable length array must be initialized before used.
+	\paragraph{Pointer} does not exist in YCPL.
+	\paragraph{Class} type that contains class variables and functions. Note that all class references are equivalent to pointer in C. Details in later chapters.
+	\paragraph{Enum} type that defines different sets of values stored. Details in later chapters.
+
+\section{Keywords}
+	YCPL reserves a ranges of keywords to use:
+	
+	\paragraph{Basics} var const function class this enum
+	\paragraph{Types} bool char uint8 uint16 uint32 uint64 int8 int16 int32 int64 fp16 fp32 fp64 str
+	\paragraph{Control Flow} if else match while for break continue return
+	
+\section{Grammar}
+\subsection{Naming}
+\subsection{File Scope}
+In the scope of file, several grammars are possible:
+\paragraph{Global Variables}
+Global variables are available in the scope after it is defined.
+
+Variable definitions are
+\begin{lstlisting}
+var Var1 : Type1;    // Var1 declared with type Type1
+var Var2 : Type2[5]; // an array with type Type2 defined on the stack with 5 elements.
+var Var3 : Type3[];  // an array with type Type3 defined on the heap which requires initializer
+var Var4 = val;      // a variable with value equals to val and type is infered;
+const Const1 = val;  // a constant with value equals to val
+\end{lstlisting}
+\paragraph{Functions}
+\begin{lstlisting}
+function Fun1(Var1 : Type1, Var2 : Type2) : ReturnType {
+	// Function Scope
+}
+\end{lstlisting}
+
+A function with generic type
+\begin{lstlisting}
+function Fun1 <T> (Var1 : T, Var2 : Type2) : ReturnType {
+// Function Scope
+}
+\end{lstlisting}
+\paragraph{Classes}
+\begin{lstlisting}
+class ClassName {
+	// instance variables
+	var Var1 : Type1;
+	var Var2 : Type2;
+	
+	// instance functions
+	function Fun1(Var1 : Type1, Var2 : Type2) : ReturnType {
+		// coding example
+		this->Var1 = Var1;
+	}
+	
+	// special function that works as initializer: ClassName(). Required for every class.
+	ClassName(Var1 : Type1, Var2 : Type2) : ClassName {
+		return this;
+	}
+}
+\end{lstlisting}
+
+A class with generic type
+\begin{lstlisting}
+class ClassName <T, T1> {
+	var Var1 : T;
+	
+	function Fun1(Var1 : T) : T1 {
+		// Function Scope
+	}
+}
+\end{lstlisting}
+\paragraph{Enums}
+\begin{lstlisting}
+enum EnumName {
+	Name1;
+	Name2(Var1 : Type1);
+	Name3(Var1 : Type1, Var2 : Type2);
+}
+\end{lstlisting}
+\subsection{Function Scope}
+In the scope of functions, it is the actual program runs. There are several grammars
+\paragraph{Evaluations and Assignment}
+\begin{lstlisting}
+var a : int32 = 0; // variable definition and initialization
+var b = ClassA(a); // class must have initializer
+a = 3 * Func1(b);  // assigning to a variable
+ClassA.call(a);    // evaluating a function
+\end{lstlisting}
+\paragraph{Branches}
+\end{document}
