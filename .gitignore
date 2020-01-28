@@ -30,6 +30,12 @@
 *.vscode
 .vscode/*
 
+#latex
+#
+*.aux 
+*.log 
+*.synctex.gz
+
 # Executables
 *.exe
 *.out
