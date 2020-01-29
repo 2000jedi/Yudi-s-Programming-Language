@@ -1,0 +1,16 @@
+// this is a line of comment
+
+const a = 1;
+var b : uint8[10];
+
+function foo(a : int32, b : char) : int32{
+  // foo does this
+  if (b != '\n')
+    return a;
+  else
+    return 0;
+}
+
+function main() {
+  foo(100, 'a');
+}

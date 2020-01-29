@@ -16,7 +16,12 @@ void scanner::initialize(std::string file) {
     std::string buf;
 
     while (std::getline(fp, buf)) {
-        ScanTable.push_back(std::pair<std::string, std::regex>(buf.substr(0, buf.find("=")), std::regex("^" + buf.substr(buf.find("=") + 1))));
+        try{
+            ScanTable.push_back(std::pair<std::string, std::regex>(buf.substr(0, buf.find("=")), std::regex(buf.substr(buf.find("=") + 1))));
+        } catch (std::regex_error e) {
+            std::cerr << "scanner::initialize: regex error at line '" << buf << "'" << std::endl;
+            exit(-1);
+        }
     }
 }
 
@@ -31,7 +36,7 @@ std::vector<Lexical> scanner::scan(std::string orig) {
     while (iter != orig.end()) {
         match = false;
         for (std::pair<std::string, std::regex> kv : ScanTable) {
-            if (std::regex_search(iter, iter_end, search, kv.second)) {
+            if (std::regex_search(iter, iter_end, search, kv.second, std::regex_constants::match_continuous)) {
                 Lexical current;
 
                 match = true;
@@ -52,11 +57,12 @@ std::vector<Lexical> scanner::scan(std::string orig) {
                 iter = search[0].second;
 
                 result.push_back(current);
+                std::cout << current << std::endl;
                 break;
             }
         }
         if (!match) {
-            std::cerr << "Match failed at " << std::string(iter, std::find(iter, iter_end, '\n')) << std::endl;
+            std::cerr << "scanner::scan: match failed at: " << std::string(iter, std::find(iter, iter_end, '\n')) << std::endl;
             exit(-1);
         }
     }
