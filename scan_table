@@ -41,8 +41,8 @@ _NOT=!
 _ASSIGN==
 _LSHIFT=<<
 _RSHIFT=>>
-_GE=<
-_LE=>
+_GT=<
+_LT=>
 _ADD=\+
 _SUB=-
 _MUL=\*

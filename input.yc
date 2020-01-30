@@ -5,10 +5,12 @@ var b : uint8[10];
 
 function foo(a : int32, b : char) : int32{
   // foo does this
-  if (b != '\n')
+  if (b) {
     return a;
-  else
+  }
+  else {
     return 0;
+  }
 }
 
 function main() {

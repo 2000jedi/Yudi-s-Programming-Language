@@ -74,8 +74,8 @@ int find_rule(std::string rule) {
    * @inputs
    * rule - the destiny rule to find
    */
-  int i;
-  for (i = 0; rule_table[i][0] != 0; ++i) {
+  unsigned int i;
+  for (i = 0; i < rule_table.size() && rule_table[i][0] != 0; ++i) {
     if (rule_table[i] == rule) {
       return i;
     }
@@ -120,6 +120,7 @@ void TableConstructor(std::ifstream *fd) {
 
   // get transition tables
   while (std::getline(*fd, buf)) {
+    if (buf == "") continue;
     // find rule for non-terminal
 
     // get substring for catagory name
@@ -212,14 +213,14 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
 
     auto cur_node = stk.top();
 
-    // std::cout << "DEBUG: " << p << cur_node->t << "STK: " << stk.size() << std::endl;
+    // std::cout << "DEBUG: " << *it << cur_node->t << "STK: " << stk.size() << std::endl;
     stk.pop();
     if (cur_node->t.name.compare("<EPS>") == 0) { // epsilon, skip
       continue;
     }
     if (cur_node->t.name[0] == '<') { // non-terminal
       int cur_sym_int = find_rule(cur_node->t.name);
-      if (selection[cur_sym_int][p] != -1) { // the rule is found
+      if (cur_sym_int != -1 && selection[cur_sym_int][p] != -1) { // the rule is found
         int cur_rul = selection[cur_sym_int][p];
         // std::cout << "RULE: " << cur_rul << std::endl;
         for (auto i = rules[cur_rul].reps.begin(); i != rules[cur_rul].reps.end(); ++i) {
@@ -229,15 +230,14 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
           stk.push(&(cur_node->child[i]));
         }
       } else { // does not match
-        std::cerr << "Rejected at " << cur_node->t << ": " << *it << std::endl;
-        std::cerr << "Current string location: " << it->data;
+        std::cerr << "parser::parse: rejected at " << cur_node->t << ", found" << *it << std::endl;
         return Node<Lexical>(Lexical());
       }
     } else { // terminal
       if (cur_node->t.name == it->name) {
         cur_node->t = *it;
       } else {
-        std::cerr << "Required literal '" << cur_node->t << "', found " << *it << std::endl;
+        std::cerr << "parser::parse: required " << cur_node->t << ", found " << *it << std::endl;
         return Node<Lexical>(Lexical());
       }
       it++;
