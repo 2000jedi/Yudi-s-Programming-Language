@@ -1,2 +1,3 @@
-# Set-Programming-Language-Rework
-A rework on Set Programming Language.
+# Yudi's Programming Language
+
+See `spec.pdf`
