@@ -18,7 +18,7 @@ void scanner::initialize(std::string file) {
     while (std::getline(fp, buf)) {
         try{
             ScanTable.push_back(std::pair<std::string, std::regex>(buf.substr(0, buf.find("=")), std::regex(buf.substr(buf.find("=") + 1))));
-        } catch (std::regex_error e) {
+        } catch (const std::regex_error &) {
             std::cerr << "scanner::initialize: regex error at line '" << buf << "'" << std::endl;
             exit(-1);
         }
