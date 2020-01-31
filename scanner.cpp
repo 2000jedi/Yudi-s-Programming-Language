@@ -57,7 +57,6 @@ std::vector<Lexical> scanner::scan(std::string orig) {
                 iter = search[0].second;
 
                 result.push_back(current);
-                std::cout << current << std::endl;
                 break;
             }
         }

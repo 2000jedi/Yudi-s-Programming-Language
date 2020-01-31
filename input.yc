@@ -1,12 +1,24 @@
 // this is a line of comment
+enum Enum1 {
+  T1,
+  T2(a: INT32)
+}
+class Name<T> {
+  var a : T;
 
-const a = 1;
+  function Name(a : T) {
+    this.a = a;
+  }
+}
+
+const a = 1 * (2 + 3) + 4 == 1;
+
 var b : uint8[10];
 
 function foo(a : int32, b : char) : int32{
   // foo does this
   if (b) {
-    return a;
+    return a.b;
   }
   else {
     return 0;

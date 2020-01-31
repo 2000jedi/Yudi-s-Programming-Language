@@ -5,7 +5,6 @@ _VARDEF=var
 _CONSTDEF=const
 _FUNCDEF=function
 _CLASSDEF=class
-_THIS=this
 _ENUMDEF=enum
 _IF=if
 _ELSE=else
@@ -37,10 +36,15 @@ _LARR=\[
 _RARR=\]
 _EQU===
 _NEQ=!=
-_NOT=!
+_LOR=\|\|
+_LAND=&&
+_LE=<=
+_RE=>=
 _ASSIGN==
-_LSHIFT=<<
-_RSHIFT=>>
+_NOT=!
+_BOR=\|
+_BAND=&
+_BXOR=\^
 _GT=<
 _LT=>
 _ADD=\+
@@ -51,6 +55,7 @@ _REM=%
 _COMMA=,
 _COLON=:
 _EOL=;
+_DOT=\.
 INT=[0-9]+
 FLOAT=[0-9]+\.[0-9]*|[0-9]*\.[0-9]+
 NAME=[a-zA-Z]\w*
