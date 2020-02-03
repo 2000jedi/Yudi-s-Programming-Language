@@ -22,13 +22,10 @@ int main(int argc, char** argv) {
   scanner::initialize("scan_table");
   parser::initialize("parse_table");
   
-  auto result = scanner::scan(input);
-  for (auto i : result) {
-    i.print();
-  }
+  auto result_scanner = scanner::scan(input);
   
-  auto result_2 = parser::parse(result);
-  result_2.print();
+  auto result_parser = parser::parse(result_scanner);
+  result_parser.print();
 
   return 0;
 }
