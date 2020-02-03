@@ -7,7 +7,7 @@ template <class T>
 class Node {
 public:
   T t;
-  std::vector<Node> child;
+  std::vector<Node<T>> child;
 
   Node(T x);
   void print(void);
