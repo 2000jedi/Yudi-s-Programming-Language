@@ -2,6 +2,7 @@
 #include <iostream>
 #include "tree.hpp"
 #include "lexical.hpp"
+#include "ast.hpp"
 
 template <class T> 
 Node<T>::Node(T x) {
@@ -34,11 +35,5 @@ void Node<T>::print(void) {
   tree_print_rec(*this, 0);
 }
 
-template <class T>
-void Node<T>::reduce(std::string catagory) {
-  /**
-   * reduce - reduce left-factored catagories to a string.
-   */
-}
-
 template class Node<Lexical>;
+template class Node<ASTtype>;

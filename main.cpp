@@ -1,6 +1,7 @@
 #include "lexical.hpp"
 #include "scanner.hpp"
 #include "parser.hpp"
+#include "ast.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -23,9 +24,10 @@ int main(int argc, char** argv) {
   parser::initialize("parse_table");
   
   auto result_scanner = scanner::scan(input);
-  
-  auto result_parser = parser::parse(result_scanner);
-  result_parser.print();
+  auto result_parser  = parser::parse(result_scanner);
+  auto result_ast     = AST::generate(result_parser);
+  // result_parser.print();
+  result_ast.print();
 
   return 0;
 }

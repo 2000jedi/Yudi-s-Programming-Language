@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS = -g -Wall -Werror -march=native -O3 -std=c++11 $(FLAGS)
 
 TARGET = auto
-SRCS = lexical.cpp scanner.cpp tree.cpp parser.cpp
+SRCS = lexical.cpp tree.cpp ast.cpp scanner.cpp parser.cpp
 OBJS = ${SRCS:.cpp=.o}
 
 auto: main.cpp $(OBJS)
