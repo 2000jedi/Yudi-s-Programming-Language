@@ -21,6 +21,10 @@ void ASTtype::print(void) {
   print_rec("", *this);
 }
 
+ASTtype left_factor(ASTtype curr) {
+    return curr; // TODO: turn right factored expr into left factored
+}
+
 ASTtype recursive_gen(Node<Lexical> curr) {
     if (curr.t.name == "<EPS>") {
       return ASTtype(":null:");
@@ -256,7 +260,320 @@ ASTtype recursive_gen(Node<Lexical> curr) {
         ASTtype cond(":cond:");
         cond.child.push_back(recursive_gen(curr.child[2]));
         parent.child.push_back(cond);
+        parent.child.push_back(recursive_gen(curr.child[5]));
         return parent;
+    }
+
+    if (curr.t.name == "<FOR_EXPR>") {
+        ASTtype parent(":for:");
+        ASTtype init(":init:");
+        ASTtype cond(":cond:");
+        ASTtype iter(":iter:");
+        init.child.push_back(recursive_gen(curr.child[2]));
+        cond.child.push_back(recursive_gen(curr.child[4]));
+        iter.child.push_back(recursive_gen(curr.child[6]));
+        parent.child.push_back(init);
+        parent.child.push_back(cond);
+        parent.child.push_back(iter);
+        parent.child.push_back(recursive_gen(curr.child[9]));
+        return parent;
+    }
+
+    if (curr.t.name == "<MATCH_EXPR>") {
+        ASTtype parent(":match:");
+        ASTtype cond(":cond:");
+        cond.child.push_back(recursive_gen(curr.child[2]));
+        parent.child.push_back(cond);
+        parent.child.push_back(recursive_gen(curr.child[5]));
+        return parent;
+    }
+
+    if (curr.t.name == "<MATCH_LINES>") {
+        ASTtype parent(":states:");
+        while (curr.child.size() > 1) {
+            ASTtype line(":line:");
+            ASTtype name(":name:");
+            name.child.push_back(ASTtype(curr.child[0].t.data));
+            line.child.push_back(name);
+            line.child.push_back(recursive_gen(curr.child[1]));
+            line.child.push_back(recursive_gen(curr.child[4]));
+            parent.child.push_back(line);
+            curr = curr.child[6];
+        }
+        return parent;
+    }
+
+    if (curr.t.name == "<EVAL_EXPR>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        if (opr1.name == ":null:") {
+            std::cerr << "ast.cpp: left operation is null, terminating" << std::endl;
+            exit(-1);
+        }
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(":assign:"));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2);
+            return parent;
+        }
+    }
+
+    if (curr.t.name == "<ASSIGN>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                return opr1;
+            } else {
+                ASTtype parent(":binary_op:");
+                parent.child.push_back(ASTtype(":assign:"));
+                parent.child.push_back(opr1);
+                parent.child.push_back(opr2);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<LOGICAL_OR>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(":LOR:"));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2);
+            return left_factor(parent);
+        }
+    }
+
+    if (curr.t.name == "<LOR>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                return opr1;
+            } else {
+                ASTtype parent(":binary_op:");
+                parent.child.push_back(ASTtype(":LOR:"));
+                parent.child.push_back(opr1);
+                parent.child.push_back(opr2);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<LOGICAL_AND>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(":LAND:"));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2);
+            return left_factor(parent);
+        }
+    }
+
+    if (curr.t.name == "<LAND>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                return opr1;
+            } else {
+                ASTtype parent(":binary_op:");
+                parent.child.push_back(ASTtype(":LAND:"));
+                parent.child.push_back(opr1);
+                parent.child.push_back(opr2);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<BITWISE_OR>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(":BOR:"));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2);
+            return left_factor(parent);
+        }
+    }
+
+    if (curr.t.name == "<BOR>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                return opr1;
+            } else {
+                ASTtype parent(":binary_op:");
+                parent.child.push_back(ASTtype(":BOR:"));
+                parent.child.push_back(opr1);
+                parent.child.push_back(opr2);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<BITWISE_XOR>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(":BXOR:"));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2);
+            return left_factor(parent);
+        }
+    }
+
+    if (curr.t.name == "<BXOR>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                return opr1;
+            } else {
+                ASTtype parent(":binary_op:");
+                parent.child.push_back(ASTtype(":BXOR:"));
+                parent.child.push_back(opr1);
+                parent.child.push_back(opr2);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<BITWISE_AND>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(":BAND:"));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2);
+            return left_factor(parent);
+        }
+    }
+
+    if (curr.t.name == "<BAND>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                return opr1;
+            } else {
+                ASTtype parent(":binary_op:");
+                parent.child.push_back(ASTtype(":BAND:"));
+                parent.child.push_back(opr1);
+                parent.child.push_back(opr2);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<EQ_NEQ>" || curr.t.name == "<LGTE>" || curr.t.name == "<ADD_SUB>" || curr.t.name == "<MUL_DIV>" || curr.t.name == "<CDOT>") {
+        ASTtype opr1 = recursive_gen(curr.child[0]);
+        ASTtype opr2 = recursive_gen(curr.child[1]);
+        if (opr2.name == ":null:") {
+            return opr1;
+        } else {
+            ASTtype parent(":binary_op:");
+            parent.child.push_back(ASTtype(opr2.name));
+            parent.child.push_back(opr1);
+            parent.child.push_back(opr2.child[0]);
+            return left_factor(parent);
+        }
+    }
+
+    if (curr.t.name == "<EQ_NEQ_>" || curr.t.name == "<LGTE_>" || curr.t.name == "<ADD_SUB_>" || curr.t.name == "<MUL_DIV_>" || curr.t.name == "<CDOT_>") {
+        if (curr.child[0].t.name == "<EPS>")
+            return ASTtype(":null:");
+        else {
+            ASTtype parent(ASTtype(":" + curr.child[0].t.name + ":"));
+
+            ASTtype opr1 = recursive_gen(curr.child[1]);
+            ASTtype opr2 = recursive_gen(curr.child[2]);
+            if (opr2.name == ":null:") {
+                parent.child.push_back(opr1);
+                return parent;
+            } else {
+                ASTtype rec(":binary_op:");
+                rec.child.push_back(opr2.name);
+                rec.child.push_back(opr1);
+                rec.child.push_back(opr2.child[0]);
+
+                parent.child.push_back(rec);
+                return parent;
+            }
+        }
+    }
+
+    if (curr.t.name == "<PARS>") {
+        if (curr.child[0].t.name == "NAME") {
+            ASTtype name(":name:");
+            name.child.push_back(ASTtype(curr.child[0].t.data));
+            name.child.push_back(recursive_gen(curr.child[1]));
+            name.child.push_back(recursive_gen(curr.child[2]));
+            return name;
+        }
+        if (curr.child[0].t.name == "LPAR") {
+            return recursive_gen(curr.child[1]);
+        }
+
+        ASTtype data(curr.child[0].t.name);
+        data.child.push_back(ASTtype(curr.child[0].t.data));
+        return data;
+    }
+
+    if (curr.t.name == "<OPTIONAL_FUNCCALL>") {
+        if (curr.child[0].t.name == "<EPS>") {
+            return ASTtype(":null:");
+        } else {
+            ASTtype params(":params:");
+            while (curr.child.size() > 1) {
+                params.child.push_back(recursive_gen(curr.child[1]));
+                curr = curr.child[2];
+            }
+            return params;
+        }
+    }
+
+    if (curr.t.name == "<OPTIONAL_ARRAY>") {
+        if (curr.child[0].t.name == "<EPS>") {
+            return ASTtype(":null:");
+        } else {
+            ASTtype array(":arr_index:");
+            array.child.push_back(recursive_gen(curr.child[1]));
+            return array;
+        }
     }
 
     return ASTtype("in progress: " + curr.t.name);

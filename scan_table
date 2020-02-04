@@ -39,7 +39,7 @@ _NEQ=!=
 _LOR=\|\|
 _LAND=&&
 _LE=<=
-_RE=>=
+_GE=>=
 _ASSIGN==
 _NOT=!
 _BOR=\|
