@@ -266,10 +266,10 @@ Node<Lexical> parser::parse(std::vector<Lexical> input) {
     return PA; // ERROR
   }
 
-  Node<Lexical> FE = FilterEmpty(PA);
-  #ifdef DEBUG_FE
-  std::cout << "Printing Parse Tree: " << std::endl;
-  FE.print();
-  #endif
-  return FE;
+  // Node<Lexical> FE = FilterEmpty(PA);
+  // #ifdef DEBUG_FE
+  // std::cout << "Printing Parse Tree: " << std::endl;
+  // FE.print();
+  // #endif
+  return PA;
 }

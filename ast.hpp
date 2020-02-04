@@ -12,6 +12,11 @@ public:
     std::string name;
     std::vector<ASTtype> child;
     
+    ASTtype(void) {
+        this->name = "";
+        this->child.clear();
+    }
+   
     ASTtype(std::string name) {
         this->name = name;
     }
