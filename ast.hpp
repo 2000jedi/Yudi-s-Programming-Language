@@ -27,5 +27,5 @@ public:
 extern std::ostream& operator<< (std::ostream &out, ASTtype const& data);
 
 namespace AST {
-    extern ASTtype generate(Node<Lexical> root);
+    extern ASTtype generate(Node<Lexical> *root);
 }
