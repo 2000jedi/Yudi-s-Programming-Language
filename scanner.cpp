@@ -1,4 +1,5 @@
 #include <string>
+#include <algorithm>
 #include <regex>
 #include <vector>
 #include <numeric>
@@ -55,6 +56,14 @@ std::vector<Lexical> scanner::scan(std::string orig) {
                     current.data = search[0];
                 }
                 iter = search[0].second;
+
+                current.line = std::count(orig.cbegin(), search[0].first, '\n') + 1;
+                current.position = -1;
+                auto p = search[0].first;
+                while (*p != '\n') {
+                    p--;
+                    current.position++;
+                }
 
                 result.push_back(current);
                 break;
