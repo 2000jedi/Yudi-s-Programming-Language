@@ -213,16 +213,14 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
 
     auto cur_node = stk.top();
 
-    // std::cout << "DEBUG: " << *it << cur_node->t << "STK: " << stk.size() << std::endl;
     stk.pop();
     if (cur_node->t.name.compare("<EPS>") == 0) { // epsilon, skip
       continue;
     }
     if (cur_node->t.name[0] == '<') { // non-terminal
       int cur_sym_int = find_rule(cur_node->t.name);
-      if (cur_sym_int != -1 && selection[cur_sym_int][p] != -1) { // the rule is found
+      if (cur_sym_int != -1 && selection[cur_sym_int][p] != -1) {
         int cur_rul = selection[cur_sym_int][p];
-        // std::cout << "RULE: " << cur_rul << std::endl;
         for (auto i = rules[cur_rul].reps.begin(); i != rules[cur_rul].reps.end(); ++i) {
           cur_node->child.push_back(Node<Lexical>(Lexical(*i, "")));
         }
@@ -230,21 +228,36 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
           stk.push(&(cur_node->child[i]));
         }
       } else { // does not match
-        std::cerr << "parser::parse: rejected at " << cur_node->t << ", found" << *it << std::endl;
+        if (it != str.end()) {
+          std::cerr << "parser::parse: " << std::endl
+            << "  (" << it->line << ',' << it->position << "): required " << 
+            cur_node->t.name << ", found " << it->name << std::endl;
+        } else {
+          std::cerr << "parser::parse: " << std::endl
+            << "  unexpected EOF, required " << cur_node->t.name << std::endl;
+        }
         return Node<Lexical>(Lexical());
       }
     } else { // terminal
+      if (it == str.end()) {
+        std::cerr << "parser::parse: " << std::endl
+          << "  unexpected EOF, required " << cur_node->t.name << std::endl;
+        return Node<Lexical>(Lexical());
+      }
       if (cur_node->t.name == it->name) {
         cur_node->t = *it;
       } else {
-        std::cerr << "parser::parse: required " << cur_node->t << ", found " << *it << std::endl;
+        std::cerr << "parser::parse: " << std::endl
+          << "  (" << it->line << ',' << it->position << "): required " << 
+          cur_node->t.name << ", found " << it->name << std::endl;
         return Node<Lexical>(Lexical());
       }
       it++;
     }
   }
   if (stk.size() > 0) {
-    std::cerr << "Required " << stk.top()->t << ", found EOF" << std::endl;
+    std::cerr << "parser::parse: " << std::endl
+      << "  unexpected EOF, required " << stk.top()->t.name << std::endl;
     return Node<Lexical>(Lexical());
   }
   return tree;
@@ -262,14 +275,6 @@ Node<Lexical> parser::parse(std::vector<Lexical> input) {
   std::cout << "Printing Parse Tree: " << std::endl;
   PA.print();
   #endif
-  if (PA.t.name == "") {
-    return PA; // ERROR
-  }
 
-  // Node<Lexical> FE = FilterEmpty(PA);
-  // #ifdef DEBUG_FE
-  // std::cout << "Printing Parse Tree: " << std::endl;
-  // FE.print();
-  // #endif
   return PA;
 }
