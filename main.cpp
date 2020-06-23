@@ -30,5 +30,7 @@ int main(int argc, char** argv) {
   auto result_ast     = AST::generate(&result_parser);
   result_ast.print();
 
+  AST::codegen(result_ast, "out");
+
   return 0;
 }

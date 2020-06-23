@@ -1,5 +1,6 @@
-CXX = g++
-CXXFLAGS = -g -Wall -Werror -march=native -O3 -std=c++11 -frtti $(FLAGS)
+CXX = c++
+LLVMFLAGS = `llvm-config --cxxflags --libs core`
+CXXFLAGS = -g -Wall -frtti $(FLAGS) $(LLVMFLAGS)
 
 TARGET = auto
 SRCS = lexical.cpp tree.cpp ast.cpp scanner.cpp parser.cpp

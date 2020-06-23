@@ -600,13 +600,24 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 recursive_gen(&curr->child[1]));
             EvalExpr *arr = dynamic_cast<EvalExpr *>(
                 recursive_gen(&curr->child[2]));
-            return new EvalExpr(new Value(curr->child[0].t.data, fc, arr));
+            return new EvalExpr(new ExprVal(curr->child[0].t.data, fc, arr));
         }
         if (curr->child[0].t.name == "LPAR") {
             return recursive_gen(&curr->child[1]);
         }
 
-        return new EvalExpr(new Value(curr->child[0].t.data));
+        if (curr->child[0].t.name == "FLOAT")
+            return new EvalExpr(new ExprVal(
+                curr->child[0].t.data, new TypeDecl("FLOAT", "0")));
+        if (curr->child[0].t.name == "INT")
+            return new EvalExpr(new ExprVal(
+                curr->child[0].t.data, new TypeDecl("INT32", "0")));
+        if (curr->child[0].t.name == "CHAR")
+            return new EvalExpr(new ExprVal(
+                curr->child[0].t.data, new TypeDecl("CHART", "0")));
+        if (curr->child[0].t.name == "STRING")
+            return new EvalExpr(new ExprVal(
+                curr->child[0].t.data, new TypeDecl("STR", "0")));
     }
 
     if (curr->t.name == "<OPTIONAL_FUNCCALL>") {
@@ -639,6 +650,33 @@ Program AST::generate(Node<Lexical> *root) {
     return *dynamic_cast<Program *>(recursive_gen(root));
 }
 
+/**
+ * Message Printing Interface.
+ * Defines `print()` method for every AST class.
+ */
+
+void Program::print(void) {
+    std::cout << "Program AST:" << std::endl;
+    for (auto p : this->stmts) {
+        p->print(1);
+    }
+}
+
+void ASTs::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "ASTs()" << std::endl;
+    for (auto p : this->stmts) 
+        p->print(indent + 1);
+}
+
+void TypeDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "TypeDecl(" << this->baseType << ',' 
+        << this->arrayT << ')' << std::endl;
+}
+
 void EvalExpr::print(int indent) {
     if (this->isVal) {
         this->val->print(indent);
@@ -649,4 +687,516 @@ void EvalExpr::print(int indent) {
         this->l->print(indent + 1);
         this->r->print(indent + 1);
     }
+}
+
+void FuncCall::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "FuncCall()" << std::endl;
+    for (auto p : this->pars) 
+        p->print(indent + 1);
+}
+
+void ExprVal::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    if (this->isConst)
+        std::cout << "ConstVal(" << this->constVal << ')' << std::endl;
+    else {
+        std::cout << "ExprVal(" << this->refName << ')' << std::endl;
+        if (this->call)
+            this->call->print(indent + 1);
+        if (this->array)
+            this->array->print(indent + 1);
+    }
+}
+
+void GenericDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    if (this->valid)
+        std::cout << "GenericDecl(" << this->name << ')' << std::endl;
+    else
+        std::cout << "GenericDecl()" << std::endl;
+    
+}
+
+void Param::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "Param(" << this->name << ')' << std::endl;
+
+    if (this->type)
+        this->type->print(indent + 1);
+}
+
+void Option::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "Option(" << this->name << ')' << std::endl;
+    
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Params(" << std::endl;
+    for (auto p : this->pars) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void RetExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "RetExpr()" << std::endl;
+    this->stmt->print(indent + 1);
+}
+
+void VarDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "VarDecl(" << this->name << ')' << std::endl;
+    if (this->type)
+        this->type->print(indent + 1);
+    if (this->init)
+        this->init->print(indent + 1);
+}
+
+void ConstDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "ConstDecl(" << this->name << ')' << std::endl;
+    if (this->type)
+        this->type->print(indent + 1);
+    if (this->init)
+        this->init->print(indent + 1);
+}
+
+void FuncDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "FuncDecl(" << this->name << ')' << std::endl;
+    if (this->genType)
+        this->genType->print(indent + 1);
+
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Params(" << std::endl;
+    for (auto p : this->pars) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+
+    if (this->ret)
+        this->ret->print(indent + 1);
+
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Expressions(" << std::endl;
+    for (auto p : this->exprs) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void ClassDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "ClassDecl(" << this->name << ')' << std::endl;
+    if (this->genType)
+        this->genType->print(indent + 1);
+
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Statements(" << std::endl;
+    for (auto p : this->stmts) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void EnumDecl::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "EnumDecl(" << this->name << ')' << std::endl;
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Options(" << std::endl;
+    for (auto p : this->options) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void IfExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "IfExpr()" << std::endl;
+
+    this->cond->print(indent + 1);
+    for (int i = 0; i < indent + 1; ++i)
+        std::cout << "  ";
+    std::cout << "True()" << std::endl;
+    for (auto p : this->iftrue) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+        std::cout << "  ";
+    std::cout << "False()" << std::endl;
+    for (auto p : this->iffalse) {
+        p->print(indent + 2);
+    }
+}
+
+void WhileExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "WhileExpr()" << std::endl;
+
+    this->cond->print(indent + 1);
+    for (int i = 0; i < indent + 1; ++i)
+        std::cout << "  ";
+    std::cout << "Expressions(" << std::endl;
+    for (auto p : this->exprs) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+        std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void ForExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "ForExpr()" << std::endl;
+
+    this->init->print(indent + 1);
+    this->cond->print(indent + 1);
+    this->step->print(indent + 1);
+    for (int i = 0; i < indent + 1; ++i)
+        std::cout << "  ";
+    std::cout << "Expressions(" << std::endl;
+    for (auto p : this->exprs) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+        std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void MatchLine::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "MatchExpr(" << this->name << ")" << std::endl;
+
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Params(" << std::endl;
+    for (auto p : this->pars) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "Expessions(" << std::endl;
+    for (auto p : this->exprs) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+void MatchExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "MatchExpr()" << std::endl;
+
+    this->var->print(indent + 1);
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+        std::cout << "MatchLines(" << std::endl;
+    for (auto p : this->lines) {
+        p->print(indent + 2);
+    }
+    for (int i = 0; i < indent + 1; ++i)
+            std::cout << "  ";
+    std::cout << ")" << std::endl;
+}
+
+/**
+ * Code Generation Interface.
+ * codeGen() methods to convert to llvm IR form.
+ */
+
+static llvm::LLVMContext TheContext;
+static llvm::IRBuilder<> Builder(TheContext);
+static std::unique_ptr<llvm::Module> TheModule;
+static std::map<std::string, llvm::Value *> NamedValues;
+
+/* Error Logging */
+BaseAST *LogError(const char *Str) {
+    std::cerr << "Error: " << Str << std::endl;
+    return nullptr;
+}
+
+llvm::Value *LogErrorV(const char *Str) {
+  LogError(Str);
+  return nullptr;
+}
+
+/* Variable Allocate Helper Function */
+static llvm::AllocaInst *CreateEntryBlockAlloca(
+    llvm::Function *F, const std::string &name, llvm::Type *type) {
+  llvm::IRBuilder<> tmpBuilder(
+      &F->getEntryBlock(), F->getEntryBlock().begin());
+  return tmpBuilder.CreateAlloca(type, 0, name.c_str());
+}
+
+/* Type Translate */
+llvm::Type *type_trans(TypeDecl *td) {
+    if (td->baseType == "FLOAT") {
+        return llvm::Type::getDoubleTy(TheContext);
+    }
+    if (td->baseType == "INT32") {
+        return llvm::Type::getInt32Ty(TheContext);
+    }
+    if (td->baseType == "CHART") {
+        return llvm::Type::getInt8Ty(TheContext);
+    }
+    if (td->baseType == "STR") {
+        return llvm::Type::getInt8PtrTy(TheContext);
+    }
+    if (td->baseType == "void") {
+        return llvm::Type::getVoidTy(TheContext);
+    }
+    return nullptr;
+    /* todo: array typing */
+}
+
+llvm::Value *BaseAST::codegen() {
+    LogError("BaseAST() cannot generate IR code.");
+    return nullptr;
+}
+
+llvm::Value *ASTs::codegen() {
+    LogError("ASTs() cannot generate IR code.");
+    return nullptr;
+}
+
+llvm::Value *ExprVal::codegen() {
+    if (this->isConst) {
+        if (this->type->baseType == "FLOAT") {
+            return llvm::ConstantFP::get(
+                TheContext, llvm::APFloat(std::stod(this->constVal)));
+        }
+        if (this->type->baseType == "INT32") {
+            return llvm::ConstantInt::get(
+                TheContext, llvm::APInt(32, std::stoi(this->constVal), true));
+        }
+        if (this->type->baseType == "CHART") {
+            return llvm::ConstantInt::get(
+                TheContext, llvm::APInt(8, std::stoi(this->constVal), false));
+        }
+        if (this->type->baseType == "STR") {
+            return llvm::ConstantDataArray::getString(
+                TheContext, this->constVal, true);
+        }
+
+        return LogErrorV("Constant met strange types");
+    } else {
+        llvm::Value* v = NamedValues[this->refName];
+        if (!v)
+            return LogErrorV(this->refName.c_str());
+        /*
+        TODO: function call and array reference
+        */
+       return NamedValues[this->refName];
+    }
+}
+
+llvm::Value *EvalExpr::codegen() {
+    if (this->isVal)
+        return this->val->codegen();
+    llvm::Value *lv = this->l->codegen();
+    llvm::Value *rv = this->r->codegen();
+
+    if (!lv || !rv)
+        return LogErrorV(this->op.c_str());
+
+    /* TODO: Type Inference */
+    if (this->op == "ADD")
+        return Builder.CreateAdd(lv, rv, "addtmp");
+    if (this->op == "SUB")
+        return Builder.CreateSub(lv, rv, "subtmp");
+    if (this->op == "MUL")
+        return Builder.CreateMul(lv, rv, "multmp");
+    if (this->op == "DIV")
+        return Builder.CreateSDiv(lv, rv, "divtmp");
+    if (this->op == "ASSIGN") {
+        Builder.CreateStore(rv, lv, false);
+        return lv;
+    }
+    if (this->op == "GT")
+        return Builder.CreateICmpSGT(lv, rv, "gttmp");
+    if (this->op == "LT")
+        return Builder.CreateICmpSLT(lv, rv, "lttmp");
+    if (this->op == "GE")
+        return Builder.CreateICmpSGE(lv, rv, "getmp");
+    if (this->op == "LE")
+        return Builder.CreateICmpSLE(lv, rv, "letmp");
+    if (this->op == "EQ")
+        return Builder.CreateICmpEQ(lv, rv, "eqtmp");
+    if (this->op == "NEQ")
+        return Builder.CreateICmpNE(lv, rv, "netmp");
+
+    std::cerr << "Current Op: " << this->op << std::endl;
+    return LogErrorV("Operator in Construction");
+}
+
+llvm::Value *FuncDecl::codegen() {
+    llvm::Function *prev = TheModule->getFunction(this->name);
+    if (prev) {
+        return LogErrorV("Function already declared");
+    }
+
+    std::vector<llvm::Type *> ArgTypes;
+    for (auto p : this->pars) {
+        ArgTypes.push_back(type_trans(p->type));
+    }
+    llvm::FunctionType *Ft = llvm::FunctionType::get(
+        type_trans(this->ret), ArgTypes, false);
+    llvm::Function *F = llvm::Function::Create(
+        Ft, llvm::Function::ExternalLinkage, this->name, TheModule.get());
+    
+    unsigned Idx = 0;
+    for (auto &Arg : F->args())
+        Arg.setName(this->pars[Idx++]->name);
+
+    llvm::BasicBlock *BB = llvm::BasicBlock::Create(
+        TheContext, this->name + "_entry", F);
+    Builder.SetInsertPoint(BB);
+
+    NamedValues.clear();
+    
+    Idx = 0;
+    for (auto &Arg : F->args()) {
+        llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
+            F, Arg.getName(), type_trans(this->pars[Idx++]->type));
+        Builder.CreateStore(&Arg, alloca);
+        NamedValues[Arg.getName()] = alloca;
+    }
+
+    for (auto p : this->exprs) {
+        p->codegen();
+    }
+
+    llvm::verifyFunction(*F);
+    return F;
+}
+
+llvm::Value *ClassDecl::codegen() {
+    return nullptr;
+}
+
+llvm::Value *ConstDecl::codegen() {
+    return nullptr;
+}
+
+llvm::Value *EnumDecl::codegen() {
+    return nullptr;
+}
+
+llvm::Value *ForExpr::codegen() {
+    return nullptr;
+}
+
+llvm::Value *FuncCall::codegen() {
+    return nullptr;
+}
+
+llvm::Value *GenericDecl::codegen() {
+    return nullptr;
+}
+
+llvm::Value *IfExpr::codegen() {
+    return nullptr;
+}
+
+llvm::Value *MatchExpr::codegen() {
+    return nullptr;
+}
+
+llvm::Value *MatchLine::codegen() {
+    return nullptr;
+}
+
+llvm::Value *Option::codegen() {
+    return nullptr;
+}
+
+llvm::Value *Param::codegen() {
+    return nullptr;
+}
+
+llvm::Value *RetExpr::codegen() {
+    llvm::Value *r = this->stmt->codegen();
+
+    if (r) {
+        Builder.CreateRet(r);
+    }
+
+    return nullptr;
+}
+
+llvm::Value *TypeDecl::codegen() {
+    return nullptr;
+}
+
+llvm::Value *VarDecl::codegen() {
+    if (NamedValues.find(this->name) != NamedValues.end())
+        return LogErrorV(this->name.c_str());
+
+    llvm::Function *curF = Builder.GetInsertBlock()->getParent();
+    llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
+        curF, this->name, type_trans(this->type));
+    llvm::Value *v = nullptr;
+
+    if (this->init) {
+        v = this->init->codegen();
+        Builder.CreateStore(v, alloca);
+    }
+    NamedValues[this->name] = alloca;
+
+    return nullptr;
+}
+
+llvm::Value *WhileExpr::codegen() {
+    return nullptr;
+}
+
+llvm::Value *Program::codegen() {
+    for (auto p : this->stmts) {
+        p->codegen();
+    }
+    return nullptr;
+}
+
+int AST::codegen(Program prog, std::string outFile) {
+    TheModule = llvm::make_unique<llvm::Module>(outFile, TheContext);
+    prog.codegen();
+    TheModule->print(llvm::errs(), nullptr);
+    return 0;
 }

@@ -7,6 +7,18 @@
 #include "tree.hpp"
 #include "lexical.hpp"
 
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+
 namespace AST {
     class ASTs;
     class BaseAST;
@@ -28,7 +40,7 @@ namespace AST {
     class Program;
     class RetExpr;
     class TypeDecl;
-    class Value;
+    class ExprVal;
     class WhileExpr;
 
     class BaseAST {
@@ -39,6 +51,8 @@ namespace AST {
                 std::cout << "  ";
             std::cout << "BaseAST()" << std::endl;
         }
+
+        virtual llvm::Value *codegen() = 0;
     };
     class ASTs : public BaseAST  {
         public:
@@ -50,13 +64,8 @@ namespace AST {
                 this->stmts.push_back(p);
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "ASTs()" << std::endl;
-            for (auto p : this->stmts) 
-                p->print(indent + 1);
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class GlobalStatement : virtual public BaseAST  {
@@ -72,6 +81,9 @@ namespace AST {
 
         virtual void print(int indent){
             std::cout << "NOT COMPLETED" << std::endl;
+        }
+        virtual llvm::Value *codegen() {
+            return nullptr;
         }
     };
 
@@ -92,6 +104,10 @@ namespace AST {
         virtual void print(int indent){
             std::cout << "NOT COMPLETED" << std::endl;
         }
+
+        virtual llvm::Value *codegen() {
+            return nullptr;
+        }
     };
 
     class Program : public BaseAST {
@@ -104,12 +120,8 @@ namespace AST {
                 this->stmts.push_back(s);
         }
 
-        void print(void) {
-            std::cout << "Program AST:" << std::endl;
-            for (auto p : this->stmts) {
-                p->print(1);
-            }
-        }
+        void print(void);
+        virtual llvm::Value *codegen();
     };
 
     class TypeDecl : public BaseAST  {
@@ -122,22 +134,18 @@ namespace AST {
             this->arrayT = i;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "TypeDecl(" << this->baseType << ',' 
-                << this->arrayT << ')' << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class EvalExpr : public Expr {
         public:
         bool isVal;
-        Value* val;
+        ExprVal* val;
         std::string op;
         EvalExpr *l, *r;
 
-        EvalExpr(Value *v) {
+        EvalExpr(ExprVal *v) {
             this->exprType = EVAL;
             this->isVal = true;
 
@@ -154,6 +162,7 @@ namespace AST {
         }
 
         void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class FuncCall : public BaseAST {
@@ -164,50 +173,36 @@ namespace AST {
             pars.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "FuncCall()" << std::endl;
-            for (auto p : this->pars) 
-                p->print(indent + 1);
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
-    class Value : public BaseAST {
+    class ExprVal : public BaseAST {
         public:
         bool isConst;
 
         std::string constVal;
+        TypeDecl *type;
         
         std::string refName;
         FuncCall *call;
         EvalExpr *array;
 
-        Value(std::string v) {
+        ExprVal(std::string v, TypeDecl *t) {
             this->isConst = true;
             this->constVal = v;
+            this->type = t;
         }
 
-        Value(std::string n, FuncCall *c, EvalExpr *a) {
+        ExprVal(std::string n, FuncCall *c, EvalExpr *a) {
             this->isConst = false;
             this->refName = n;
             this->call = c;
             this->array = a;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            if (this->isConst)
-                std::cout << "ConstVal(" << this->constVal << ')' << std::endl;
-            else {
-                std::cout << "Value(" << this->refName << ')' << std::endl;
-                if (this->call)
-                    this->call->print(indent + 1);
-                if (this->array)
-                    this->array->print(indent + 1);
-            }
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class GenericDecl : public BaseAST  {
@@ -224,15 +219,8 @@ namespace AST {
             this->name = n;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            if (this->valid)
-                std::cout << "GenericDecl(" << this->name << ')' << std::endl;
-            else
-                std::cout << "GenericDecl()" << std::endl;
-            
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class Param : public BaseAST  {
@@ -245,14 +233,8 @@ namespace AST {
             this->type = t;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "Param(" << this->name << ')' << std::endl;
-
-            if (this->type)
-                this->type->print(indent + 1);
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class Option : public BaseAST  {
@@ -265,21 +247,8 @@ namespace AST {
             this->pars.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "Option(" << this->name << ')' << std::endl;
-            
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Params(" << std::endl;
-            for (auto p : this->pars) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class RetExpr : public Expr {
@@ -292,12 +261,8 @@ namespace AST {
             this->stmt = s;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "RetExpr()" << std::endl;
-            this->stmt->print(indent + 1);
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class VarDecl : public GlobalStatement, public Expr {
@@ -315,15 +280,8 @@ namespace AST {
             this->init = i;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "VarDecl(" << this->name << ')' << std::endl;
-            if (this->type)
-                this->type->print(indent + 1);
-            if (this->init)
-                this->init->print(indent + 1);
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class ConstDecl : public GlobalStatement, public Expr {
@@ -341,15 +299,8 @@ namespace AST {
             this->init = i;
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "ConstDecl(" << this->name << ')' << std::endl;
-            if (this->type)
-                this->type->print(indent + 1);
-            if (this->init)
-                this->init->print(indent + 1);
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class FuncDecl : public GlobalStatement {
@@ -370,36 +321,8 @@ namespace AST {
             exprs.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "FuncDecl(" << this->name << ')' << std::endl;
-            if (this->genType)
-                this->genType->print(indent + 1);
-
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Params(" << std::endl;
-            for (auto p : this->pars) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-
-            if (this->ret)
-                this->ret->print(indent + 1);
-
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Expressions(" << std::endl;
-            for (auto p : this->exprs) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class ClassDecl : public GlobalStatement {
@@ -416,23 +339,8 @@ namespace AST {
             this->stmts.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "ClassDecl(" << this->name << ')' << std::endl;
-            if (this->genType)
-                this->genType->print(indent + 1);
-
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Statements(" << std::endl;
-            for (auto p : this->stmts) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class EnumDecl : public GlobalStatement {
@@ -447,20 +355,8 @@ namespace AST {
             this->options.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "EnumDecl(" << this->name << ')' << std::endl;
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Options(" << std::endl;
-            for (auto p : this->options) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class IfExpr : public Expr {
@@ -477,25 +373,8 @@ namespace AST {
             this->iffalse.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "IfExpr()" << std::endl;
-
-            this->cond->print(indent + 1);
-            for (int i = 0; i < indent + 1; ++i)
-                std::cout << "  ";
-            std::cout << "True()" << std::endl;
-            for (auto p : this->iftrue) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                std::cout << "  ";
-            std::cout << "False()" << std::endl;
-            for (auto p : this->iffalse) {
-                p->print(indent + 2);
-            }
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class WhileExpr : public Expr {
@@ -510,22 +389,8 @@ namespace AST {
             this->exprs.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "WhileExpr()" << std::endl;
-
-            this->cond->print(indent + 1);
-            for (int i = 0; i < indent + 1; ++i)
-                std::cout << "  ";
-            std::cout << "Expressions(" << std::endl;
-            for (auto p : this->exprs) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class ForExpr : public Expr {
@@ -544,24 +409,8 @@ namespace AST {
             this->exprs.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "ForExpr()" << std::endl;
-
-            this->init->print(indent + 1);
-            this->cond->print(indent + 1);
-            this->step->print(indent + 1);
-            for (int i = 0; i < indent + 1; ++i)
-                std::cout << "  ";
-            std::cout << "Expressions(" << std::endl;
-            for (auto p : this->exprs) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class MatchLine : public BaseAST  {
@@ -576,31 +425,8 @@ namespace AST {
             this->exprs.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "MatchExpr(" << this->name << ")" << std::endl;
-
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Params(" << std::endl;
-            for (auto p : this->pars) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "Expessions(" << std::endl;
-            for (auto p : this->exprs) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     class MatchExpr : public Expr {
@@ -615,23 +441,10 @@ namespace AST {
             this->lines.clear();
         }
 
-        void print(int indent) {
-            for (int i = 0; i < indent; ++i)
-                std::cout << "  ";
-            std::cout << "MatchExpr()" << std::endl;
-
-            this->var->print(indent + 1);
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-                std::cout << "MatchLines(" << std::endl;
-            for (auto p : this->lines) {
-                p->print(indent + 2);
-            }
-            for (int i = 0; i < indent + 1; ++i)
-                    std::cout << "  ";
-            std::cout << ")" << std::endl;
-        }
+        void print(int);
+        virtual llvm::Value *codegen();
     };
 
     extern Program generate(Node<Lexical> *root);
+    extern int codegen(Program prog, std::string outFile);
 }
