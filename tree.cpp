@@ -36,4 +36,3 @@ void Node<T>::print(void) {
 }
 
 template class Node<Lexical>;
-template class Node<ASTtype>;

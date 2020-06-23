@@ -1,8 +1,8 @@
 // this is a line of comment
-// enum Enum1 {
-//   T1,
-//   T2(a: int32)
-// }
+enum Enum1 {
+  T1,
+  T2(a: int32)
+}
 
 class Name<T> {
   var a : T;
@@ -14,18 +14,18 @@ class Name<T> {
 
 const a = 1 * (2 + 3) + 4 == 1;
 
-// var b : uint8[10];
-// var c : mystruct = 100;
+var b : uint8[10];
+var c : mystruct = 100;
 var nn : int32 = 10;
 
 function foo(a : int32, b : char) : int32{
   // foo does this
-  // if (b) {
-  //   return a.b;
-  // }
-  // else {
-  //   return 0;
-  // }
+  if (b) {
+    return a.b;
+  }
+  else {
+    return 0;
+  }
   while (a == b >= b) {
     return 1;
   }
@@ -35,17 +35,17 @@ function foo(a : int32, b : char) : int32{
     sum = sum + i;
   }
 
-//  match (Enum1) {
-//    val1: {
-//      return 1;
-//    }
-//    val2: {
-//      return 2;
-//    }
-//    val3: {
-//      return 3;
-//    }
-//  }
+  match (Enum1) {
+    val1(a, b): {
+      return 1;
+    }
+    val2: {
+      return 2;
+    }
+    val3: {
+      return 3;
+    }
+  }
   return sum;
 }
 

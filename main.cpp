@@ -25,8 +25,9 @@ int main(int argc, char** argv) {
   
   auto result_scanner = scanner::scan(input);
   auto result_parser  = parser::parse(result_scanner);
+  // result_parser.print();
+
   auto result_ast     = AST::generate(&result_parser);
-  result_parser.print();
   result_ast.print();
 
   return 0;

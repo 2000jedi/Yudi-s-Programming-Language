@@ -5,46 +5,33 @@
 #include <iostream>
 #include <string>
 
-std::ostream& operator<< (std::ostream &out, ASTtype const& data) {
-    out << data.name;
-    return out;
-}
+using namespace AST;
 
-void print_rec(std::string indent, ASTtype curr) {
-  std::cout << indent << curr << std::endl;
-  for (auto i : curr.child) {
-    print_rec(indent + "  ", i);
-  }
-}
-
-void ASTtype::print(void) {
-  print_rec("", *this);
-}
-
-ASTtype left_factor(ASTtype curr) {
-    return curr; // TODO: turn right factored expr into left factored
-}
-
-ASTtype recursive_gen(Node<Lexical> *curr) {
+BaseAST* recursive_gen(Node<Lexical> *curr) {
+    /*
+        std::cout << (unsigned long) curr << curr->t.name << std::endl;
+    */
     if (curr->t.name == "<EPS>") {
-      return ASTtype(":null:");
+      return nullptr;
     }
     if (curr->t.name == "<STATEMENTS>") {
-        ASTtype parent(":statements:");
-        parent.child.push_back(recursive_gen(&curr->child[0]));
+        Program* prog = new AST::Program();
+        prog->insert(dynamic_cast<GlobalStatement *>(
+            recursive_gen(&curr->child[0])));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            parent.child.push_back(recursive_gen(&curr->child[0]));
+            prog->insert(dynamic_cast<GlobalStatement *>(
+                recursive_gen(&curr->child[0])));
         }
-        return parent;
+        return prog;
     }
 
     if (curr->t.name == "<CLASS_DOMAIN>") {
-        ASTtype parent(":statements:");
-        parent.child.push_back(recursive_gen(&curr->child[0]));
+        ASTs *parent = new ASTs();
+        parent->insert(recursive_gen(&curr->child[0]));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            parent.child.push_back(recursive_gen(&curr->child[0]));
+            parent->insert(recursive_gen(&curr->child[0]));
         }
         return parent;
     }
@@ -54,531 +41,612 @@ ASTtype recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<CONSTDEF>") {
-        ASTtype parent(":const_def:");
-        ASTtype const_name(":name:");
-        const_name.child.push_back(curr->child[1].t.data);
-        parent.child.push_back(const_name);
-        parent.child.push_back(recursive_gen(&curr->child[3])); // initializer
+        EvalExpr *init = dynamic_cast<EvalExpr *>(
+            recursive_gen(&curr->child[3]));
+        ConstDecl* parent = new ConstDecl(curr->child[1].t.data, init);
+
         return parent;
     }
 
     if (curr->t.name == "<VARDEF>") {
-        ASTtype parent(":var_def:");
-        ASTtype var_name(":name:");
-        ASTtype var_name_inside(curr->child[1].t.data);
-        var_name.child.push_back(var_name_inside);
-        parent.child.push_back(var_name);
-        parent.child.push_back(recursive_gen(&curr->child[3])); // type of the var
-        parent.child.push_back(recursive_gen(&curr->child[4])); // initializer
-        return parent;
+        TypeDecl *type = dynamic_cast<TypeDecl *>(
+            recursive_gen(&curr->child[3]));
+        Expr *init = dynamic_cast<Expr *>(
+            recursive_gen(&curr->child[4]));
+        if (! init) {
+            return new VarDecl(curr->child[1].t.data, type, nullptr);
+        } else {
+            return new VarDecl(
+                curr->child[1].t.data, type, dynamic_cast<EvalExpr *>(init));
+        }
     }
 
     if (curr->t.name == "<TYPENAME>") {
-        ASTtype parent(":type:");
+        std::string name;
         if (curr->child[0].t.name == "NAME") {
-            parent.child.push_back(ASTtype(":struct:"));
-            parent.child[0].child.push_back(curr->child[0].t.data);
+            name = curr->child[0].t.data;
         } else {
-            parent.child.push_back(curr->child[0].t.name);
+            name = curr->child[0].t.name;
         }
 
         if (curr->child[1].child[0].t.name == "<EPS>") {
-            parent.child.push_back(ASTtype(":null:"));
+            return new TypeDecl(name, "0");
         } else {
-            parent.child.push_back(ASTtype(curr->child[1].child[1].t.data));
+            return new TypeDecl(name, curr->child[1].child[1].t.data);
         }
-        return parent;
     }
 
     if (curr->t.name == "<OPTIONAL_INIT>") {
-        ASTtype parent(":init:");
         if (curr->child[0].t.name == "<EPS>")
-            parent.child.push_back(ASTtype(":null:"));
+            return new Expr(); // empty statement
         else {
-            parent.child.push_back(recursive_gen(&curr->child[1]));
+            return recursive_gen(&curr->child[1]);
         }
-        return parent;
     }
 
     if (curr->t.name == "<FUNCDEF>") {
-        ASTtype parent(":func_def:");
-        ASTtype name(":name:");
-        name.child.push_back(curr->child[1].t.data);
-        parent.child.push_back(name);
-        parent.child.push_back(recursive_gen(&curr->child[2])); // generic
-        parent.child.push_back(recursive_gen(&curr->child[4])); // params
-        parent.child.push_back(recursive_gen(&curr->child[6])); // optional return
-        parent.child.push_back(recursive_gen(&curr->child[8])); // EXPRS
+        GenericDecl *gen = dynamic_cast<GenericDecl *>(
+            recursive_gen(&curr->child[2]));
+        TypeDecl *ret = dynamic_cast<TypeDecl *>(
+            recursive_gen(&curr->child[6]));
+        FuncDecl *parent = new FuncDecl(curr->child[1].t.data, gen, ret);
+
+        ASTs *params = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[4]));
+        ASTs *exprs  = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[8]));
+
+        for (auto p : params->stmts) {
+            parent->pars.push_back(dynamic_cast<Param *>(p));
+        }
+        
+        for (auto p : exprs->stmts) {
+            parent->exprs.push_back(dynamic_cast<Expr *>(p));
+        }
+
         return parent;
     }
 
     if (curr->t.name == "<OPTIONAL_GENERIC_DEF>") {
-        ASTtype parent(":generic_defs:");
         if (curr->child[0].t.name == "<EPS>") {
-            parent.child.push_back(ASTtype(":null:"));
+            return new GenericDecl();
         } else {
-            parent.child.push_back(ASTtype(curr->child[1].t.data));
+            return new GenericDecl(curr->child[1].t.data);
         }
-
-        return parent;
     }
 
     if (curr->t.name == "<OPTIONAL_PARAMS_DEF>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return ASTtype(":null:");
+            return new ASTs();
         } else {
             return recursive_gen(&curr->child[1]);
         }
     }
 
     if (curr->t.name == "<PARAMS_DEF>") {
-        ASTtype parent(":params:");
+        ASTs *params = new ASTs();
         if (curr->child[0].t.name == "<EPS>") {
-          parent.child.push_back(ASTtype(":null:"));
-          return parent;
+          return params;
         }
 
-        parent.child.push_back(recursive_gen(&curr->child[0]));
+        params->stmts.push_back(recursive_gen(&curr->child[0]));
         curr = &curr->child[1];
         while (curr->child[0].t.name != "<EPS>") {
-            parent.child.push_back(recursive_gen(&curr->child[1]));
+            params->stmts.push_back(recursive_gen(&curr->child[1]));
             curr = &curr->child[2];
         }
-        return parent;
+        return params;
     }
 
     if (curr->t.name == "<PARAM>") {
-        ASTtype parent(":param:");
-        ASTtype name(":name:");
-        name.child.push_back(ASTtype(curr->child[0].t.data));
-        parent.child.push_back(name);
-        parent.child.push_back(recursive_gen(&curr->child[2]));
-        return parent;
+        TypeDecl *type = dynamic_cast<TypeDecl *>(
+            recursive_gen(&curr->child[2]));
+        Param *param = new Param(curr->child[0].t.data, type);;
+        return param;
     }
 
     if (curr->t.name == "<RETURN_DEF>") {
-        ASTtype parent(":return_type:");
         if (curr->child[0].t.name == "<EPS>") {
-            parent.child.push_back(ASTtype(":null:"));
-            return parent;
+            return new TypeDecl("void", "0");
         } else {
-            parent.child.push_back(recursive_gen(&curr->child[1]));
-            return parent;
+            return recursive_gen(&curr->child[1]);
         }
     }
 
     if (curr->t.name == "<ENUMDEF>") {
-        ASTtype parent(":enum_def:");
-        ASTtype name(":name:");
-        name.child.push_back(ASTtype(curr->child[1].t.data));
-        parent.child.push_back(name);
-        parent.child.push_back(recursive_gen(&curr->child[2])); // generic
-        parent.child.push_back(recursive_gen(&curr->child[4])); // options
+        ASTs *options = dynamic_cast<ASTs *>(recursive_gen(&curr->child[3]));
+        EnumDecl *parent = new EnumDecl(curr->child[1].t.data);
+        
+        for (auto p : options->stmts) {
+            parent->options.push_back(dynamic_cast<Option *>(p));
+        }
+
         return parent;
     }
 
     if (curr->t.name == "<OPTIONS>") {
-        ASTtype parent(":options:");
+        ASTs *options = new ASTs();
         if (curr->child[0].t.name == "<EPS>") {
-            parent.child.push_back(ASTtype(":null:"));
-            return parent;
+            return options;
         }
+        Option *option = new Option(curr->child[0].t.data);
+        ASTs *pars = dynamic_cast<ASTs *>(recursive_gen(&curr->child[1]));
+        for (auto p : pars->stmts) {
+            option->pars.push_back(dynamic_cast<Param *>(p));
+        }
+        options->stmts.push_back(option);
 
-        ASTtype option(":option:");
-        option.child.push_back(ASTtype(curr->child[0].t.data));
-        option.child.push_back(recursive_gen(&curr->child[1]));
-        parent.child.push_back(option);
         curr = &curr->child[2];
         
         while (curr->child[0].t.name != "<EPS>") {
-            ASTtype option(":option:");
-            option.child.push_back(ASTtype(curr->child[1].t.data));
-            option.child.push_back(recursive_gen(&curr->child[2]));
-            parent.child.push_back(option);
+            Option *option = new Option(curr->child[1].t.data);
+            ASTs *pars = dynamic_cast<ASTs *>(recursive_gen(&curr->child[2]));
+            for (auto p : pars->stmts) {
+                option->pars.push_back(dynamic_cast<Param *>(p));
+            }
+            options->stmts.push_back(option);
             curr = &curr->child[3];
         }
-        return parent;
+        return options;
+    }
+
+    if (curr->t.name == "<MATCH_OPTION>") {
+        ASTs *options = new ASTs();
+        if (curr->child[0].t.name == "<EPS>") {
+            return options;
+        }
+        curr = &curr->child[1];
+        options->insert(new Param(curr->child[0].t.data, nullptr));
+
+        curr = &curr->child[1];
+        while (curr->child[0].t.name != "<EPS>") {
+            options->insert(new Param(curr->child[1].t.data, nullptr));
+            curr = &curr->child[2];
+        }
+
+        return options;
     }
 
     if (curr->t.name == "<CLASSDEF>") {
-        ASTtype parent(":class_def:");
-        ASTtype name(":name:");
-        name.child.push_back(ASTtype(curr->child[1].t.data));
-        parent.child.push_back(name);
-        parent.child.push_back(recursive_gen(&curr->child[2])); // generic
-        parent.child.push_back(recursive_gen(&curr->child[4])); // domain
+        GenericDecl *g = dynamic_cast<GenericDecl *>(
+            recursive_gen(&curr->child[2]));
+        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[4]));
+        ClassDecl *parent = new ClassDecl(curr->child[1].t.data, g);
+        
+        for (auto p : exprs->stmts) {
+            parent->stmts.push_back(dynamic_cast<GlobalStatement *>(p));
+        }
         return parent;
     }
 
     if (curr->t.name == "<EXPRS>") {
-        ASTtype parent(":exprs:");
-        parent.child.push_back(recursive_gen(&curr->child[0]));
+        ASTs *exprs = new ASTs();
+        BaseAST *expr = recursive_gen(&curr->child[0]);
+        if (expr)
+            exprs->stmts.push_back(expr);
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            parent.child.push_back(recursive_gen(&curr->child[0]));
+            expr = recursive_gen(&curr->child[0]);
+            if (expr)
+                exprs->stmts.push_back(expr);
         }
-        return parent;
+        return exprs;
     }
 
     if (curr->t.name == "<EXPR>")
         return recursive_gen(&curr->child[0]);
 
     if (curr->t.name == "<EMPTY_EXPR>")
-        return ASTtype(":null:");
+        return new Expr();
 
     if (curr->t.name == "<RET_EXPR>") {
-        ASTtype parent(":return:");
-        parent.child.push_back(recursive_gen(&curr->child[1]));
-        return parent;
+        return new RetExpr(dynamic_cast<EvalExpr *>(
+            recursive_gen(&curr->child[1])
+        ));
     }
 
     if (curr->t.name == "<IF_EXPR>") {
-        ASTtype parent(":if:");
-        ASTtype cond(":cond:");
-        ASTtype iftrue(":iftrue:");
-        ASTtype iffalse(":iffalse:");
-        cond.child.push_back(recursive_gen(&curr->child[2]));
-        iftrue.child.push_back(recursive_gen(&curr->child[5]));
-        iffalse.child.push_back(recursive_gen(&curr->child[7]));
-        parent.child.push_back(cond);
-        parent.child.push_back(iftrue);
-        parent.child.push_back(iffalse);
+        IfExpr *parent = new IfExpr(dynamic_cast<EvalExpr *>(
+            recursive_gen(&curr->child[2])));
+
+        ASTs *iftrue = dynamic_cast<ASTs *>(recursive_gen(&curr->child[5]));
+        ASTs *iffalse = dynamic_cast<ASTs *>(recursive_gen(&curr->child[7]));
+        
+        for (auto p : iftrue->stmts) {
+            parent->iftrue.push_back(dynamic_cast<Expr *>(p));
+        }
+
+        for (auto p : iffalse->stmts) {
+            parent->iffalse.push_back(dynamic_cast<Expr *>(p));
+        }
 
         return parent;
     }
 
     if (curr->t.name == "<OPTIONAL_ELSE_EXPR>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return new ASTs();
         else {
             return recursive_gen(&curr->child[2]);
         }
     }
 
     if (curr->t.name == "<WHILE_EXPR>") {
-        ASTtype parent(":while:");
-        ASTtype cond(":cond:");
-        cond.child.push_back(recursive_gen(&curr->child[2]));
-        parent.child.push_back(cond);
-        parent.child.push_back(recursive_gen(&curr->child[5]));
+        WhileExpr *parent = new WhileExpr(dynamic_cast<EvalExpr *>(
+            recursive_gen(&curr->child[2])));
+        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[5]));
+
+        for (auto p : exprs->stmts) {
+            parent->exprs.push_back(dynamic_cast<Expr *>(p));
+        }
         return parent;
     }
 
     if (curr->t.name == "<FOR_EXPR>") {
-        ASTtype parent(":for:");
-        ASTtype init(":init:");
-        ASTtype cond(":cond:");
-        ASTtype iter(":iter:");
-        init.child.push_back(recursive_gen(&curr->child[2]));
-        cond.child.push_back(recursive_gen(&curr->child[4]));
-        iter.child.push_back(recursive_gen(&curr->child[6]));
-        parent.child.push_back(init);
-        parent.child.push_back(cond);
-        parent.child.push_back(iter);
-        parent.child.push_back(recursive_gen(&curr->child[9]));
+        ForExpr *parent = new ForExpr(
+            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[2])),
+            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[4])),
+            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[6]))
+        );
+
+        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[9]));
+        for (auto p : exprs->stmts) {
+            parent->exprs.push_back(dynamic_cast<Expr *>(p));
+        }
+
         return parent;
     }
 
     if (curr->t.name == "<MATCH_EXPR>") {
-        ASTtype parent(":match:");
-        ASTtype cond(":cond:");
-        cond.child.push_back(recursive_gen(&curr->child[2]));
-        parent.child.push_back(cond);
-        parent.child.push_back(recursive_gen(&curr->child[5]));
-        return parent;
+        MatchExpr *match = new MatchExpr(dynamic_cast<EvalExpr *>(
+            recursive_gen(&curr->child[2])));
+
+        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[5]));
+        for (auto p : exprs->stmts) {
+            match->lines.push_back(dynamic_cast<MatchLine *>(p));
+        }
+
+        return match;
     }
 
     if (curr->t.name == "<MATCH_LINES>") {
-        ASTtype parent(":states:");
+        ASTs *exprs = new ASTs();
         while (curr->child.size() > 1) {
-            ASTtype line(":line:");
-            ASTtype name(":name:");
-            name.child.push_back(ASTtype(curr->child[0].t.data));
-            line.child.push_back(name);
-            line.child.push_back(recursive_gen(&curr->child[1]));
-            line.child.push_back(recursive_gen(&curr->child[4]));
-            parent.child.push_back(line);
+            MatchLine *line = new MatchLine(curr->child[0].t.data);
+            ASTs *pars = dynamic_cast<ASTs *>(recursive_gen(&curr->child[1]));
+            ASTs *expr = dynamic_cast<ASTs *>(recursive_gen(&curr->child[4]));
+            
+            for (auto p : pars->stmts) {
+                line->pars.push_back(dynamic_cast<Param *>(p));
+            }
+            for (auto p : expr->stmts) {
+                line->exprs.push_back(dynamic_cast<Expr *>(p));
+            }
+
             curr = &curr->child[6];
+            exprs->insert(line);
         }
-        return parent;
+        return exprs;
     }
 
     if (curr->t.name == "<EVAL_EXPR>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        if (opr1.name == ":null:") {
-            std::cerr << "ast.cpp: left operation is null, terminating" << std::endl;
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(":assign:"));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2);
-            return parent;
+            return new EvalExpr(
+                "assign",
+                dynamic_cast<EvalExpr *>(opr1),
+                dynamic_cast<EvalExpr *>(opr2)
+            );
         }
     }
 
     if (curr->t.name == "<ASSIGN>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
+            BaseAST *opr1 = recursive_gen(&curr->child[1]);
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (! opr2) {
                 return opr1;
             } else {
-                ASTtype parent(":binary_op:");
-                parent.child.push_back(ASTtype(":assign:"));
-                parent.child.push_back(opr1);
-                parent.child.push_back(opr2);
-                return parent;
+                return new EvalExpr(
+                    "assign",
+                    dynamic_cast<EvalExpr *>(opr1),
+                    dynamic_cast<EvalExpr *>(opr2)
+                );
             }
         }
     }
 
     if (curr->t.name == "<LOGICAL_OR>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
+            exit(-1);
+        }
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(":LOR:"));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2);
-            return left_factor(parent);
+            return new EvalExpr(
+                "LOR",
+                dynamic_cast<EvalExpr *>(opr1),
+                dynamic_cast<EvalExpr *>(opr2)
+            );
         }
     }
 
     if (curr->t.name == "<LOR>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
+            BaseAST *opr1 = recursive_gen(&curr->child[1]);
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (! opr2) {
                 return opr1;
             } else {
-                ASTtype parent(":binary_op:");
-                parent.child.push_back(ASTtype(":LOR:"));
-                parent.child.push_back(opr1);
-                parent.child.push_back(opr2);
-                return parent;
+                return new EvalExpr(
+                    "LOR",
+                    dynamic_cast<EvalExpr *>(opr1),
+                    dynamic_cast<EvalExpr *>(opr2)
+                );
             }
         }
     }
 
     if (curr->t.name == "<LOGICAL_AND>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
+            exit(-1);
+        }
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(":LAND:"));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2);
-            return left_factor(parent);
+            return new EvalExpr(
+                "LAND",
+                dynamic_cast<EvalExpr *>(opr1),
+                dynamic_cast<EvalExpr *>(opr2)
+            );
         }
     }
 
     if (curr->t.name == "<LAND>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
+            BaseAST *opr1 = recursive_gen(&curr->child[1]);
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (! opr2) {
                 return opr1;
             } else {
-                ASTtype parent(":binary_op:");
-                parent.child.push_back(ASTtype(":LAND:"));
-                parent.child.push_back(opr1);
-                parent.child.push_back(opr2);
-                return parent;
+                return new EvalExpr(
+                    "LAND",
+                    dynamic_cast<EvalExpr *>(opr1),
+                    dynamic_cast<EvalExpr *>(opr2)
+                );
             }
         }
     }
 
     if (curr->t.name == "<BITWISE_OR>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
+            exit(-1);
+        }
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(":BOR:"));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2);
-            return left_factor(parent);
+            return new EvalExpr(
+                "BOR",
+                dynamic_cast<EvalExpr *>(opr1),
+                dynamic_cast<EvalExpr *>(opr2)
+            );
         }
     }
 
     if (curr->t.name == "<BOR>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
+            BaseAST *opr1 = recursive_gen(&curr->child[1]);
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (! opr2) {
                 return opr1;
             } else {
-                ASTtype parent(":binary_op:");
-                parent.child.push_back(ASTtype(":BOR:"));
-                parent.child.push_back(opr1);
-                parent.child.push_back(opr2);
-                return parent;
+                return new EvalExpr(
+                    "BOR",
+                    dynamic_cast<EvalExpr *>(opr1),
+                    dynamic_cast<EvalExpr *>(opr2)
+                );
             }
         }
     }
 
     if (curr->t.name == "<BITWISE_XOR>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
+            exit(-1);
+        }
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(":BXOR:"));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2);
-            return left_factor(parent);
+            return new EvalExpr(
+                "BXOR",
+                dynamic_cast<EvalExpr *>(opr1),
+                dynamic_cast<EvalExpr *>(opr2)
+            );
         }
     }
 
     if (curr->t.name == "<BXOR>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
+            BaseAST *opr1 = recursive_gen(&curr->child[1]);
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (! opr2) {
                 return opr1;
             } else {
-                ASTtype parent(":binary_op:");
-                parent.child.push_back(ASTtype(":BXOR:"));
-                parent.child.push_back(opr1);
-                parent.child.push_back(opr2);
-                return parent;
+                return new EvalExpr(
+                    "BXOR",
+                    dynamic_cast<EvalExpr *>(opr1),
+                    dynamic_cast<EvalExpr *>(opr2)
+                );
             }
         }
     }
 
     if (curr->t.name == "<BITWISE_AND>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
+            exit(-1);
+        }
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(":BAND:"));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2);
-            return left_factor(parent);
+            return new EvalExpr(
+                "BAND",
+                dynamic_cast<EvalExpr *>(opr1),
+                dynamic_cast<EvalExpr *>(opr2)
+            );
         }
     }
 
     if (curr->t.name == "<BAND>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
+            BaseAST *opr1 = recursive_gen(&curr->child[1]);
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (! opr2) {
                 return opr1;
             } else {
-                ASTtype parent(":binary_op:");
-                parent.child.push_back(ASTtype(":BAND:"));
-                parent.child.push_back(opr1);
-                parent.child.push_back(opr2);
-                return parent;
+                return new EvalExpr(
+                    "BAND",
+                    dynamic_cast<EvalExpr *>(opr1),
+                    dynamic_cast<EvalExpr *>(opr2)
+                );
             }
         }
     }
 
     if (curr->t.name == "<EQ_NEQ>" || curr->t.name == "<LGTE>" || curr->t.name == "<ADD_SUB>" || curr->t.name == "<MUL_DIV>" || curr->t.name == "<CDOT>") {
-        ASTtype opr1 = recursive_gen(&curr->child[0]);
-        ASTtype opr2 = recursive_gen(&curr->child[1]);
-        if (opr2.name == ":null:") {
+        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        if (!opr1) {
+            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
+            exit(-1);
+        }
+        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        if (!opr2) {
             return opr1;
         } else {
-            ASTtype parent(":binary_op:");
-            parent.child.push_back(ASTtype(opr2.name));
-            parent.child.push_back(opr1);
-            parent.child.push_back(opr2.child[0]);
-            return left_factor(parent);
+            EvalExpr *opr2_ = dynamic_cast<EvalExpr *>(opr2);
+            return new EvalExpr(
+                opr2_->op,
+                dynamic_cast<EvalExpr *>(opr1),
+                opr2_->l
+            );
         }
     }
 
     if (curr->t.name == "<EQ_NEQ_>" || curr->t.name == "<LGTE_>" || curr->t.name == "<ADD_SUB_>" || curr->t.name == "<MUL_DIV_>" || curr->t.name == "<CDOT_>") {
         if (curr->child[0].t.name == "<EPS>")
-            return ASTtype(":null:");
+            return nullptr;
         else {
-            ASTtype parent(ASTtype(":" + curr->child[0].t.name + ":"));
-
-            ASTtype opr1 = recursive_gen(&curr->child[1]);
-            ASTtype opr2 = recursive_gen(&curr->child[2]);
-            if (opr2.name == ":null:") {
-                parent.child.push_back(opr1);
-                return parent;
-            } else {
-                ASTtype rec(":binary_op:");
-                rec.child.push_back(opr2.name);
-                rec.child.push_back(opr1);
-                rec.child.push_back(opr2.child[0]);
-
-                parent.child.push_back(rec);
-                return parent;
+            EvalExpr *opr1 = dynamic_cast<EvalExpr *>(
+                recursive_gen(&curr->child[1]));
+            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            if (!opr2)
+                return new EvalExpr(
+                    curr->child[0].t.name,
+                    opr1,
+                    nullptr
+                );
+            else {
+                EvalExpr *opr2_ = dynamic_cast<EvalExpr *>(
+                    opr2);
+                EvalExpr *rec = new EvalExpr(
+                    opr2_->op,
+                    opr1,
+                    opr2_->l
+                );
+                return new EvalExpr(
+                    "recursive",
+                    rec,
+                    nullptr
+                );
             }
         }
     }
 
     if (curr->t.name == "<PARS>") {
         if (curr->child[0].t.name == "NAME") {
-            ASTtype name(":name:");
-            name.child.push_back(ASTtype(curr->child[0].t.data));
-            name.child.push_back(recursive_gen(&curr->child[1]));
-            name.child.push_back(recursive_gen(&curr->child[2]));
-            return name;
+            FuncCall *fc = dynamic_cast<FuncCall *>(
+                recursive_gen(&curr->child[1]));
+            EvalExpr *arr = dynamic_cast<EvalExpr *>(
+                recursive_gen(&curr->child[2]));
+            return new EvalExpr(new Value(curr->child[0].t.data, fc, arr));
         }
         if (curr->child[0].t.name == "LPAR") {
             return recursive_gen(&curr->child[1]);
         }
 
-        ASTtype data(curr->child[0].t.name);
-        data.child.push_back(ASTtype(curr->child[0].t.data));
-        return data;
+        return new EvalExpr(new Value(curr->child[0].t.data));
     }
 
     if (curr->t.name == "<OPTIONAL_FUNCCALL>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return ASTtype(":null:");
+            return nullptr;
         } else {
-            ASTtype params(":params:");
+            FuncCall *fc = new FuncCall();
             while (curr->child.size() > 1) {
-                params.child.push_back(recursive_gen(&curr->child[1]));
+                fc->pars.push_back(dynamic_cast<EvalExpr *>(
+                    recursive_gen(&curr->child[1])));
                 curr = &curr->child[2];
             }
-            return params;
+            return fc;
         }
     }
 
     if (curr->t.name == "<OPTIONAL_ARRAY>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return ASTtype(":null:");
+            return nullptr;
         } else {
-            ASTtype array(":arr_index:");
-            array.child.push_back(recursive_gen(&curr->child[1]));
-            return array;
+            return recursive_gen(&curr->child[1]);
         }
     }
 
-    return ASTtype("in progress: " + curr->t.name);
+    std::cerr << curr->t.name << " is not defined" << std::endl;
+    return nullptr;
 }
 
-ASTtype AST::generate(Node<Lexical> *root) {
-    return recursive_gen(root);
+Program AST::generate(Node<Lexical> *root) {
+    return *dynamic_cast<Program *>(recursive_gen(root));
+}
+
+void EvalExpr::print(int indent) {
+    if (this->isVal) {
+        this->val->print(indent);
+    } else {
+        for (int i = 0; i < indent; ++i)
+            std::cout << "  ";
+        std::cout << "BinaryOp(" << this->op << ')' << std::endl;
+        this->l->print(indent + 1);
+        this->r->print(indent + 1);
+    }
 }

@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -g -Wall -Werror -march=native -O3 -std=c++11 $(FLAGS)
+CXXFLAGS = -g -Wall -Werror -march=native -O3 -std=c++11 -frtti $(FLAGS)
 
 TARGET = auto
 SRCS = lexical.cpp tree.cpp ast.cpp scanner.cpp parser.cpp
