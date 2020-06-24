@@ -618,9 +618,9 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
         if (curr->child[0].t.name == "STRING") {
             std::string str = curr->child[0].t.data;
-            return new EvalExpr(new ExprVal(
-                /* trim the " operator from string */
-                str.substr(1, str.size() - 2), 
+            str = str.substr(1, str.size() - 2);
+            /* trim the " operator from string */
+            return new EvalExpr(new ExprVal(str, 
                 new TypeDecl(TypeDecl::STRING, "0")));
         }
     }
@@ -1126,6 +1126,9 @@ llvm::Value *EvalExpr::codegen() {
         return nullptr;
     }
 
+    /*
+    TODO: type inference
+    */
     if (this->op == "ADD")
         return Builder.CreateAdd(lv, rv, "_");
     if (this->op == "SUB")
@@ -1224,6 +1227,46 @@ llvm::Value *GenericDecl::codegen() {
 }
 
 llvm::Value *IfExpr::codegen() {
+    llvm::Value *condV = this->cond->codegen();
+    if (!condV) {
+        return nullptr;
+    }
+    condV = Builder.CreateICmpNE(
+        condV, 
+        llvm::ConstantInt::get(TheContext, llvm::APInt(1, 0, true)), 
+        "_");
+
+    llvm::Function *parent = Builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock *trueBB = llvm::BasicBlock::Create(
+        TheContext, "it", parent);
+    llvm::BasicBlock *falseBB;
+    llvm::BasicBlock *finalBB = llvm::BasicBlock::Create(
+        TheContext, "ic");
+    if (this->iffalse.size() == 0) {
+        falseBB = finalBB;
+    } else {
+        falseBB = llvm::BasicBlock::Create(TheContext, "if");
+    }
+    Builder.CreateCondBr(condV, trueBB, falseBB);
+
+    Builder.SetInsertPoint(trueBB);
+    for (auto p : this->iftrue) {
+        p->codegen();
+    }
+    Builder.CreateBr(finalBB);
+    // trueBB = Builder.GetInsertBlock();
+
+    Builder.SetInsertPoint(falseBB);
+    for (auto p : this->iffalse) {
+        p->codegen();
+    }
+    if (this->iffalse.size() != 0)
+        Builder.CreateBr(finalBB);
+    // falseBB = Builder.GetInsertBlock();
+
+    parent->getBasicBlockList().push_back(finalBB);
+    Builder.SetInsertPoint(finalBB);
+
     return nullptr;
 }
 
