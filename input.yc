@@ -1,13 +1,15 @@
-function foo(a : int32) : int32 {
-    return a;
+function fib(a : int32) : int32 {
+    return a * fib(a - 1);
 }
 
 function main() {
     var i : int32 = 1+2*3;
     const j = "hello";
     var arr : int32[5];
-    var k : int32 = foo(1);
+    var k : int32 = fib(1);
 
     i = i + k;
     arr[2] = i;
+
+    printf("%d\n", fib(i));
 }

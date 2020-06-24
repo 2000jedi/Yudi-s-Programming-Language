@@ -616,9 +616,13 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "CHAR")
             return new EvalExpr(new ExprVal(
                 curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
-        if (curr->child[0].t.name == "STRING")
+        if (curr->child[0].t.name == "STRING") {
+            std::string str = curr->child[0].t.data;
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::STRING, "0")));
+                /* trim the " operator from string */
+                str.substr(1, str.size() - 2), 
+                new TypeDecl(TypeDecl::STRING, "0")));
+        }
     }
 
     if (curr->t.name == "<OPTIONAL_FUNCCALL>") {
@@ -1007,9 +1011,18 @@ llvm::Value *ConstToValue(ExprVal *e) {
         case TypeDecl::FP64:
             return llvm::ConstantFP::get(
                 TheContext, llvm::APFloat(std::stod(e->constVal)));
-        case TypeDecl::STRING:
-            return llvm::ConstantDataArray::getString(
-                TheContext, e->constVal, true);
+        case TypeDecl::STRING: {
+            return Builder.CreateGlobalStringPtr(llvm::StringRef(e->constVal));
+            /*
+            llvm::GlobalVariable *gv = new llvm::GlobalVariable(
+                llvm::ArrayType::get(Builder.getInt8Ty(), e->constVal.size()), 
+                true, 
+                llvm::GlobalValue::InternalLinkage,
+                llvm::ConstantDataArray::getString(
+                    TheContext, e->constVal, true));
+            TheModule->getGlobalList().push_back(gv);
+            return gv;*/
+        }
         default:
             LogError("TypeDecl index " << e->type->baseType << " not found");
             return nullptr;
@@ -1029,11 +1042,11 @@ llvm::Value *ExprVal::codegen() {
         }
 
         // TODO: check argument types
-        if (F->arg_size() != this->call->pars.size()) {
+        if ((!F->isVarArg()) && (F->arg_size() != this->call->pars.size())) {
             LogError(
                 "function " << this->refName <<" requires " << F->arg_size() 
-                << "arguments, " << this->call->pars.size() 
-                << "arguments found");
+                << " argument(s), " << this->call->pars.size() 
+                << " argument(s) found");
             return nullptr;
         }
 
@@ -1283,6 +1296,16 @@ llvm::Value *Program::codegen() {
 
 int AST::codegen(Program prog, std::string outFile) {
     TheModule = llvm::make_unique<llvm::Module>(outFile, TheContext);
+
+    /* insert standard C library functions */
+    llvm::Constant *c_printf = TheModule->getOrInsertFunction(
+        "printf",
+        llvm::FunctionType::get(
+            llvm::IntegerType::getInt32Ty(TheContext),
+            llvm::PointerType::get(llvm::Type::getInt8Ty(TheContext), 0), 
+            true /* this is var arg func type*/
+        )
+    );
 
     prog.codegen();
     TheModule->print(llvm::errs(), nullptr);
