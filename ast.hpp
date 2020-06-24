@@ -7,6 +7,9 @@
 #include "tree.hpp"
 #include "lexical.hpp"
 
+#include "err.hpp"
+
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -18,6 +21,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+
+/* Error Logging */
+#define LogError(e) std::cerr << "CodeGen Error: " << e << std::endl
 
 namespace AST {
     class ASTs;
@@ -126,12 +132,50 @@ namespace AST {
 
     class TypeDecl : public BaseAST  {
         public:
-        std::string baseType;
-        std::string arrayT;
+        static const int VOID  = 0;
+        static const int INT32 = 1;
+        static const int UINT8 = 2;
+        static const int FP32  = 3;
+        static const int FP64  = 4;
+        static const int CHAR  = 5;
+        static const int STRING= 6;
+
+        int baseType;
+        int arrayT;
 
         TypeDecl(std::string t, std::string i) {
-            this->baseType = t;
-            this->arrayT = i;
+            this->arrayT = std::stoi(i);
+            if (t == "VOIDT") {
+                this->baseType = VOID;
+                return;
+            }
+            if (t == "INT32") {
+                this->baseType = INT32;
+                return;
+            }
+            if (t == "UINT8") {
+                this->baseType = UINT8;
+                return;
+            }
+            if (t == "FP32") {
+                this->baseType = FP32;
+                return;
+            }
+            if (t == "FP64") {
+                this->baseType = FP64;
+                return;
+            }
+            if (t == "CHART") {
+                this->baseType = CHAR;
+                return;
+            }
+            if (t == "STR") {
+                this->baseType = STRING;
+                return;
+            }
+            
+            LogError("internal: type " << t << " undefined");
+            exit(ERR_PARSER);
         }
 
         void print(int);

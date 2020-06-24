@@ -3,6 +3,8 @@
 #include "parser.hpp"
 #include "ast.hpp"
 
+#include "err.hpp"
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -24,11 +26,15 @@ int main(int argc, char** argv) {
   parser::initialize("parse_table");
   
   auto result_scanner = scanner::scan(input);
+
+  if (result_scanner.size() == 0)
+    exit(ERR_SCANNER);
+
   auto result_parser  = parser::parse(result_scanner);
   // result_parser.print();
 
   auto result_ast     = AST::generate(&result_parser);
-  result_ast.print();
+  // result_ast.print();
 
   AST::codegen(result_ast, "out");
 

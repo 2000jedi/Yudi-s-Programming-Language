@@ -3,6 +3,7 @@
 #include "tree.hpp"
 
 #include <iostream>
+#include <sstream>
 #include <string>
 
 using namespace AST;
@@ -147,7 +148,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
     if (curr->t.name == "<RETURN_DEF>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return new TypeDecl("void", "0");
+            return new TypeDecl("VOIDT", "0");
         } else {
             return recursive_gen(&curr->child[1]);
         }
@@ -340,7 +341,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return opr1;
         } else {
             return new EvalExpr(
-                "assign",
+                "=",
                 dynamic_cast<EvalExpr *>(opr1),
                 dynamic_cast<EvalExpr *>(opr2)
             );
@@ -357,7 +358,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 return opr1;
             } else {
                 return new EvalExpr(
-                    "assign",
+                    "=",
                     dynamic_cast<EvalExpr *>(opr1),
                     dynamic_cast<EvalExpr *>(opr2)
                 );
@@ -376,7 +377,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return opr1;
         } else {
             return new EvalExpr(
-                "LOR",
+                "||",
                 dynamic_cast<EvalExpr *>(opr1),
                 dynamic_cast<EvalExpr *>(opr2)
             );
@@ -393,7 +394,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 return opr1;
             } else {
                 return new EvalExpr(
-                    "LOR",
+                    "||",
                     dynamic_cast<EvalExpr *>(opr1),
                     dynamic_cast<EvalExpr *>(opr2)
                 );
@@ -412,7 +413,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return opr1;
         } else {
             return new EvalExpr(
-                "LAND",
+                "&&",
                 dynamic_cast<EvalExpr *>(opr1),
                 dynamic_cast<EvalExpr *>(opr2)
             );
@@ -429,7 +430,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 return opr1;
             } else {
                 return new EvalExpr(
-                    "LAND",
+                    "&&",
                     dynamic_cast<EvalExpr *>(opr1),
                     dynamic_cast<EvalExpr *>(opr2)
                 );
@@ -448,7 +449,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return opr1;
         } else {
             return new EvalExpr(
-                "BOR",
+                "|",
                 dynamic_cast<EvalExpr *>(opr1),
                 dynamic_cast<EvalExpr *>(opr2)
             );
@@ -465,7 +466,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 return opr1;
             } else {
                 return new EvalExpr(
-                    "BOR",
+                    "|",
                     dynamic_cast<EvalExpr *>(opr1),
                     dynamic_cast<EvalExpr *>(opr2)
                 );
@@ -484,7 +485,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return opr1;
         } else {
             return new EvalExpr(
-                "BXOR",
+                "^",
                 dynamic_cast<EvalExpr *>(opr1),
                 dynamic_cast<EvalExpr *>(opr2)
             );
@@ -501,7 +502,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 return opr1;
             } else {
                 return new EvalExpr(
-                    "BXOR",
+                    "^",
                     dynamic_cast<EvalExpr *>(opr1),
                     dynamic_cast<EvalExpr *>(opr2)
                 );
@@ -520,7 +521,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return opr1;
         } else {
             return new EvalExpr(
-                "BAND",
+                "&",
                 dynamic_cast<EvalExpr *>(opr1),
                 dynamic_cast<EvalExpr *>(opr2)
             );
@@ -537,7 +538,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
                 return opr1;
             } else {
                 return new EvalExpr(
-                    "BAND",
+                    "&",
                     dynamic_cast<EvalExpr *>(opr1),
                     dynamic_cast<EvalExpr *>(opr2)
                 );
@@ -608,7 +609,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
         if (curr->child[0].t.name == "FLOAT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl("FLOAT", "0")));
+                curr->child[0].t.data, new TypeDecl("FP32", "0")));
         if (curr->child[0].t.name == "INT")
             return new EvalExpr(new ExprVal(
                 curr->child[0].t.data, new TypeDecl("INT32", "0")));
@@ -946,43 +947,38 @@ static llvm::IRBuilder<> Builder(TheContext);
 static std::unique_ptr<llvm::Module> TheModule;
 static std::map<std::string, llvm::Value *> NamedValues;
 
-/* Error Logging */
-BaseAST *LogError(const char *Str) {
-    std::cerr << "Error: " << Str << std::endl;
-    return nullptr;
-}
-
-llvm::Value *LogErrorV(const char *Str) {
-  LogError(Str);
-  return nullptr;
-}
-
 /* Variable Allocate Helper Function */
 static llvm::AllocaInst *CreateEntryBlockAlloca(
-    llvm::Function *F, const std::string &name, llvm::Type *type) {
-  llvm::IRBuilder<> tmpBuilder(
-      &F->getEntryBlock(), F->getEntryBlock().begin());
-  return tmpBuilder.CreateAlloca(type, 0, name.c_str());
+    llvm::Function *F, const std::string &name, llvm::Type *type, int size) {
+    llvm::IRBuilder<> tmpBuilder(
+        &F->getEntryBlock(), F->getEntryBlock().begin());
+
+    llvm::Value *arr = 0;
+    if (size)
+        arr = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size, true));
+
+    return tmpBuilder.CreateAlloca(type, arr, name.c_str());
 }
 
 /* Type Translate */
 llvm::Type *type_trans(TypeDecl *td) {
-    if (td->baseType == "FLOAT") {
-        return llvm::Type::getDoubleTy(TheContext);
+    switch (td->baseType) {
+        case TypeDecl::VOID:
+            return llvm::Type::getVoidTy(TheContext);
+        case TypeDecl::INT32:
+            return llvm::Type::getInt32Ty(TheContext);
+        case TypeDecl::CHAR:
+            return llvm::Type::getInt8Ty(TheContext);
+        case TypeDecl::FP32:
+            return llvm::Type::getFloatTy(TheContext);
+        case TypeDecl::FP64:
+            return llvm::Type::getDoubleTy(TheContext);
+        case TypeDecl::STRING:
+            return llvm::Type::getInt8PtrTy(TheContext);
+        default:
+            LogError("TypeDecl index " << td->baseType << " not found");
+            return nullptr;
     }
-    if (td->baseType == "INT32") {
-        return llvm::Type::getInt32Ty(TheContext);
-    }
-    if (td->baseType == "CHART") {
-        return llvm::Type::getInt8Ty(TheContext);
-    }
-    if (td->baseType == "STR") {
-        return llvm::Type::getInt8PtrTy(TheContext);
-    }
-    if (td->baseType == "void") {
-        return llvm::Type::getVoidTy(TheContext);
-    }
-    return nullptr;
     /* todo: array typing */
 }
 
@@ -996,80 +992,157 @@ llvm::Value *ASTs::codegen() {
     return nullptr;
 }
 
+llvm::Value *ConstToValue(ExprVal *e) {
+    switch (e->type->baseType) {
+        case TypeDecl::VOID:
+            LogError("no constant type \"void\"");
+            return nullptr;
+        case TypeDecl::INT32:
+            return llvm::ConstantInt::get(
+                TheContext, llvm::APInt(32, std::stoi(e->constVal), true));
+        case TypeDecl::CHAR:
+            return llvm::ConstantInt::get(
+                TheContext, llvm::APInt(8, std::stoi(e->constVal), false));
+        case TypeDecl::FP32:
+        case TypeDecl::FP64:
+            return llvm::ConstantFP::get(
+                TheContext, llvm::APFloat(std::stod(e->constVal)));
+        case TypeDecl::STRING:
+            return llvm::ConstantDataArray::getString(
+                TheContext, e->constVal, true);
+        default:
+            LogError("TypeDecl index " << e->type->baseType << " not found");
+            return nullptr;
+    }
+}
+
 llvm::Value *ExprVal::codegen() {
     if (this->isConst) {
-        if (this->type->baseType == "FLOAT") {
-            return llvm::ConstantFP::get(
-                TheContext, llvm::APFloat(std::stod(this->constVal)));
-        }
-        if (this->type->baseType == "INT32") {
-            return llvm::ConstantInt::get(
-                TheContext, llvm::APInt(32, std::stoi(this->constVal), true));
-        }
-        if (this->type->baseType == "CHART") {
-            return llvm::ConstantInt::get(
-                TheContext, llvm::APInt(8, std::stoi(this->constVal), false));
-        }
-        if (this->type->baseType == "STR") {
-            return llvm::ConstantDataArray::getString(
-                TheContext, this->constVal, true);
+        return ConstToValue(this);
+    }
+
+    if (this->call) {
+        llvm::Function *F = TheModule->getFunction(this->refName);
+        if (!F) {
+            LogError("function " << this->refName <<" is not defined");
+            return nullptr;
         }
 
-        return LogErrorV("Constant met strange types");
+        // TODO: check argument types
+        if (F->arg_size() != this->call->pars.size()) {
+            LogError(
+                "function " << this->refName <<" requires " << F->arg_size() 
+                << "arguments, " << this->call->pars.size() 
+                << "arguments found");
+            return nullptr;
+        }
+
+        std::vector<llvm::Value *> args;
+        for (auto p : this->call->pars) {
+            args.push_back(p->codegen());
+            if (!args.back()) {
+                // Argument has no return value
+                return nullptr;
+            }
+        }
+
+        return Builder.CreateCall(F, args, "_");
+    }
+
+    llvm::Value* v = NamedValues[this->refName];
+    if (!v) {
+        LogError("variable " << this->refName << " used before defined");
+        return nullptr;
+    }
+
+    if (this->array) {
+        llvm::Value *index = this->array->codegen();
+        if (! index) {
+            LogError("invalid array index");
+            return nullptr;
+        }
+        return new llvm::LoadInst(
+            Builder.CreateGEP(v, index, "_"), 
+            nullptr, Builder.GetInsertBlock()
+        );
     } else {
-        llvm::Value* v = NamedValues[this->refName];
-        if (!v)
-            return LogErrorV(this->refName.c_str());
-        /*
-        TODO: function call and array reference
-        */
-       return NamedValues[this->refName];
+        return new llvm::LoadInst(v, nullptr, Builder.GetInsertBlock());
     }
 }
 
 llvm::Value *EvalExpr::codegen() {
     if (this->isVal)
         return this->val->codegen();
+
+    if (this->op == "=") {
+        if (! this->l->isVal) {
+            LogError("LHS of assignment must be a variable");
+            return nullptr;
+        }
+        if (this->l->val->isConst)  {
+            LogError("constant cannot be assigned");
+            return nullptr;
+        }
+        if (this->l->val->call) {
+            LogError("function return value cannot be used in LHS of assignment");
+            return nullptr;
+        }
+
+        llvm::Value *v = NamedValues[this->l->val->refName];
+        if (!v) {
+            LogError("variable " << this->l->val->refName << "not found");
+            return nullptr;
+        }
+        if (this->l->val->array) {
+            llvm::Value *index = this->l->val->array->codegen();
+            if (! index) {
+                LogError("invalid array index");
+                return nullptr;
+            }
+            v = Builder.CreateGEP(v, index, "_");
+        }
+        Builder.CreateStore(this->r->codegen(), v, false);
+        return new llvm::LoadInst(v, nullptr, Builder.GetInsertBlock());
+    }
+
     llvm::Value *lv = this->l->codegen();
     llvm::Value *rv = this->r->codegen();
 
-    if (!lv || !rv)
-        return LogErrorV(this->op.c_str());
-
-    /* TODO: Type Inference */
-    if (this->op == "ADD")
-        return Builder.CreateAdd(lv, rv, "addtmp");
-    if (this->op == "SUB")
-        return Builder.CreateSub(lv, rv, "subtmp");
-    if (this->op == "MUL")
-        return Builder.CreateMul(lv, rv, "multmp");
-    if (this->op == "DIV")
-        return Builder.CreateSDiv(lv, rv, "divtmp");
-    if (this->op == "ASSIGN") {
-        Builder.CreateStore(rv, lv, false);
-        return lv;
+    if (!lv || !rv) {
+        LogError("operator " << this->op << " must accept binary inputs");
+        return nullptr;
     }
-    if (this->op == "GT")
-        return Builder.CreateICmpSGT(lv, rv, "gttmp");
-    if (this->op == "LT")
-        return Builder.CreateICmpSLT(lv, rv, "lttmp");
-    if (this->op == "GE")
-        return Builder.CreateICmpSGE(lv, rv, "getmp");
-    if (this->op == "LE")
-        return Builder.CreateICmpSLE(lv, rv, "letmp");
-    if (this->op == "EQ")
-        return Builder.CreateICmpEQ(lv, rv, "eqtmp");
-    if (this->op == "NEQ")
-        return Builder.CreateICmpNE(lv, rv, "netmp");
 
-    std::cerr << "Current Op: " << this->op << std::endl;
-    return LogErrorV("Operator in Construction");
+    if (this->op == "ADD")
+        return Builder.CreateAdd(lv, rv, "_");
+    if (this->op == "SUB")
+        return Builder.CreateSub(lv, rv, "_");
+    if (this->op == "MUL")
+        return Builder.CreateMul(lv, rv, "_");
+    if (this->op == "DIV")
+        return Builder.CreateSDiv(lv, rv, "_");
+    if (this->op == "GT")
+        return Builder.CreateICmpSGT(lv, rv, "_");
+    if (this->op == "LT")
+        return Builder.CreateICmpSLT(lv, rv, "_");
+    if (this->op == "GE")
+        return Builder.CreateICmpSGE(lv, rv, "_");
+    if (this->op == "LE")
+        return Builder.CreateICmpSLE(lv, rv, "_");
+    if (this->op == "EQ")
+        return Builder.CreateICmpEQ(lv, rv, "_");
+    if (this->op == "NEQ")
+        return Builder.CreateICmpNE(lv, rv, "_");
+
+    LogError("operator " << this->op << " under construction");
+    return nullptr;
 }
 
 llvm::Value *FuncDecl::codegen() {
     llvm::Function *prev = TheModule->getFunction(this->name);
     if (prev) {
-        return LogErrorV("Function already declared");
+        LogError("function " << this->name << " already declared");
+        return nullptr;
     }
 
     std::vector<llvm::Type *> ArgTypes;
@@ -1094,13 +1167,19 @@ llvm::Value *FuncDecl::codegen() {
     Idx = 0;
     for (auto &Arg : F->args()) {
         llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-            F, Arg.getName(), type_trans(this->pars[Idx++]->type));
+            F, Arg.getName(), type_trans(this->pars[Idx]->type), 
+            this->pars[Idx]->type->arrayT);
         Builder.CreateStore(&Arg, alloca);
         NamedValues[Arg.getName()] = alloca;
+        Idx++;
     }
 
     for (auto p : this->exprs) {
         p->codegen();
+    }
+
+    if (F->getReturnType()->isVoidTy()) {
+        Builder.CreateRetVoid();
     }
 
     llvm::verifyFunction(*F);
@@ -1152,6 +1231,11 @@ llvm::Value *Param::codegen() {
 }
 
 llvm::Value *RetExpr::codegen() {
+    if (! this->stmt) {
+        Builder.CreateRetVoid();
+        return nullptr;
+    }
+
     llvm::Value *r = this->stmt->codegen();
 
     if (r) {
@@ -1162,16 +1246,19 @@ llvm::Value *RetExpr::codegen() {
 }
 
 llvm::Value *TypeDecl::codegen() {
+    LogError("TypeDecl() cannot generate code");
     return nullptr;
 }
 
 llvm::Value *VarDecl::codegen() {
-    if (NamedValues.find(this->name) != NamedValues.end())
-        return LogErrorV(this->name.c_str());
+    if (NamedValues.find(this->name) != NamedValues.end()) {
+        LogError("variable " << this->name << " already declared");
+        return nullptr;
+    }
 
     llvm::Function *curF = Builder.GetInsertBlock()->getParent();
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name, type_trans(this->type));
+        curF, this->name, type_trans(this->type), this->type->arrayT);
     llvm::Value *v = nullptr;
 
     if (this->init) {
@@ -1196,6 +1283,7 @@ llvm::Value *Program::codegen() {
 
 int AST::codegen(Program prog, std::string outFile) {
     TheModule = llvm::make_unique<llvm::Module>(outFile, TheContext);
+
     prog.codegen();
     TheModule->print(llvm::errs(), nullptr);
     return 0;
