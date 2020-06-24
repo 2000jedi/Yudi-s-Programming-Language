@@ -148,7 +148,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
     if (curr->t.name == "<RETURN_DEF>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return new TypeDecl("VOIDT", "0");
+            return new TypeDecl(TypeDecl::VOID, "0");
         } else {
             return recursive_gen(&curr->child[1]);
         }
@@ -609,16 +609,16 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
         if (curr->child[0].t.name == "FLOAT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl("FP32", "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::FP32, "0")));
         if (curr->child[0].t.name == "INT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl("INT32", "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::INT32, "0")));
         if (curr->child[0].t.name == "CHAR")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl("CHART", "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
         if (curr->child[0].t.name == "STRING")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl("STR", "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::STRING, "0")));
     }
 
     if (curr->t.name == "<OPTIONAL_FUNCCALL>") {

@@ -143,8 +143,14 @@ namespace AST {
         int baseType;
         int arrayT;
 
+        TypeDecl(int t, std::string i) {
+            this->baseType = t;
+            this->arrayT = std::stoi(i);
+        }
+
         TypeDecl(std::string t, std::string i) {
             this->arrayT = std::stoi(i);
+            
             if (t == "VOIDT") {
                 this->baseType = VOID;
                 return;
