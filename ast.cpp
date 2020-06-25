@@ -8,6 +8,79 @@
 
 using namespace AST;
 
+std::string unescape(std::string raw) {
+    raw = raw.substr(1, raw.size() - 2);
+
+    std::ostringstream ss;
+
+    unsigned int i = 0;
+    while (i < raw.size()) {
+        if (raw[i] != '\\') {
+            ss << raw[i];
+        } else {
+            if ((i + 1) == raw.size()) {
+                std::cerr << "Parser: invalid string literal" << std::endl;
+                return raw;
+            }
+
+            switch (raw[i+1]) {
+                case 'a': {
+                    ss << '\a';
+                    break;
+                }
+                case 'b': {
+                    ss << '\b';
+                    break;
+                }
+                case 't': {
+                    ss << '\t';
+                    break;
+                }
+                case 'n': {
+                    ss << '\n';
+                    break;
+                }
+                case 'v': {
+                    ss << '\v';
+                    break;
+                }
+                case 'f': {
+                    ss << '\f';
+                    break;
+                }
+                case 'r': {
+                    ss << '\r';
+                    break;
+                }
+                case '"': {
+                    ss << '\"';
+                    break;
+                }
+                case '\'': {
+                    ss << '\'';
+                    break;
+                }
+                case '\?': {
+                    ss << '\?';
+                    break;
+                }
+                case '\\': {
+                    ss << '\\';
+                    break;
+                }
+                default: {
+                    std::cerr << "Parser: undefined escape string: \\" 
+                        << raw[i+1] << std::endl;
+                }
+            }
+            i++;
+        }
+        i++;
+    }
+
+    return ss.str();
+}
+
 BaseAST* recursive_gen(Node<Lexical> *curr) {
     /*
         std::cout << (unsigned long) curr << curr->t.name << std::endl;
@@ -617,10 +690,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return new EvalExpr(new ExprVal(
                 curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
         if (curr->child[0].t.name == "STRING") {
-            std::string str = curr->child[0].t.data;
-            str = str.substr(1, str.size() - 2);
-            /* trim the " operator from string */
-            return new EvalExpr(new ExprVal(str, 
+            return new EvalExpr(new ExprVal(unescape(curr->child[0].t.data), 
                 new TypeDecl(TypeDecl::STRING, "0")));
         }
     }
@@ -950,6 +1020,10 @@ static llvm::LLVMContext TheContext;
 static llvm::IRBuilder<> Builder(TheContext);
 static std::unique_ptr<llvm::Module> TheModule;
 static std::map<std::string, llvm::Value *> NamedValues;
+
+/*
+TODO: variable record improvement
+*/
 
 /* Variable Allocate Helper Function */
 static llvm::AllocaInst *CreateEntryBlockAlloca(
