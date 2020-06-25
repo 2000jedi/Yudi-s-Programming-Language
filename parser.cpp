@@ -13,6 +13,8 @@
 #include "tree.hpp"
 #include "parser.hpp"
 
+#include "err.hpp"
+
 #define RULE_LEN 100
 #define LEX_LEN  255
 #define BUFFER 255
@@ -84,6 +86,7 @@ int find_rule(std::string rule) {
 }
 
 // filter empty non-terminals (epsilons)
+/*
 Node<Lexical> FilterEmpty(Node<Lexical> root) {
   auto tree = Node<Lexical>(root.t);
 
@@ -98,7 +101,7 @@ Node<Lexical> FilterEmpty(Node<Lexical> root) {
   }
 
   return tree;
-}
+} */
 
 // construct parse table from file
 void TableConstructor(std::ifstream *fd) {
@@ -115,7 +118,7 @@ void TableConstructor(std::ifstream *fd) {
   // get start symbol
   if (! std::getline(*fd, start_symbol)) {
     std::cerr << "Failed to open parse table" << std::endl;
-    exit(-1);
+    exit(ERR_PARSER);
   }
 
   // get transition tables
@@ -166,7 +169,7 @@ void TableConstructor(std::ifstream *fd) {
     if (rules.back().reps[0] == "<EPS>") { // epsilon transition
       if (rules.back().reps.size() != 1) {
         std::cerr << "Concating Epsilon transition" << std::endl;
-        exit(-1);
+        exit(ERR_PARSER);
       }
       for (int q = 0; q < 255; ++q) {
         if (selection[cur_rule][q] == -1)
@@ -194,7 +197,7 @@ void TableConstructor(std::ifstream *fd) {
   start_rule = find_rule(start_symbol);
   if (start_rule == -1) {
     std::cerr << "Cannot find suitable start symbol: " << start_symbol << std::endl;
-    exit(-1);
+    exit(ERR_PARSER);
   }
 }
 
@@ -236,13 +239,13 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
           std::cerr << "parser::parse: " << std::endl
             << "  unexpected EOF, required " << cur_node->t.name << std::endl;
         }
-        return Node<Lexical>(Lexical());
+        exit(ERR_PARSER);
       }
     } else { // terminal
       if (it == str.end()) {
         std::cerr << "parser::parse: " << std::endl
           << "  unexpected EOF, required " << cur_node->t.name << std::endl;
-        return Node<Lexical>(Lexical());
+        exit(ERR_PARSER);
       }
       if (cur_node->t.name == it->name) {
         cur_node->t = *it;
@@ -250,7 +253,7 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
         std::cerr << "parser::parse: " << std::endl
           << "  (" << it->line << ',' << it->position << "): required " << 
           cur_node->t.name << ", found " << it->name << std::endl;
-        return Node<Lexical>(Lexical());
+        exit(ERR_PARSER);
       }
       it++;
     }
@@ -258,7 +261,7 @@ Node<Lexical> PushdownAutomata(std::vector<Lexical> str) {
   if (stk.size() > 0) {
     std::cerr << "parser::parse: " << std::endl
       << "  unexpected EOF, required " << stk.top()->t.name << std::endl;
-    return Node<Lexical>(Lexical());
+    exit(ERR_PARSER);
   }
   return tree;
 }
@@ -270,11 +273,5 @@ void parser::initialize(std::string parse_table) {
 }
 
 Node<Lexical> parser::parse(std::vector<Lexical> input) {
-  Node<Lexical> PA = PushdownAutomata(input);
-  #ifdef DEBUG_PA
-  std::cout << "Printing Parse Tree: " << std::endl;
-  PA.print();
-  #endif
-
-  return PA;
+  return PushdownAutomata(input);
 }

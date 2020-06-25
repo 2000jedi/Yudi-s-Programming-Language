@@ -1177,11 +1177,12 @@ llvm::Value *ExprVal::codegen() {
         return builder.CreateCall(F, args, "_");
     }
 
-    llvm::Value* v = FindVar(this->refName)->val;
-    if (!v) {
+    ValueType* vt = FindVar(this->refName);
+    if (!vt) {
         LogError("variable " << this->refName << " used before defined");
         return nullptr;
     }
+    llvm::Value *v = vt->val;
 
     if (this->array) {
         llvm::Value *index = this->array->codegen();
@@ -1216,11 +1217,13 @@ llvm::Value *EvalExpr::codegen() {
             return nullptr;
         }
 
-        llvm::Value *v = FindVar(this->l->val->refName)->val;
-        if (!v) {
+        ValueType *vt = FindVar(this->l->val->refName);
+        if (!vt) {
             LogError("variable " << this->l->val->refName << "not found");
             return nullptr;
         }
+        llvm::Value *v = vt->val;
+
         if (this->l->val->array) {
             llvm::Value *index = this->l->val->array->codegen();
             if (! index) {
