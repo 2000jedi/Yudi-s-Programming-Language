@@ -1017,15 +1017,63 @@ void MatchExpr::print(int indent) {
  * codeGen() methods to convert to llvm IR form.
  */
 
-static llvm::LLVMContext TheContext;
-static llvm::IRBuilder<> Builder(TheContext);
+static llvm::LLVMContext context;
+static llvm::IRBuilder<> builder(context);
 static std::unique_ptr<llvm::Module> module;
-static std::map<std::string, llvm::Value *> NamedValues;
+// static std::map<std::string, llvm::Value *> NamedValues;
 static std::map<std::string, llvm::Value *> strLits;
 
 /*
-TODO: variable record improvement
+    Symble Table - record Variable and Type Information
+    TODO: type inference
 */
+class ValueType {
+    public:
+    llvm::Value *val;
+    TypeDecl *type;
+
+    ValueType(llvm::Value *v, TypeDecl *t) {
+        this->val = v;
+        this->type = t;
+    }
+};
+
+static std::vector<std::unique_ptr<std::map<std::string, ValueType*>>> SymTable;
+
+static void ClearSymLayer(void) {
+    SymTable.clear();
+}
+
+static void NewSymLayer(void) {
+    SymTable.push_back(std::make_unique<std::map<std::string, ValueType *>>());
+}
+
+static void RemoveSymLayer(void) {
+    SymTable.pop_back();
+}
+
+static void InsertVar(std::string name, llvm::Value *v, TypeDecl *t) {
+    (*SymTable.back())[name] = new ValueType(v, t);
+}
+
+static ValueType *FindVar(std::string name) {
+    for (int i = SymTable.size() - 1; i >= 0; i--) {
+        if (SymTable[i]->find(name) != SymTable[i]->end()) {
+            return (*SymTable[i])[name];
+        }
+    }
+
+    return nullptr;
+}
+
+static ValueType *FindTopVar(std::string name) {
+    if (SymTable.back()->find(name) != SymTable.back()->end()) {
+        return (*SymTable.back())[name];
+    } else {
+        return nullptr;
+    }
+}
+
 
 /* Variable Allocate Helper Function */
 static llvm::AllocaInst *CreateEntryBlockAlloca(
@@ -1035,7 +1083,7 @@ static llvm::AllocaInst *CreateEntryBlockAlloca(
 
     llvm::Value *arr = 0;
     if (size)
-        arr = llvm::ConstantInt::get(TheContext, llvm::APInt(32, size, true));
+        arr = llvm::ConstantInt::get(context, llvm::APInt(32, size, true));
 
     return tmpBuilder.CreateAlloca(type, arr, name.c_str());
 }
@@ -1044,17 +1092,17 @@ static llvm::AllocaInst *CreateEntryBlockAlloca(
 llvm::Type *type_trans(TypeDecl *td) {
     switch (td->baseType) {
         case TypeDecl::VOID:
-            return llvm::Type::getVoidTy(TheContext);
+            return llvm::Type::getVoidTy(context);
         case TypeDecl::INT32:
-            return llvm::Type::getInt32Ty(TheContext);
+            return llvm::Type::getInt32Ty(context);
         case TypeDecl::CHAR:
-            return llvm::Type::getInt8Ty(TheContext);
+            return llvm::Type::getInt8Ty(context);
         case TypeDecl::FP32:
-            return llvm::Type::getFloatTy(TheContext);
+            return llvm::Type::getFloatTy(context);
         case TypeDecl::FP64:
-            return llvm::Type::getDoubleTy(TheContext);
+            return llvm::Type::getDoubleTy(context);
         case TypeDecl::STRING:
-            return llvm::Type::getInt8PtrTy(TheContext);
+            return llvm::Type::getInt8PtrTy(context);
         default:
             LogError("TypeDecl index " << td->baseType << " not found");
             return nullptr;
@@ -1079,14 +1127,14 @@ llvm::Value *ConstToValue(ExprVal *e) {
             return nullptr;
         case TypeDecl::INT32:
             return llvm::ConstantInt::get(
-                TheContext, llvm::APInt(32, std::stoi(e->constVal), true));
+                context, llvm::APInt(32, std::stoi(e->constVal), true));
         case TypeDecl::CHAR:
             return llvm::ConstantInt::get(
-                TheContext, llvm::APInt(8, std::stoi(e->constVal), false));
+                context, llvm::APInt(8, std::stoi(e->constVal), false));
         case TypeDecl::FP32:
         case TypeDecl::FP64:
             return llvm::ConstantFP::get(
-                TheContext, llvm::APFloat(std::stod(e->constVal)));
+                context, llvm::APFloat(std::stod(e->constVal)));
         case TypeDecl::STRING: {
             return strLits[e->constVal];
         }
@@ -1126,10 +1174,10 @@ llvm::Value *ExprVal::codegen() {
             }
         }
 
-        return Builder.CreateCall(F, args, "_");
+        return builder.CreateCall(F, args, "_");
     }
 
-    llvm::Value* v = NamedValues[this->refName];
+    llvm::Value* v = FindVar(this->refName)->val;
     if (!v) {
         LogError("variable " << this->refName << " used before defined");
         return nullptr;
@@ -1142,11 +1190,11 @@ llvm::Value *ExprVal::codegen() {
             return nullptr;
         }
         return new llvm::LoadInst(
-            Builder.CreateGEP(v, index, "_"), 
-            nullptr, Builder.GetInsertBlock()
+            builder.CreateGEP(v, index, "_"), 
+            nullptr, builder.GetInsertBlock()
         );
     } else {
-        return new llvm::LoadInst(v, nullptr, Builder.GetInsertBlock());
+        return new llvm::LoadInst(v, nullptr, builder.GetInsertBlock());
     }
 }
 
@@ -1168,7 +1216,7 @@ llvm::Value *EvalExpr::codegen() {
             return nullptr;
         }
 
-        llvm::Value *v = NamedValues[this->l->val->refName];
+        llvm::Value *v = FindVar(this->l->val->refName)->val;
         if (!v) {
             LogError("variable " << this->l->val->refName << "not found");
             return nullptr;
@@ -1179,10 +1227,10 @@ llvm::Value *EvalExpr::codegen() {
                 LogError("invalid array index");
                 return nullptr;
             }
-            v = Builder.CreateGEP(v, index, "_");
+            v = builder.CreateGEP(v, index, "_");
         }
-        Builder.CreateStore(this->r->codegen(), v, false);
-        return new llvm::LoadInst(v, nullptr, Builder.GetInsertBlock());
+        builder.CreateStore(this->r->codegen(), v, false);
+        return new llvm::LoadInst(v, nullptr, builder.GetInsertBlock());
     }
 
     llvm::Value *lv = this->l->codegen();
@@ -1197,25 +1245,25 @@ llvm::Value *EvalExpr::codegen() {
     TODO: type inference
     */
     if (this->op == "ADD")
-        return Builder.CreateAdd(lv, rv, "_");
+        return builder.CreateAdd(lv, rv, "_");
     if (this->op == "SUB")
-        return Builder.CreateSub(lv, rv, "_");
+        return builder.CreateSub(lv, rv, "_");
     if (this->op == "MUL")
-        return Builder.CreateMul(lv, rv, "_");
+        return builder.CreateMul(lv, rv, "_");
     if (this->op == "DIV")
-        return Builder.CreateSDiv(lv, rv, "_");
+        return builder.CreateSDiv(lv, rv, "_");
     if (this->op == "GT")
-        return Builder.CreateICmpSGT(lv, rv, "_");
+        return builder.CreateICmpSGT(lv, rv, "_");
     if (this->op == "LT")
-        return Builder.CreateICmpSLT(lv, rv, "_");
+        return builder.CreateICmpSLT(lv, rv, "_");
     if (this->op == "GE")
-        return Builder.CreateICmpSGE(lv, rv, "_");
+        return builder.CreateICmpSGE(lv, rv, "_");
     if (this->op == "LE")
-        return Builder.CreateICmpSLE(lv, rv, "_");
+        return builder.CreateICmpSLE(lv, rv, "_");
     if (this->op == "EQ")
-        return Builder.CreateICmpEQ(lv, rv, "_");
+        return builder.CreateICmpEQ(lv, rv, "_");
     if (this->op == "NEQ")
-        return Builder.CreateICmpNE(lv, rv, "_");
+        return builder.CreateICmpNE(lv, rv, "_");
 
     LogError("operator " << this->op << " under construction");
     return nullptr;
@@ -1242,18 +1290,19 @@ llvm::Value *FuncDecl::codegen() {
         Arg.setName(this->pars[Idx++]->name);
 
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(
-        TheContext, this->name + "_entry", F);
-    Builder.SetInsertPoint(BB);
+        context, this->name + "_entry", F);
+    builder.SetInsertPoint(BB);
 
-    NamedValues.clear();
+    ClearSymLayer();
+    NewSymLayer();
     
     Idx = 0;
     for (auto &Arg : F->args()) {
         llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
             F, Arg.getName(), type_trans(this->pars[Idx]->type), 
             this->pars[Idx]->type->arrayT);
-        Builder.CreateStore(&Arg, alloca);
-        NamedValues[Arg.getName()] = alloca;
+        builder.CreateStore(&Arg, alloca);
+        InsertVar(Arg.getName(), alloca, nullptr);
         Idx++;
     }
 
@@ -1263,7 +1312,7 @@ llvm::Value *FuncDecl::codegen() {
 
     for (auto p : strings) {
         if (strLits.find(p) == strLits.end()) {
-            llvm::Value *v = Builder.CreateGlobalStringPtr(llvm::StringRef(p));
+            llvm::Value *v = builder.CreateGlobalStringPtr(llvm::StringRef(p));
             strLits[p] = v;
         }
     }
@@ -1274,7 +1323,7 @@ llvm::Value *FuncDecl::codegen() {
     }
 
     if (F->getReturnType()->isVoidTy()) {
-        Builder.CreateRetVoid();
+        builder.CreateRetVoid();
     }
 
     llvm::verifyFunction(*F);
@@ -1296,34 +1345,34 @@ llvm::Value *EnumDecl::codegen() {
 llvm::Value *ForExpr::codegen() {
     this->init->codegen();
 
-    llvm::Function *parent = Builder.GetInsertBlock()->getParent();
+    llvm::Function *parent = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock *condBB = llvm::BasicBlock::Create(
-        TheContext, "lc", parent);
+        context, "lc", parent);
     llvm::BasicBlock *loopBB = llvm::BasicBlock::Create(
-        TheContext, "l", parent);
+        context, "l", parent);
     llvm::BasicBlock *finalBB = llvm::BasicBlock::Create(
-        TheContext, "le", parent);
+        context, "le", parent);
 
-    Builder.CreateBr(condBB);
-    Builder.SetInsertPoint(condBB);
+    builder.CreateBr(condBB);
+    builder.SetInsertPoint(condBB);
 
     llvm::Value *condV = this->cond->codegen();
     if (condV) {
-        llvm::Value *condB = Builder.CreateICmpNE(
+        llvm::Value *condB = builder.CreateICmpNE(
             condV, 
-            llvm::ConstantInt::get(TheContext, llvm::APInt(1, 0, true)), 
+            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
             "_");
-        Builder.CreateCondBr(condB, loopBB, finalBB);
+        builder.CreateCondBr(condB, loopBB, finalBB);
     }
 
-    Builder.SetInsertPoint(loopBB);
+    builder.SetInsertPoint(loopBB);
     for (auto p : this->exprs) {
         p->codegen();
     }
     this->step->codegen();
-    Builder.CreateBr(condBB);
+    builder.CreateBr(condBB);
 
-    Builder.SetInsertPoint(finalBB);
+    builder.SetInsertPoint(finalBB);
     return nullptr;
 }
 
@@ -1340,39 +1389,39 @@ llvm::Value *IfExpr::codegen() {
     if (!condV) {
         return nullptr;
     }
-    condV = Builder.CreateICmpNE(
+    condV = builder.CreateICmpNE(
         condV, 
-        llvm::ConstantInt::get(TheContext, llvm::APInt(1, 0, true)), 
+        llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
         "_");
 
-    llvm::Function *parent = Builder.GetInsertBlock()->getParent();
+    llvm::Function *parent = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock *trueBB = llvm::BasicBlock::Create(
-        TheContext, "it", parent);
+        context, "it", parent);
     llvm::BasicBlock *falseBB;
     llvm::BasicBlock *finalBB = llvm::BasicBlock::Create(
-        TheContext, "ic");
+        context, "ic");
     if (this->iffalse.size() == 0) {
         falseBB = finalBB;
     } else {
-        falseBB = llvm::BasicBlock::Create(TheContext, "if");
+        falseBB = llvm::BasicBlock::Create(context, "if");
     }
-    Builder.CreateCondBr(condV, trueBB, falseBB);
+    builder.CreateCondBr(condV, trueBB, falseBB);
 
-    Builder.SetInsertPoint(trueBB);
+    builder.SetInsertPoint(trueBB);
     for (auto p : this->iftrue) {
         p->codegen();
     }
-    Builder.CreateBr(finalBB);
+    builder.CreateBr(finalBB);
 
-    Builder.SetInsertPoint(falseBB);
+    builder.SetInsertPoint(falseBB);
     for (auto p : this->iffalse) {
         p->codegen();
     }
     if (this->iffalse.size() != 0)
-        Builder.CreateBr(finalBB);
+        builder.CreateBr(finalBB);
 
     parent->getBasicBlockList().push_back(finalBB);
-    Builder.SetInsertPoint(finalBB);
+    builder.SetInsertPoint(finalBB);
 
     return nullptr;
 }
@@ -1395,14 +1444,14 @@ llvm::Value *Param::codegen() {
 
 llvm::Value *RetExpr::codegen() {
     if (! this->stmt) {
-        Builder.CreateRetVoid();
+        builder.CreateRetVoid();
         return nullptr;
     }
 
     llvm::Value *r = this->stmt->codegen();
 
     if (r) {
-        Builder.CreateRet(r);
+        builder.CreateRet(r);
     }
 
     return nullptr;
@@ -1414,26 +1463,53 @@ llvm::Value *TypeDecl::codegen() {
 }
 
 llvm::Value *VarDecl::codegen() {
-    if (NamedValues.find(this->name) != NamedValues.end()) {
+    if (FindTopVar(this->name)) {
         LogError("variable " << this->name << " already declared");
         return nullptr;
     }
 
-    llvm::Function *curF = Builder.GetInsertBlock()->getParent();
+    llvm::Function *curF = builder.GetInsertBlock()->getParent();
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
         curF, this->name, type_trans(this->type), this->type->arrayT);
     llvm::Value *v = nullptr;
 
     if (this->init) {
         v = this->init->codegen();
-        Builder.CreateStore(v, alloca);
+        builder.CreateStore(v, alloca);
     }
-    NamedValues[this->name] = alloca;
+    InsertVar(this->name, alloca, nullptr);
 
     return nullptr;
 }
 
 llvm::Value *WhileExpr::codegen() {
+    llvm::Function *parent = builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock *condBB = llvm::BasicBlock::Create(
+        context, "lc", parent);
+    llvm::BasicBlock *loopBB = llvm::BasicBlock::Create(
+        context, "l", parent);
+    llvm::BasicBlock *finalBB = llvm::BasicBlock::Create(
+        context, "lf", parent);
+
+    builder.CreateBr(condBB);
+    builder.SetInsertPoint(condBB);
+
+    llvm::Value *condV = this->cond->codegen();
+    if (condV) {
+        condV = builder.CreateICmpNE(
+            condV, 
+            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
+            "_");
+    }
+    builder.CreateCondBr(condV, loopBB, finalBB);
+    builder.SetInsertPoint(loopBB);
+
+    for (auto p : this->exprs) {
+        p->codegen();
+    }
+    builder.CreateBr(condBB);
+    builder.SetInsertPoint(finalBB);
+    
     return nullptr;
 }
 
@@ -1445,14 +1521,14 @@ llvm::Value *Program::codegen() {
 }
 
 int AST::codegen(Program prog, std::string outputFileName) {
-    module = llvm::make_unique<llvm::Module>(outputFileName, TheContext);
+    module = llvm::make_unique<llvm::Module>(outputFileName, context);
 
     /* insert standard C library functions */
     module->getOrInsertFunction(
         "printf",
         llvm::FunctionType::get(
-            llvm::IntegerType::getInt32Ty(TheContext),
-            llvm::PointerType::get(llvm::Type::getInt8Ty(TheContext), 0), 
+            llvm::IntegerType::getInt32Ty(context),
+            llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0), 
             true /* this is var arg func type*/
         )
     );
