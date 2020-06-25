@@ -13,7 +13,9 @@ function main() {
 
     i = i + k;
     arr[2] = i;
-
-    // printf("%s\n", j);
     printf("%d %d\n", i, fib(i));
+    // printf("%s\n", j);
+    for (i = 0; i < 10; i = i + 1) {
+        printf("%d %d\n", i, fib(i));
+    }
 }

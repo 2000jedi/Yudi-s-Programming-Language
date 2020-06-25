@@ -8,6 +8,8 @@
 
 using namespace AST;
 
+static std::vector<std::string> strings;
+
 std::string unescape(std::string raw) {
     raw = raw.substr(1, raw.size() - 2);
 
@@ -82,9 +84,6 @@ std::string unescape(std::string raw) {
 }
 
 BaseAST* recursive_gen(Node<Lexical> *curr) {
-    /*
-        std::cout << (unsigned long) curr << curr->t.name << std::endl;
-    */
     if (curr->t.name == "<EPS>") {
       return nullptr;
     }
@@ -690,7 +689,9 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return new EvalExpr(new ExprVal(
                 curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
         if (curr->child[0].t.name == "STRING") {
-            return new EvalExpr(new ExprVal(unescape(curr->child[0].t.data), 
+            std::string str = unescape(curr->child[0].t.data);
+            strings.push_back(str);
+            return new EvalExpr(new ExprVal(str, 
                 new TypeDecl(TypeDecl::STRING, "0")));
         }
     }
@@ -1018,8 +1019,9 @@ void MatchExpr::print(int indent) {
 
 static llvm::LLVMContext TheContext;
 static llvm::IRBuilder<> Builder(TheContext);
-static std::unique_ptr<llvm::Module> TheModule;
+static std::unique_ptr<llvm::Module> module;
 static std::map<std::string, llvm::Value *> NamedValues;
+static std::map<std::string, llvm::Value *> strLits;
 
 /*
 TODO: variable record improvement
@@ -1086,16 +1088,7 @@ llvm::Value *ConstToValue(ExprVal *e) {
             return llvm::ConstantFP::get(
                 TheContext, llvm::APFloat(std::stod(e->constVal)));
         case TypeDecl::STRING: {
-            return Builder.CreateGlobalStringPtr(llvm::StringRef(e->constVal));
-            /*
-            llvm::GlobalVariable *gv = new llvm::GlobalVariable(
-                llvm::ArrayType::get(Builder.getInt8Ty(), e->constVal.size()), 
-                true, 
-                llvm::GlobalValue::InternalLinkage,
-                llvm::ConstantDataArray::getString(
-                    TheContext, e->constVal, true));
-            TheModule->getGlobalList().push_back(gv);
-            return gv;*/
+            return strLits[e->constVal];
         }
         default:
             LogError("TypeDecl index " << e->type->baseType << " not found");
@@ -1109,7 +1102,7 @@ llvm::Value *ExprVal::codegen() {
     }
 
     if (this->call) {
-        llvm::Function *F = TheModule->getFunction(this->refName);
+        llvm::Function *F = module->getFunction(this->refName);
         if (!F) {
             LogError("function " << this->refName <<" is not defined");
             return nullptr;
@@ -1229,7 +1222,7 @@ llvm::Value *EvalExpr::codegen() {
 }
 
 llvm::Value *FuncDecl::codegen() {
-    llvm::Function *prev = TheModule->getFunction(this->name);
+    llvm::Function *prev = module->getFunction(this->name);
     if (prev) {
         LogError("function " << this->name << " already declared");
         return nullptr;
@@ -1242,7 +1235,7 @@ llvm::Value *FuncDecl::codegen() {
     llvm::FunctionType *Ft = llvm::FunctionType::get(
         type_trans(this->ret), ArgTypes, false);
     llvm::Function *F = llvm::Function::Create(
-        Ft, llvm::Function::ExternalLinkage, this->name, TheModule.get());
+        Ft, llvm::Function::ExternalLinkage, this->name, module.get());
     
     unsigned Idx = 0;
     for (auto &Arg : F->args())
@@ -1263,6 +1256,18 @@ llvm::Value *FuncDecl::codegen() {
         NamedValues[Arg.getName()] = alloca;
         Idx++;
     }
+
+    /*
+        Insert Global String Definitions
+    */
+
+    for (auto p : strings) {
+        if (strLits.find(p) == strLits.end()) {
+            llvm::Value *v = Builder.CreateGlobalStringPtr(llvm::StringRef(p));
+            strLits[p] = v;
+        }
+    }
+    strings.clear();
 
     for (auto p : this->exprs) {
         p->codegen();
@@ -1289,6 +1294,36 @@ llvm::Value *EnumDecl::codegen() {
 }
 
 llvm::Value *ForExpr::codegen() {
+    this->init->codegen();
+
+    llvm::Function *parent = Builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock *condBB = llvm::BasicBlock::Create(
+        TheContext, "lc", parent);
+    llvm::BasicBlock *loopBB = llvm::BasicBlock::Create(
+        TheContext, "l", parent);
+    llvm::BasicBlock *finalBB = llvm::BasicBlock::Create(
+        TheContext, "le", parent);
+
+    Builder.CreateBr(condBB);
+    Builder.SetInsertPoint(condBB);
+
+    llvm::Value *condV = this->cond->codegen();
+    if (condV) {
+        llvm::Value *condB = Builder.CreateICmpNE(
+            condV, 
+            llvm::ConstantInt::get(TheContext, llvm::APInt(1, 0, true)), 
+            "_");
+        Builder.CreateCondBr(condB, loopBB, finalBB);
+    }
+
+    Builder.SetInsertPoint(loopBB);
+    for (auto p : this->exprs) {
+        p->codegen();
+    }
+    this->step->codegen();
+    Builder.CreateBr(condBB);
+
+    Builder.SetInsertPoint(finalBB);
     return nullptr;
 }
 
@@ -1328,7 +1363,6 @@ llvm::Value *IfExpr::codegen() {
         p->codegen();
     }
     Builder.CreateBr(finalBB);
-    // trueBB = Builder.GetInsertBlock();
 
     Builder.SetInsertPoint(falseBB);
     for (auto p : this->iffalse) {
@@ -1336,7 +1370,6 @@ llvm::Value *IfExpr::codegen() {
     }
     if (this->iffalse.size() != 0)
         Builder.CreateBr(finalBB);
-    // falseBB = Builder.GetInsertBlock();
 
     parent->getBasicBlockList().push_back(finalBB);
     Builder.SetInsertPoint(finalBB);
@@ -1411,11 +1444,11 @@ llvm::Value *Program::codegen() {
     return nullptr;
 }
 
-int AST::codegen(Program prog, std::string outFile) {
-    TheModule = llvm::make_unique<llvm::Module>(outFile, TheContext);
+int AST::codegen(Program prog, std::string outputFileName) {
+    module = llvm::make_unique<llvm::Module>(outputFileName, TheContext);
 
     /* insert standard C library functions */
-    llvm::Constant *c_printf = TheModule->getOrInsertFunction(
+    module->getOrInsertFunction(
         "printf",
         llvm::FunctionType::get(
             llvm::IntegerType::getInt32Ty(TheContext),
@@ -1424,7 +1457,51 @@ int AST::codegen(Program prog, std::string outFile) {
         )
     );
 
+    /* Generate IR code */
     prog.codegen();
-    TheModule->print(llvm::errs(), nullptr);
+    module->print(llvm::errs(), nullptr);
+
+    /*
+        Initialize Targets
+    */
+
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
+    auto TargetTriple = llvm::sys::getDefaultTargetTriple();
+    module->setTargetTriple(TargetTriple);
+    std::string Err;
+    auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Err);
+    if (!Target) {
+        LogError(Err);
+        return ERR_OBJCODE;
+    }
+    llvm::TargetOptions opt;
+    auto RM = llvm::Optional<llvm::Reloc::Model>();
+    auto TargetMachine = Target->createTargetMachine(
+        TargetTriple, llvm::sys::getHostCPUName(), "", opt, RM);
+    module->setDataLayout(TargetMachine->createDataLayout());
+    module->setTargetTriple(TargetTriple);
+
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(outputFileName + ".o", ec, llvm::sys::fs::F_None);
+    if (ec) {
+        LogError("could not open file: " << ec.message());
+        return ERR_OBJCODE;
+    }
+    
+    /* Pass Manager and File Output */
+    llvm::legacy::PassManager pass;
+    auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
+
+    if (TargetMachine->addPassesToEmitFile(pass, dest, FileType)) {
+        LogError("TargetMachine can't emit a file of this type");
+        return ERR_OBJCODE;
+    }
+
+    pass.run(*module);
+    dest.flush();
     return 0;
 }
