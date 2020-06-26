@@ -36,6 +36,8 @@
 #define LogError(e) std::cerr << "CodeGen Error: " << e << std::endl
 
 namespace AST {
+    class ValueType;
+    
     class ASTs;
     class BaseAST;
     class ClassDecl;
@@ -68,7 +70,7 @@ namespace AST {
             std::cout << "BaseAST()" << std::endl;
         }
 
-        virtual llvm::Value *codegen() = 0;
+        virtual ValueType *codegen() = 0;
     };
     class ASTs : public BaseAST  {
         public:
@@ -81,7 +83,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class GlobalStatement : virtual public BaseAST  {
@@ -98,7 +100,7 @@ namespace AST {
         virtual void print(int indent){
             std::cout << "NOT COMPLETED" << std::endl;
         }
-        virtual llvm::Value *codegen() {
+        virtual ValueType *codegen() {
             return nullptr;
         }
     };
@@ -121,7 +123,7 @@ namespace AST {
             std::cout << "NOT COMPLETED" << std::endl;
         }
 
-        virtual llvm::Value *codegen() {
+        virtual ValueType *codegen() {
             return nullptr;
         }
     };
@@ -137,7 +139,7 @@ namespace AST {
         }
 
         void print(void);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class TypeDecl : public BaseAST  {
@@ -152,6 +154,11 @@ namespace AST {
 
         int baseType;
         int arrayT;
+
+        inline bool eq(TypeDecl *other) {
+            return (this->baseType == other->baseType) && 
+                   (this->arrayT == other->arrayT);
+        }
 
         TypeDecl(int t, std::string i) {
             this->baseType = t;
@@ -195,7 +202,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class EvalExpr : public Expr {
@@ -222,7 +229,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class FuncCall : public BaseAST {
@@ -234,7 +241,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class ExprVal : public BaseAST {
@@ -262,7 +269,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class GenericDecl : public BaseAST  {
@@ -280,7 +287,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class Param : public BaseAST  {
@@ -294,7 +301,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class Option : public BaseAST  {
@@ -308,7 +315,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class RetExpr : public Expr {
@@ -322,7 +329,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class VarDecl : public GlobalStatement, public Expr {
@@ -341,7 +348,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class ConstDecl : public GlobalStatement, public Expr {
@@ -360,7 +367,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class FuncDecl : public GlobalStatement {
@@ -382,7 +389,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class ClassDecl : public GlobalStatement {
@@ -400,7 +407,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class EnumDecl : public GlobalStatement {
@@ -416,7 +423,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class IfExpr : public Expr {
@@ -434,7 +441,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class WhileExpr : public Expr {
@@ -450,7 +457,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class ForExpr : public Expr {
@@ -470,7 +477,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class MatchLine : public BaseAST  {
@@ -486,7 +493,7 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
     };
 
     class MatchExpr : public Expr {
@@ -502,7 +509,26 @@ namespace AST {
         }
 
         void print(int);
-        virtual llvm::Value *codegen();
+        virtual ValueType *codegen();
+    };
+
+    class ValueType {
+        public:
+        llvm::Value *val;
+        TypeDecl *type;
+        bool isConst;
+
+        ValueType(llvm::Value *v, TypeDecl *t) {
+            this->isConst = false;
+            this->val = v;
+            this->type = t;
+        }
+
+        ValueType(llvm::Value *v, TypeDecl *t, bool c) {
+            this->isConst = c;
+            this->val = v;
+            this->type = t;
+        }
     };
 
     extern Program generate(Node<Lexical> *root);

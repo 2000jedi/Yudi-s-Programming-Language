@@ -1020,23 +1020,13 @@ void MatchExpr::print(int indent) {
 static llvm::LLVMContext context;
 static llvm::IRBuilder<> builder(context);
 static std::unique_ptr<llvm::Module> module;
-// static std::map<std::string, llvm::Value *> NamedValues;
-static std::map<std::string, llvm::Value *> strLits;
+static std::map<std::string, ValueType *> strLits;
+static std::map<std::string, FuncDecl *> funcDecls;
 
 /*
     Symble Table - record Variable and Type Information
     TODO: type inference
 */
-class ValueType {
-    public:
-    llvm::Value *val;
-    TypeDecl *type;
-
-    ValueType(llvm::Value *v, TypeDecl *t) {
-        this->val = v;
-        this->type = t;
-    }
-};
 
 static std::vector<std::unique_ptr<std::map<std::string, ValueType*>>> SymTable;
 
@@ -1054,6 +1044,10 @@ static void RemoveSymLayer(void) {
 
 static void InsertVar(std::string name, llvm::Value *v, TypeDecl *t) {
     (*SymTable.back())[name] = new ValueType(v, t);
+}
+
+static void InsertConst(std::string name, llvm::Value *v, TypeDecl *t) {
+    (*SymTable.back())[name] = new ValueType(v, t, true);
 }
 
 static ValueType *FindVar(std::string name) {
@@ -1110,31 +1104,37 @@ llvm::Type *type_trans(TypeDecl *td) {
     /* todo: array typing */
 }
 
-llvm::Value *BaseAST::codegen() {
+ValueType *BaseAST::codegen() {
     LogError("BaseAST() cannot generate IR code.");
     return nullptr;
 }
 
-llvm::Value *ASTs::codegen() {
+ValueType *ASTs::codegen() {
     LogError("ASTs() cannot generate IR code.");
     return nullptr;
 }
 
-llvm::Value *ConstToValue(ExprVal *e) {
+ValueType *ConstToValue(ExprVal *e) {
     switch (e->type->baseType) {
         case TypeDecl::VOID:
             LogError("no constant type \"void\"");
             return nullptr;
         case TypeDecl::INT32:
-            return llvm::ConstantInt::get(
-                context, llvm::APInt(32, std::stoi(e->constVal), true));
+            return new ValueType(
+                llvm::ConstantInt::get(context, 
+                llvm::APInt(32, std::stoi(e->constVal), true)),
+                e->type, true);
         case TypeDecl::CHAR:
-            return llvm::ConstantInt::get(
-                context, llvm::APInt(8, std::stoi(e->constVal), false));
+            return new ValueType(
+                llvm::ConstantInt::get(context, 
+                llvm::APInt(8, std::stoi(e->constVal), false)),
+                e->type, true);
         case TypeDecl::FP32:
         case TypeDecl::FP64:
-            return llvm::ConstantFP::get(
-                context, llvm::APFloat(std::stod(e->constVal)));
+            return new ValueType(
+                llvm::ConstantFP::get(context, 
+                llvm::APFloat(std::stod(e->constVal))),
+                e->type, true);
         case TypeDecl::STRING: {
             return strLits[e->constVal];
         }
@@ -1144,7 +1144,7 @@ llvm::Value *ConstToValue(ExprVal *e) {
     }
 }
 
-llvm::Value *ExprVal::codegen() {
+ValueType *ExprVal::codegen() {
     if (this->isConst) {
         return ConstToValue(this);
     }
@@ -1156,7 +1156,6 @@ llvm::Value *ExprVal::codegen() {
             return nullptr;
         }
 
-        // TODO: check argument types
         if ((!F->isVarArg()) && (F->arg_size() != this->call->pars.size())) {
             LogError(
                 "function " << this->refName <<" requires " << F->arg_size() 
@@ -1167,14 +1166,21 @@ llvm::Value *ExprVal::codegen() {
 
         std::vector<llvm::Value *> args;
         for (auto p : this->call->pars) {
-            args.push_back(p->codegen());
+            ValueType *arg = p->codegen();
+            // TODO: check argument type match
+            args.push_back(arg->val);
             if (!args.back()) {
-                // Argument has no return value
+                LogError("no return received from argument");
                 return nullptr;
             }
         }
-
-        return builder.CreateCall(F, args, "_");
+        // TODO: receive function return type
+        if (F->getName() == "printf") {
+            return new ValueType(builder.CreateCall(F, args, "_"), 
+            new TypeDecl(TypeDecl::VOID, "0"));
+        }
+        return new ValueType(builder.CreateCall(F, args, "_"), 
+            funcDecls[F->getName()]->ret);
     }
 
     ValueType* vt = FindVar(this->refName);
@@ -1185,21 +1191,30 @@ llvm::Value *ExprVal::codegen() {
     llvm::Value *v = vt->val;
 
     if (this->array) {
-        llvm::Value *index = this->array->codegen();
+        ValueType *index = this->array->codegen();
         if (! index) {
             LogError("invalid array index");
             return nullptr;
         }
-        return new llvm::LoadInst(
-            builder.CreateGEP(v, index, "_"), 
-            nullptr, builder.GetInsertBlock()
+        if (index->type->baseType != TypeDecl::INT32) {
+            LogError("invalid array index type");
+            return nullptr;
+        }
+        TypeDecl *singletonType = new TypeDecl(vt->type->baseType, "0");
+        return new ValueType(
+            new llvm::LoadInst(
+                builder.CreateGEP(v, index->val, "_"), 
+                nullptr, builder.GetInsertBlock()),
+            singletonType
         );
     } else {
-        return new llvm::LoadInst(v, nullptr, builder.GetInsertBlock());
+        return new ValueType(
+            new llvm::LoadInst(v, nullptr, builder.GetInsertBlock()),
+            vt->type);
     }
 }
 
-llvm::Value *EvalExpr::codegen() {
+ValueType *EvalExpr::codegen() {
     if (this->isVal)
         return this->val->codegen();
 
@@ -1225,59 +1240,133 @@ llvm::Value *EvalExpr::codegen() {
         llvm::Value *v = vt->val;
 
         if (this->l->val->array) {
-            llvm::Value *index = this->l->val->array->codegen();
+            ValueType *index = this->l->val->array->codegen();
             if (! index) {
                 LogError("invalid array index");
                 return nullptr;
             }
-            v = builder.CreateGEP(v, index, "_");
+            if (index->type->baseType != TypeDecl::INT32) {
+                LogError("invalid array index type");
+                return nullptr;
+            }
+            vt->type = new TypeDecl(vt->type->baseType, "0");
+            vt->val = builder.CreateGEP(v, index->val, "_");
         }
-        builder.CreateStore(this->r->codegen(), v, false);
-        return new llvm::LoadInst(v, nullptr, builder.GetInsertBlock());
+
+        ValueType *rVT = this->r->codegen();
+        if (! vt->type->eq(rVT->type)) {
+            LogError("assignment has different types");
+            return nullptr;
+        }
+        builder.CreateStore(rVT->val, vt->val, false);
+        return new ValueType(
+            new llvm::LoadInst(vt->val, nullptr, builder.GetInsertBlock()),
+            vt->type
+        );
     }
 
-    llvm::Value *lv = this->l->codegen();
-    llvm::Value *rv = this->r->codegen();
+    ValueType *lv = this->l->codegen();
+    ValueType *rv = this->r->codegen();
 
     if (!lv || !rv) {
         LogError("operator " << this->op << " must accept binary inputs");
         return nullptr;
     }
 
-    /*
-    TODO: type inference
-    */
-    if (this->op == "ADD")
-        return builder.CreateAdd(lv, rv, "_");
-    if (this->op == "SUB")
-        return builder.CreateSub(lv, rv, "_");
-    if (this->op == "MUL")
-        return builder.CreateMul(lv, rv, "_");
-    if (this->op == "DIV")
-        return builder.CreateSDiv(lv, rv, "_");
-    if (this->op == "GT")
-        return builder.CreateICmpSGT(lv, rv, "_");
-    if (this->op == "LT")
-        return builder.CreateICmpSLT(lv, rv, "_");
-    if (this->op == "GE")
-        return builder.CreateICmpSGE(lv, rv, "_");
-    if (this->op == "LE")
-        return builder.CreateICmpSLE(lv, rv, "_");
-    if (this->op == "EQ")
-        return builder.CreateICmpEQ(lv, rv, "_");
-    if (this->op == "NEQ")
-        return builder.CreateICmpNE(lv, rv, "_");
+    if (lv->type->arrayT == 0) { // not an array type
+        if (! lv->type->eq(rv->type)) {
+            LogError("assignment has different types");
+            return nullptr;
+        }
+        switch (lv->type->baseType) {
+            case TypeDecl::INT32: {
+                if (this->op == "ADD") {
+                    return new ValueType(
+                        builder.CreateAdd(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "SUB") {
+                    return new ValueType(
+                        builder.CreateSub(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "MUL") {
+                    return new ValueType(
+                        builder.CreateMul(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "DIV") {
+                    return new ValueType(
+                        builder.CreateSDiv(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "GT") {
+                    return new ValueType(
+                        builder.CreateICmpSGT(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "LT") {
+                    return new ValueType(
+                        builder.CreateICmpSLT(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "GE") {
+                    return new ValueType(
+                        builder.CreateICmpSGE(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "LE") {
+                    return new ValueType(
+                        builder.CreateICmpSLE(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "EQ") {
+                    return new ValueType(
+                        builder.CreateICmpEQ(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                if (this->op == "NEQ") {
+                    return new ValueType(
+                        builder.CreateICmpNE(lv->val, rv->val, "_"),
+                        lv->type
+                    );
+                }
+                LogError("operator " << this->op << " not supported");
+                return nullptr;
+            }
+            default: {
+                LogError("type " << lv->type << " not supported");
+                return nullptr;
+            }
+
+        }
+        
+    } else {
+        LogError("array arithmetics still not supported");
+        return nullptr;
+    }
 
     LogError("operator " << this->op << " under construction");
     return nullptr;
 }
 
-llvm::Value *FuncDecl::codegen() {
+ValueType *FuncDecl::codegen() {
     llvm::Function *prev = module->getFunction(this->name);
     if (prev) {
         LogError("function " << this->name << " already declared");
         return nullptr;
     }
+
+    funcDecls[this->name] = this;
 
     std::vector<llvm::Type *> ArgTypes;
     for (auto p : this->pars) {
@@ -1305,7 +1394,7 @@ llvm::Value *FuncDecl::codegen() {
             F, Arg.getName(), type_trans(this->pars[Idx]->type), 
             this->pars[Idx]->type->arrayT);
         builder.CreateStore(&Arg, alloca);
-        InsertVar(Arg.getName(), alloca, nullptr);
+        InsertVar(Arg.getName(), alloca, this->pars[Idx]->type);
         Idx++;
     }
 
@@ -1316,7 +1405,7 @@ llvm::Value *FuncDecl::codegen() {
     for (auto p : strings) {
         if (strLits.find(p) == strLits.end()) {
             llvm::Value *v = builder.CreateGlobalStringPtr(llvm::StringRef(p));
-            strLits[p] = v;
+            strLits[p] = new ValueType(v, new TypeDecl(TypeDecl::STRING, "0"));
         }
     }
     strings.clear();
@@ -1330,22 +1419,43 @@ llvm::Value *FuncDecl::codegen() {
     }
 
     llvm::verifyFunction(*F);
-    return F;
-}
-
-llvm::Value *ClassDecl::codegen() {
     return nullptr;
 }
 
-llvm::Value *ConstDecl::codegen() {
+ValueType *ClassDecl::codegen() {
     return nullptr;
 }
 
-llvm::Value *EnumDecl::codegen() {
+ValueType *ConstDecl::codegen() {
+    if (FindTopVar(this->name)) {
+        LogError("variable " << this->name << " already declared");
+        return nullptr;
+    }
+    if (!this->init) {
+        LogError("constant " << this->name << " has no initialization");
+        return nullptr;
+    }
+    ValueType *v = this->init->codegen();
+    if (!v) {
+        LogError("initialization failure of variable " << this->name);
+        return nullptr;
+    }
+
+    llvm::Function *curF = builder.GetInsertBlock()->getParent();
+    llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
+        curF, this->name, type_trans(v->type), v->type->arrayT);
+    builder.CreateStore(v->val, alloca);
+
+    InsertConst(this->name, alloca, v->type);
+
     return nullptr;
 }
 
-llvm::Value *ForExpr::codegen() {
+ValueType *EnumDecl::codegen() {
+    return nullptr;
+}
+
+ValueType *ForExpr::codegen() {
     this->init->codegen();
 
     llvm::Function *parent = builder.GetInsertBlock()->getParent();
@@ -1359,10 +1469,15 @@ llvm::Value *ForExpr::codegen() {
     builder.CreateBr(condBB);
     builder.SetInsertPoint(condBB);
 
-    llvm::Value *condV = this->cond->codegen();
+    ValueType *condV = this->cond->codegen();
+    if (! condV->type->eq(new TypeDecl(TypeDecl::INT32, "0"))) {
+        LogError("type " << condV->type->baseType 
+            << " cannot be used in condition");
+        return nullptr;
+    }
     if (condV) {
         llvm::Value *condB = builder.CreateICmpNE(
-            condV, 
+            condV->val, 
             llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
             "_");
         builder.CreateCondBr(condB, loopBB, finalBB);
@@ -1379,21 +1494,26 @@ llvm::Value *ForExpr::codegen() {
     return nullptr;
 }
 
-llvm::Value *FuncCall::codegen() {
+ValueType *FuncCall::codegen() {
     return nullptr;
 }
 
-llvm::Value *GenericDecl::codegen() {
+ValueType *GenericDecl::codegen() {
     return nullptr;
 }
 
-llvm::Value *IfExpr::codegen() {
-    llvm::Value *condV = this->cond->codegen();
+ValueType *IfExpr::codegen() {
+    ValueType *condV = this->cond->codegen();
     if (!condV) {
         return nullptr;
     }
-    condV = builder.CreateICmpNE(
-        condV, 
+    if (!condV->type->eq(new TypeDecl(TypeDecl::INT32, "0"))) {
+        LogError("type " << condV->type->baseType 
+            << " cannot be used in condition");
+        return nullptr;
+    }
+    llvm::Value *condE = builder.CreateICmpNE(
+        condV->val, 
         llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
         "_");
 
@@ -1408,7 +1528,7 @@ llvm::Value *IfExpr::codegen() {
     } else {
         falseBB = llvm::BasicBlock::Create(context, "if");
     }
-    builder.CreateCondBr(condV, trueBB, falseBB);
+    builder.CreateCondBr(condE, trueBB, falseBB);
 
     builder.SetInsertPoint(trueBB);
     for (auto p : this->iftrue) {
@@ -1429,43 +1549,43 @@ llvm::Value *IfExpr::codegen() {
     return nullptr;
 }
 
-llvm::Value *MatchExpr::codegen() {
+ValueType *MatchExpr::codegen() {
     return nullptr;
 }
 
-llvm::Value *MatchLine::codegen() {
+ValueType *MatchLine::codegen() {
     return nullptr;
 }
 
-llvm::Value *Option::codegen() {
+ValueType *Option::codegen() {
     return nullptr;
 }
 
-llvm::Value *Param::codegen() {
+ValueType *Param::codegen() {
     return nullptr;
 }
 
-llvm::Value *RetExpr::codegen() {
+ValueType *RetExpr::codegen() {
     if (! this->stmt) {
         builder.CreateRetVoid();
         return nullptr;
     }
 
-    llvm::Value *r = this->stmt->codegen();
+    ValueType *r = this->stmt->codegen();
 
     if (r) {
-        builder.CreateRet(r);
+        builder.CreateRet(r->val);
     }
 
     return nullptr;
 }
 
-llvm::Value *TypeDecl::codegen() {
+ValueType *TypeDecl::codegen() {
     LogError("TypeDecl() cannot generate code");
     return nullptr;
 }
 
-llvm::Value *VarDecl::codegen() {
+ValueType *VarDecl::codegen() {
     if (FindTopVar(this->name)) {
         LogError("variable " << this->name << " already declared");
         return nullptr;
@@ -1474,18 +1594,26 @@ llvm::Value *VarDecl::codegen() {
     llvm::Function *curF = builder.GetInsertBlock()->getParent();
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
         curF, this->name, type_trans(this->type), this->type->arrayT);
-    llvm::Value *v = nullptr;
 
     if (this->init) {
-        v = this->init->codegen();
-        builder.CreateStore(v, alloca);
+        ValueType *v = this->init->codegen();
+        if (!v) {
+            LogError("initialization failure of variable " << this->name);
+            return nullptr;
+        }
+        if (! v->type->eq(this->type)) {
+            LogError("initialization type mismatch");
+            return nullptr;
+        }
+        builder.CreateStore(v->val, alloca);
     }
-    InsertVar(this->name, alloca, nullptr);
+
+    InsertVar(this->name, alloca, this->type);
 
     return nullptr;
 }
 
-llvm::Value *WhileExpr::codegen() {
+ValueType *WhileExpr::codegen() {
     llvm::Function *parent = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock *condBB = llvm::BasicBlock::Create(
         context, "lc", parent);
@@ -1497,14 +1625,15 @@ llvm::Value *WhileExpr::codegen() {
     builder.CreateBr(condBB);
     builder.SetInsertPoint(condBB);
 
-    llvm::Value *condV = this->cond->codegen();
+    ValueType *condV = this->cond->codegen();
+    llvm::Value *condE;
     if (condV) {
-        condV = builder.CreateICmpNE(
-            condV, 
+        condE = builder.CreateICmpNE(
+            condV->val, 
             llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
             "_");
     }
-    builder.CreateCondBr(condV, loopBB, finalBB);
+    builder.CreateCondBr(condE, loopBB, finalBB);
     builder.SetInsertPoint(loopBB);
 
     for (auto p : this->exprs) {
@@ -1516,7 +1645,7 @@ llvm::Value *WhileExpr::codegen() {
     return nullptr;
 }
 
-llvm::Value *Program::codegen() {
+ValueType *Program::codegen() {
     for (auto p : this->stmts) {
         p->codegen();
     }
