@@ -1204,12 +1204,12 @@ ValueType *ExprVal::codegen() {
         return new ValueType(
             new llvm::LoadInst(
                 builder.CreateGEP(v, index->val, "_"), 
-                nullptr, builder.GetInsertBlock()),
+                "", builder.GetInsertBlock()),
             singletonType
         );
     } else {
         return new ValueType(
-            new llvm::LoadInst(v, nullptr, builder.GetInsertBlock()),
+            new llvm::LoadInst(v, "", builder.GetInsertBlock()),
             vt->type);
     }
 }
@@ -1249,8 +1249,10 @@ ValueType *EvalExpr::codegen() {
                 LogError("invalid array index type");
                 return nullptr;
             }
-            vt->type = new TypeDecl(vt->type->baseType, "0");
-            vt->val = builder.CreateGEP(v, index->val, "_");
+            vt = new ValueType(
+                builder.CreateGEP(v, index->val, "_"),
+                new TypeDecl(vt->type->baseType, "0")
+            );
         }
 
         ValueType *rVT = this->r->codegen();
@@ -1260,7 +1262,7 @@ ValueType *EvalExpr::codegen() {
         }
         builder.CreateStore(rVT->val, vt->val, false);
         return new ValueType(
-            new llvm::LoadInst(vt->val, nullptr, builder.GetInsertBlock()),
+            new llvm::LoadInst(vt->val, "", builder.GetInsertBlock()),
             vt->type
         );
     }
@@ -1687,7 +1689,7 @@ int AST::codegen(Program prog, std::string outputFileName) {
         return ERR_OBJCODE;
     }
     llvm::TargetOptions opt;
-    auto RM = llvm::Optional<llvm::Reloc::Model>();
+    auto RM = llvm::Optional<llvm::Reloc::Model>(llvm::Reloc::Model::PIC_);
     auto TargetMachine = Target->createTargetMachine(
         TargetTriple, llvm::sys::getHostCPUName(), "", opt, RM);
     module->setDataLayout(TargetMachine->createDataLayout());
@@ -1704,7 +1706,7 @@ int AST::codegen(Program prog, std::string outputFileName) {
     llvm::legacy::PassManager pass;
     auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
 
-    if (TargetMachine->addPassesToEmitFile(pass, dest, FileType)) {
+    if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
         LogError("TargetMachine can't emit a file of this type");
         return ERR_OBJCODE;
     }
