@@ -3,39 +3,66 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <sstream>
 
 #include "tree.hpp"
 #include "lexical.hpp"
 
-#include "err.hpp"
+#include "llvm/IR/Value.h"
 
-  
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/TargetRegistry.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Target/TargetOptions.h"
+#include "err.hpp"
 
 /* Error Logging */
 #define LogError(e) std::cerr << "CodeGen Error: " << e << std::endl
 
 namespace AST {
+    class NameSpace {
+        public:
+        std::string ClassName;
+        std::string BaseName;
+
+        NameSpace() {
+        }
+
+        NameSpace(std::string b) {
+            this->ClassName = "";
+            this->BaseName  = b;
+        }
+
+        NameSpace(std::string c, std::string b) {
+            this->ClassName = c;
+            this->BaseName  = b;
+        }
+
+        std::string str(void) {
+            if (this->ClassName == "") {
+                if (this->BaseName == "main" || this->BaseName == "printf")
+                    return this->BaseName;
+            }
+            std::stringstream ss;
+            if (this->ClassName == "") {
+                ss << "__" << this->BaseName;
+            } else {
+                if (this->BaseName == "") {
+                    ss << "_" << this->ClassName;
+                } else {
+                    ss << "_" << this->ClassName << "__" << this->BaseName;
+                }
+            }
+            return ss.str();
+        }
+
+        friend bool operator<(const NameSpace& l, const NameSpace& r){
+            if (l.ClassName < r.ClassName)
+                return true;
+            if (l.ClassName == r.ClassName)
+                if (l.BaseName < r.BaseName)
+                    return true;
+            return false;
+        }
+
+    };
+
     class ValueType;
     
     class ASTs;
@@ -251,7 +278,7 @@ namespace AST {
         std::string constVal;
         TypeDecl *type;
         
-        std::string refName;
+        NameSpace refName;
         FuncCall *call;
         EvalExpr *array;
 
@@ -261,7 +288,7 @@ namespace AST {
             this->type = t;
         }
 
-        ExprVal(std::string n, FuncCall *c, EvalExpr *a) {
+        ExprVal(NameSpace n, FuncCall *c, EvalExpr *a) {
             this->isConst = false;
             this->refName = n;
             this->call = c;
@@ -332,17 +359,38 @@ namespace AST {
         virtual ValueType *codegen();
     };
 
+class ClassDecl : public GlobalStatement {
+        public:
+        NameSpace name;
+        GenericDecl *genType;
+        std::vector<GlobalStatement*> stmts;
+
+        ClassDecl(std::string n, GenericDecl* g){
+            this->stmtType = CLASSDECL;
+
+            this->name = NameSpace(n, "");
+            this->genType = g;
+            this->stmts.clear();
+        }
+
+        void print(int);
+        virtual ValueType *codegen();
+    };
+
     class VarDecl : public GlobalStatement, public Expr {
         public:
-        std::string name;
+        NameSpace name;
         TypeDecl *type;
         EvalExpr *init;
 
-        VarDecl(std::string n, TypeDecl* t, EvalExpr* i) {
+        VarDecl(std::string n, TypeDecl* t, EvalExpr* i, ClassDecl *cl) {
             this->stmtType = GlobalStatement::VARDECL;
             this->exprType = Expr::VARDECL;
 
-            this->name = n;
+            if (cl)
+                this->name = NameSpace(cl->name.ClassName, n);
+            else
+                this->name = NameSpace(n);
             this->type = t;
             this->init = i;
         }
@@ -353,15 +401,18 @@ namespace AST {
 
     class ConstDecl : public GlobalStatement, public Expr {
         public:
-        std::string name;
+        NameSpace name;
         TypeDecl *type;
         EvalExpr *init;
 
-        ConstDecl(std::string n, EvalExpr* i) {
+        ConstDecl(std::string n, EvalExpr* i, ClassDecl *cl) {
             this->stmtType = GlobalStatement::CONSTDECL;
             this->exprType = EvalExpr::CONSTDECL;
 
-            this->name = n;
+            if (cl)
+                this->name = NameSpace(cl->name.ClassName, n);
+            else
+                this->name = NameSpace(n);
             this->type = NULL;
             this->init = i;
         }
@@ -372,16 +423,22 @@ namespace AST {
 
     class FuncDecl : public GlobalStatement {
         public:
-        std::string name;
+        NameSpace name;
         GenericDecl *genType;
         std::vector<Param*> pars;
         TypeDecl *ret;
         std::vector<Expr*> exprs;
 
-        FuncDecl(std::string n, GenericDecl* g, TypeDecl* r) {
+        FuncDecl(std::string n, GenericDecl* g, TypeDecl* r, ClassDecl* cl) {
+            std::stringstream ss;
+
             this->stmtType = FUNCDECL;
 
-            this->name = n;
+            if (cl)
+                this->name = NameSpace(cl->name.ClassName, n);
+            else
+                this->name = NameSpace(n);
+            
             this->genType = g;
             pars.clear();
             this->ret = r;
@@ -392,33 +449,18 @@ namespace AST {
         virtual ValueType *codegen();
     };
 
-    class ClassDecl : public GlobalStatement {
-        public:
-        std::string name;
-        GenericDecl *genType;
-        std::vector<GlobalStatement*> stmts;
-
-        ClassDecl(std::string n, GenericDecl* g){
-            this->stmtType = CLASSDECL;
-
-            this->name = n;
-            this->genType = g;
-            this->stmts.clear();
-        }
-
-        void print(int);
-        virtual ValueType *codegen();
-    };
-
     class EnumDecl : public GlobalStatement {
         public:
-        std::string name;
+        NameSpace name;
         std::vector<Option*> options;
 
-        EnumDecl(std::string n) {
+        EnumDecl(std::string n, ClassDecl *cl) {
             this->stmtType = ENUMDECL;
 
-            this->name = n;
+            if (cl)
+                this->name = NameSpace(cl->name.ClassName, n);
+            else
+                this->name = NameSpace(n);
             this->options.clear();
         }
 

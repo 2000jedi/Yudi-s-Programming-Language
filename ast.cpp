@@ -2,9 +2,27 @@
 #include "lexical.hpp"
 #include "tree.hpp"
 
-#include <iostream>
-#include <sstream>
-#include <string>
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 
 using namespace AST;
 
@@ -83,54 +101,57 @@ std::string unescape(std::string raw) {
     return ss.str();
 }
 
-BaseAST* recursive_gen(Node<Lexical> *curr) {
+BaseAST* recursive_gen(Node<Lexical> *curr, ClassDecl *ParentClass) {
     if (curr->t.name == "<EPS>") {
       return nullptr;
     }
     if (curr->t.name == "<STATEMENTS>") {
         Program* prog = new AST::Program();
         prog->insert(dynamic_cast<GlobalStatement *>(
-            recursive_gen(&curr->child[0])));
+            recursive_gen(&curr->child[0], nullptr)));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
             prog->insert(dynamic_cast<GlobalStatement *>(
-                recursive_gen(&curr->child[0])));
+                recursive_gen(&curr->child[0], nullptr)));
         }
         return prog;
     }
 
     if (curr->t.name == "<CLASS_DOMAIN>") {
         ASTs *parent = new ASTs();
-        parent->insert(recursive_gen(&curr->child[0]));
+        parent->insert(recursive_gen(&curr->child[0], ParentClass));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            parent->insert(recursive_gen(&curr->child[0]));
+            parent->insert(recursive_gen(&curr->child[0], ParentClass));
         }
         return parent;
     }
 
     if (curr->t.name == "<STATEMENT>") {
-        return recursive_gen(&curr->child[0]);
+        return recursive_gen(&curr->child[0], ParentClass);
     }
 
     if (curr->t.name == "<CONSTDEF>") {
         EvalExpr *init = dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[3]));
-        ConstDecl* parent = new ConstDecl(curr->child[1].t.data, init);
+            recursive_gen(&curr->child[3], nullptr));
+        ConstDecl* parent = new ConstDecl(
+            curr->child[1].t.data, init, ParentClass);
 
         return parent;
     }
 
     if (curr->t.name == "<VARDEF>") {
         TypeDecl *type = dynamic_cast<TypeDecl *>(
-            recursive_gen(&curr->child[3]));
+            recursive_gen(&curr->child[3], nullptr));
         Expr *init = dynamic_cast<Expr *>(
-            recursive_gen(&curr->child[4]));
+            recursive_gen(&curr->child[4], nullptr));
         if (! init) {
-            return new VarDecl(curr->child[1].t.data, type, nullptr);
+            return new VarDecl(
+                curr->child[1].t.data, type, nullptr, ParentClass);
         } else {
             return new VarDecl(
-                curr->child[1].t.data, type, dynamic_cast<EvalExpr *>(init));
+                curr->child[1].t.data, type, 
+                dynamic_cast<EvalExpr *>(init), ParentClass);
         }
     }
 
@@ -153,21 +174,22 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return new Expr(); // empty statement
         else {
-            return recursive_gen(&curr->child[1]);
+            return recursive_gen(&curr->child[1], nullptr);
         }
     }
 
     if (curr->t.name == "<FUNCDEF>") {
         GenericDecl *gen = dynamic_cast<GenericDecl *>(
-            recursive_gen(&curr->child[2]));
+            recursive_gen(&curr->child[2], nullptr));
         TypeDecl *ret = dynamic_cast<TypeDecl *>(
-            recursive_gen(&curr->child[6]));
-        FuncDecl *parent = new FuncDecl(curr->child[1].t.data, gen, ret);
+            recursive_gen(&curr->child[6], nullptr));
+        FuncDecl *parent = new FuncDecl(
+            curr->child[1].t.data, gen, ret, ParentClass);
 
         ASTs *params = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[4]));
+            recursive_gen(&curr->child[4], nullptr));
         ASTs *exprs  = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[8]));
+            recursive_gen(&curr->child[8], nullptr));
 
         for (auto p : params->stmts) {
             parent->pars.push_back(dynamic_cast<Param *>(p));
@@ -192,7 +214,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>") {
             return new ASTs();
         } else {
-            return recursive_gen(&curr->child[1]);
+            return recursive_gen(&curr->child[1], nullptr);
         }
     }
 
@@ -202,10 +224,10 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
           return params;
         }
 
-        params->stmts.push_back(recursive_gen(&curr->child[0]));
+        params->stmts.push_back(recursive_gen(&curr->child[0], nullptr));
         curr = &curr->child[1];
         while (curr->child[0].t.name != "<EPS>") {
-            params->stmts.push_back(recursive_gen(&curr->child[1]));
+            params->stmts.push_back(recursive_gen(&curr->child[1], nullptr));
             curr = &curr->child[2];
         }
         return params;
@@ -213,7 +235,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
     if (curr->t.name == "<PARAM>") {
         TypeDecl *type = dynamic_cast<TypeDecl *>(
-            recursive_gen(&curr->child[2]));
+            recursive_gen(&curr->child[2], nullptr));
         Param *param = new Param(curr->child[0].t.data, type);;
         return param;
     }
@@ -222,13 +244,14 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>") {
             return new TypeDecl(TypeDecl::VOID, "0");
         } else {
-            return recursive_gen(&curr->child[1]);
+            return recursive_gen(&curr->child[1], nullptr);
         }
     }
 
     if (curr->t.name == "<ENUMDEF>") {
-        ASTs *options = dynamic_cast<ASTs *>(recursive_gen(&curr->child[3]));
-        EnumDecl *parent = new EnumDecl(curr->child[1].t.data);
+        ASTs *options = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[3], nullptr));
+        EnumDecl *parent = new EnumDecl(curr->child[1].t.data, ParentClass);
         
         for (auto p : options->stmts) {
             parent->options.push_back(dynamic_cast<Option *>(p));
@@ -243,7 +266,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return options;
         }
         Option *option = new Option(curr->child[0].t.data);
-        ASTs *pars = dynamic_cast<ASTs *>(recursive_gen(&curr->child[1]));
+        ASTs *pars = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[1], nullptr));
         for (auto p : pars->stmts) {
             option->pars.push_back(dynamic_cast<Param *>(p));
         }
@@ -253,7 +277,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         
         while (curr->child[0].t.name != "<EPS>") {
             Option *option = new Option(curr->child[1].t.data);
-            ASTs *pars = dynamic_cast<ASTs *>(recursive_gen(&curr->child[2]));
+            ASTs *pars = dynamic_cast<ASTs *>(
+                recursive_gen(&curr->child[2], nullptr));
             for (auto p : pars->stmts) {
                 option->pars.push_back(dynamic_cast<Param *>(p));
             }
@@ -282,24 +307,26 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
     if (curr->t.name == "<CLASSDEF>") {
         GenericDecl *g = dynamic_cast<GenericDecl *>(
-            recursive_gen(&curr->child[2]));
-        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[4]));
+            recursive_gen(&curr->child[2], nullptr));
         ClassDecl *parent = new ClassDecl(curr->child[1].t.data, g);
+        ASTs *exprs = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[4], parent));
         
         for (auto p : exprs->stmts) {
             parent->stmts.push_back(dynamic_cast<GlobalStatement *>(p));
         }
+
         return parent;
     }
 
     if (curr->t.name == "<EXPRS>") {
         ASTs *exprs = new ASTs();
-        BaseAST *expr = recursive_gen(&curr->child[0]);
+        BaseAST *expr = recursive_gen(&curr->child[0], nullptr);
         if (expr)
             exprs->stmts.push_back(expr);
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            expr = recursive_gen(&curr->child[0]);
+            expr = recursive_gen(&curr->child[0], nullptr);
             if (expr)
                 exprs->stmts.push_back(expr);
         }
@@ -307,23 +334,25 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<EXPR>")
-        return recursive_gen(&curr->child[0]);
+        return recursive_gen(&curr->child[0], nullptr);
 
     if (curr->t.name == "<EMPTY_EXPR>")
         return new Expr();
 
     if (curr->t.name == "<RET_EXPR>") {
         return new RetExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[1])
+            recursive_gen(&curr->child[1], nullptr)
         ));
     }
 
     if (curr->t.name == "<IF_EXPR>") {
         IfExpr *parent = new IfExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[2])));
+            recursive_gen(&curr->child[2], nullptr)));
 
-        ASTs *iftrue = dynamic_cast<ASTs *>(recursive_gen(&curr->child[5]));
-        ASTs *iffalse = dynamic_cast<ASTs *>(recursive_gen(&curr->child[7]));
+        ASTs *iftrue = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[5], nullptr));
+        ASTs *iffalse = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[7], nullptr));
         
         for (auto p : iftrue->stmts) {
             parent->iftrue.push_back(dynamic_cast<Expr *>(p));
@@ -340,14 +369,15 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return new ASTs();
         else {
-            return recursive_gen(&curr->child[2]);
+            return recursive_gen(&curr->child[2], nullptr);
         }
     }
 
     if (curr->t.name == "<WHILE_EXPR>") {
         WhileExpr *parent = new WhileExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[2])));
-        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[5]));
+            recursive_gen(&curr->child[2], nullptr)));
+        ASTs *exprs = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[5], nullptr));
 
         for (auto p : exprs->stmts) {
             parent->exprs.push_back(dynamic_cast<Expr *>(p));
@@ -357,12 +387,13 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
     if (curr->t.name == "<FOR_EXPR>") {
         ForExpr *parent = new ForExpr(
-            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[2])),
-            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[4])),
-            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[6]))
+            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[2], nullptr)),
+            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[4], nullptr)),
+            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[6], nullptr))
         );
 
-        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[9]));
+        ASTs *exprs = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[9], nullptr));
         for (auto p : exprs->stmts) {
             parent->exprs.push_back(dynamic_cast<Expr *>(p));
         }
@@ -372,9 +403,10 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 
     if (curr->t.name == "<MATCH_EXPR>") {
         MatchExpr *match = new MatchExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[2])));
+            recursive_gen(&curr->child[2], nullptr)));
 
-        ASTs *exprs = dynamic_cast<ASTs *>(recursive_gen(&curr->child[5]));
+        ASTs *exprs = dynamic_cast<ASTs *>(
+            recursive_gen(&curr->child[5], nullptr));
         for (auto p : exprs->stmts) {
             match->lines.push_back(dynamic_cast<MatchLine *>(p));
         }
@@ -386,8 +418,10 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         ASTs *exprs = new ASTs();
         while (curr->child.size() > 1) {
             MatchLine *line = new MatchLine(curr->child[0].t.data);
-            ASTs *pars = dynamic_cast<ASTs *>(recursive_gen(&curr->child[1]));
-            ASTs *expr = dynamic_cast<ASTs *>(recursive_gen(&curr->child[4]));
+            ASTs *pars = dynamic_cast<ASTs *>(
+                recursive_gen(&curr->child[1], nullptr));
+            ASTs *expr = dynamic_cast<ASTs *>(
+                recursive_gen(&curr->child[4], nullptr));
             
             for (auto p : pars->stmts) {
                 line->pars.push_back(dynamic_cast<Param *>(p));
@@ -403,12 +437,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<EVAL_EXPR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -424,8 +458,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1]);
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (! opr2) {
                 return opr1;
             } else {
@@ -439,12 +473,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<LOGICAL_OR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -460,8 +494,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1]);
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (! opr2) {
                 return opr1;
             } else {
@@ -475,12 +509,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<LOGICAL_AND>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -496,8 +530,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1]);
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (! opr2) {
                 return opr1;
             } else {
@@ -511,12 +545,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<BITWISE_OR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -532,8 +566,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1]);
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (! opr2) {
                 return opr1;
             } else {
@@ -547,12 +581,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<BITWISE_XOR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -568,8 +602,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1]);
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (! opr2) {
                 return opr1;
             } else {
@@ -583,12 +617,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<BITWISE_AND>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -604,8 +638,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1]);
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (! opr2) {
                 return opr1;
             } else {
@@ -619,12 +653,12 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<EQ_NEQ>" || curr->t.name == "<LGTE>" || curr->t.name == "<ADD_SUB>" || curr->t.name == "<MUL_DIV>" || curr->t.name == "<CDOT>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0]);
+        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = recursive_gen(&curr->child[1]);
+        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
         if (!opr2) {
             return opr1;
         } else {
@@ -642,8 +676,8 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             return nullptr;
         else {
             EvalExpr *opr1 = dynamic_cast<EvalExpr *>(
-                recursive_gen(&curr->child[1]));
-            BaseAST *opr2 = recursive_gen(&curr->child[2]);
+                recursive_gen(&curr->child[1], nullptr));
+            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
             if (!opr2)
                 return new EvalExpr(
                     curr->child[0].t.name,
@@ -670,13 +704,13 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
     if (curr->t.name == "<PARS>") {
         if (curr->child[0].t.name == "NAME") {
             FuncCall *fc = dynamic_cast<FuncCall *>(
-                recursive_gen(&curr->child[1]));
+                recursive_gen(&curr->child[1], nullptr));
             EvalExpr *arr = dynamic_cast<EvalExpr *>(
-                recursive_gen(&curr->child[2]));
+                recursive_gen(&curr->child[2], nullptr));
             return new EvalExpr(new ExprVal(curr->child[0].t.data, fc, arr));
         }
         if (curr->child[0].t.name == "LPAR") {
-            return recursive_gen(&curr->child[1]);
+            return recursive_gen(&curr->child[1], nullptr);
         }
 
         if (curr->child[0].t.name == "FLOAT")
@@ -703,7 +737,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
             FuncCall *fc = new FuncCall();
             while (curr->child.size() > 1) {
                 fc->pars.push_back(dynamic_cast<EvalExpr *>(
-                    recursive_gen(&curr->child[1])));
+                    recursive_gen(&curr->child[1], nullptr)));
                 curr = &curr->child[2];
             }
             return fc;
@@ -714,7 +748,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            return recursive_gen(&curr->child[1]);
+            return recursive_gen(&curr->child[1], nullptr);
         }
     }
 
@@ -723,7 +757,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr) {
 }
 
 Program AST::generate(Node<Lexical> *root) {
-    return *dynamic_cast<Program *>(recursive_gen(root));
+    return *dynamic_cast<Program *>(recursive_gen(root, nullptr));
 }
 
 /**
@@ -779,7 +813,7 @@ void ExprVal::print(int indent) {
     if (this->isConst)
         std::cout << "ConstVal(" << this->constVal << ')' << std::endl;
     else {
-        std::cout << "ExprVal(" << this->refName << ')' << std::endl;
+        std::cout << "ExprVal(" << this->refName.str() << ')' << std::endl;
         if (this->call)
             this->call->print(indent + 1);
         if (this->array)
@@ -832,7 +866,7 @@ void RetExpr::print(int indent) {
 void VarDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "VarDecl(" << this->name << ')' << std::endl;
+    std::cout << "VarDecl(" << this->name.str() << ')' << std::endl;
     if (this->type)
         this->type->print(indent + 1);
     if (this->init)
@@ -842,7 +876,7 @@ void VarDecl::print(int indent) {
 void ConstDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "ConstDecl(" << this->name << ')' << std::endl;
+    std::cout << "ConstDecl(" << this->name.str() << ')' << std::endl;
     if (this->type)
         this->type->print(indent + 1);
     if (this->init)
@@ -852,7 +886,7 @@ void ConstDecl::print(int indent) {
 void FuncDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "FuncDecl(" << this->name << ')' << std::endl;
+    std::cout << "FuncDecl(" << this->name.str() << ')' << std::endl;
     if (this->genType)
         this->genType->print(indent + 1);
 
@@ -883,7 +917,7 @@ void FuncDecl::print(int indent) {
 void ClassDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "ClassDecl(" << this->name << ')' << std::endl;
+    std::cout << "ClassDecl(" << this->name.str() << ')' << std::endl;
     if (this->genType)
         this->genType->print(indent + 1);
 
@@ -901,7 +935,7 @@ void ClassDecl::print(int indent) {
 void EnumDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "EnumDecl(" << this->name << ')' << std::endl;
+    std::cout << "EnumDecl(" << this->name.str() << ')' << std::endl;
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Options(" << std::endl;
@@ -1021,36 +1055,36 @@ static llvm::LLVMContext context;
 static llvm::IRBuilder<> builder(context);
 static std::unique_ptr<llvm::Module> module;
 static std::map<std::string, ValueType *> strLits;
-static std::map<std::string, FuncDecl *> funcDecls;
+static std::map<NameSpace, FuncDecl *> funcDecls;
 
 /*
     Symble Table - record Variable and Type Information
     TODO: type inference
 */
 
-static std::vector<std::unique_ptr<std::map<std::string, ValueType*>>> SymTable;
+static std::vector<std::unique_ptr<std::map<NameSpace, ValueType*>>> SymTable;
 
 static void ClearSymLayer(void) {
     SymTable.clear();
 }
 
 static void NewSymLayer(void) {
-    SymTable.push_back(std::make_unique<std::map<std::string, ValueType *>>());
+    SymTable.push_back(std::make_unique<std::map<NameSpace, ValueType *>>());
 }
 
 static void RemoveSymLayer(void) {
     SymTable.pop_back();
 }
 
-static void InsertVar(std::string name, llvm::Value *v, TypeDecl *t) {
+static void InsertVar(NameSpace name, llvm::Value *v, TypeDecl *t) {
     (*SymTable.back())[name] = new ValueType(v, t);
 }
 
-static void InsertConst(std::string name, llvm::Value *v, TypeDecl *t) {
+static void InsertConst(NameSpace name, llvm::Value *v, TypeDecl *t) {
     (*SymTable.back())[name] = new ValueType(v, t, true);
 }
 
-static ValueType *FindVar(std::string name) {
+static ValueType *FindVar(NameSpace name) {
     for (int i = SymTable.size() - 1; i >= 0; i--) {
         if (SymTable[i]->find(name) != SymTable[i]->end()) {
             return (*SymTable[i])[name];
@@ -1060,7 +1094,7 @@ static ValueType *FindVar(std::string name) {
     return nullptr;
 }
 
-static ValueType *FindTopVar(std::string name) {
+static ValueType *FindTopVar(NameSpace name) {
     if (SymTable.back()->find(name) != SymTable.back()->end()) {
         return (*SymTable.back())[name];
     } else {
@@ -1150,16 +1184,16 @@ ValueType *ExprVal::codegen() {
     }
 
     if (this->call) {
-        llvm::Function *F = module->getFunction(this->refName);
+        llvm::Function *F = module->getFunction(this->refName.str());
         if (!F) {
-            LogError("function " << this->refName <<" is not defined");
+            LogError("function " << this->refName.str() <<" is not defined");
             return nullptr;
         }
 
         if ((!F->isVarArg()) && (F->arg_size() != this->call->pars.size())) {
             LogError(
-                "function " << this->refName <<" requires " << F->arg_size() 
-                << " argument(s), " << this->call->pars.size() 
+                "function " << this->refName.str() <<" requires " 
+                << F->arg_size() << " argument(s), " << this->call->pars.size() 
                 << " argument(s) found");
             return nullptr;
         }
@@ -1180,12 +1214,12 @@ ValueType *ExprVal::codegen() {
             new TypeDecl(TypeDecl::VOID, "0"));
         }
         return new ValueType(builder.CreateCall(F, args, "_"), 
-            funcDecls[F->getName()]->ret);
+            funcDecls[this->refName]->ret);
     }
 
     ValueType* vt = FindVar(this->refName);
     if (!vt) {
-        LogError("variable " << this->refName << " used before defined");
+        LogError("variable " << this->refName.str() << " used before defined");
         return nullptr;
     }
     llvm::Value *v = vt->val;
@@ -1234,7 +1268,7 @@ ValueType *EvalExpr::codegen() {
 
         ValueType *vt = FindVar(this->l->val->refName);
         if (!vt) {
-            LogError("variable " << this->l->val->refName << "not found");
+            LogError("variable " << this->l->val->refName.str() << "not found");
             return nullptr;
         }
         llvm::Value *v = vt->val;
@@ -1362,9 +1396,10 @@ ValueType *EvalExpr::codegen() {
 }
 
 ValueType *FuncDecl::codegen() {
-    llvm::Function *prev = module->getFunction(this->name);
+    llvm::Function *prev = module->getFunction(this->name.str());
     if (prev) {
-        LogError("function " << this->name << " already declared");
+        LogError("function " << this->name.ClassName << "." 
+            << this->name.BaseName << " already declared");
         return nullptr;
     }
 
@@ -1377,14 +1412,14 @@ ValueType *FuncDecl::codegen() {
     llvm::FunctionType *Ft = llvm::FunctionType::get(
         type_trans(this->ret), ArgTypes, false);
     llvm::Function *F = llvm::Function::Create(
-        Ft, llvm::Function::ExternalLinkage, this->name, module.get());
+        Ft, llvm::Function::ExternalLinkage, this->name.str(), module.get());
     
     unsigned Idx = 0;
     for (auto &Arg : F->args())
         Arg.setName(this->pars[Idx++]->name);
 
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(
-        context, this->name + "_entry", F);
+        context, this->name.str() + "_entry", F);
     builder.SetInsertPoint(BB);
 
     ClearSymLayer();
@@ -1396,7 +1431,7 @@ ValueType *FuncDecl::codegen() {
             F, Arg.getName(), type_trans(this->pars[Idx]->type), 
             this->pars[Idx]->type->arrayT);
         builder.CreateStore(&Arg, alloca);
-        InsertVar(Arg.getName(), alloca, this->pars[Idx]->type);
+        InsertVar(NameSpace(Arg.getName()), alloca, this->pars[Idx]->type);
         Idx++;
     }
 
@@ -1430,22 +1465,22 @@ ValueType *ClassDecl::codegen() {
 
 ValueType *ConstDecl::codegen() {
     if (FindTopVar(this->name)) {
-        LogError("variable " << this->name << " already declared");
+        LogError("variable " << this->name.str() << " already declared");
         return nullptr;
     }
     if (!this->init) {
-        LogError("constant " << this->name << " has no initialization");
+        LogError("constant " << this->name.str() << " has no initialization");
         return nullptr;
     }
     ValueType *v = this->init->codegen();
     if (!v) {
-        LogError("initialization failure of variable " << this->name);
+        LogError("initialization failure of variable " << this->name.str());
         return nullptr;
     }
 
     llvm::Function *curF = builder.GetInsertBlock()->getParent();
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name, type_trans(v->type), v->type->arrayT);
+        curF, this->name.str(), type_trans(v->type), v->type->arrayT);
     builder.CreateStore(v->val, alloca);
 
     InsertConst(this->name, alloca, v->type);
@@ -1589,18 +1624,18 @@ ValueType *TypeDecl::codegen() {
 
 ValueType *VarDecl::codegen() {
     if (FindTopVar(this->name)) {
-        LogError("variable " << this->name << " already declared");
+        LogError("variable " << this->name.str() << " already declared");
         return nullptr;
     }
 
     llvm::Function *curF = builder.GetInsertBlock()->getParent();
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name, type_trans(this->type), this->type->arrayT);
+        curF, this->name.str(), type_trans(this->type), this->type->arrayT);
 
     if (this->init) {
         ValueType *v = this->init->codegen();
         if (!v) {
-            LogError("initialization failure of variable " << this->name);
+            LogError("initialization failure of variable " << this->name.str());
             return nullptr;
         }
         if (! v->type->eq(this->type)) {
