@@ -1422,7 +1422,6 @@ ValueType *FuncDecl::codegen() {
         context, this->name.str() + "_entry", F);
     builder.SetInsertPoint(BB);
 
-    ClearSymLayer();
     NewSymLayer();
     
     Idx = 0;
@@ -1455,7 +1454,7 @@ ValueType *FuncDecl::codegen() {
         builder.CreateRetVoid();
     }
 
-    // RemoveSymLayer();
+    RemoveSymLayer();
 
     llvm::verifyFunction(*F);
     return nullptr;
@@ -1685,6 +1684,9 @@ ValueType *WhileExpr::codegen() {
 }
 
 ValueType *Program::codegen() {
+    ClearSymLayer();
+    NewSymLayer(); /* Global Variable Layer */
+
     for (auto p : this->stmts) {
         p->codegen();
     }
