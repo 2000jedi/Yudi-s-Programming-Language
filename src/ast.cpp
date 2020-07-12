@@ -1455,6 +1455,8 @@ ValueType *FuncDecl::codegen() {
         builder.CreateRetVoid();
     }
 
+    // RemoveSymLayer();
+
     llvm::verifyFunction(*F);
     return nullptr;
 }
