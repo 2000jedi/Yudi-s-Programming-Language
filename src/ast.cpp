@@ -1056,6 +1056,7 @@ static llvm::IRBuilder<> builder(context);
 static std::unique_ptr<llvm::Module> module;
 static std::map<std::string, ValueType *> strLits;
 static std::map<NameSpace, FuncDecl *> funcDecls;
+static std::map<NameSpace, ClassDecl *> classDecls;
 
 /*
     Symble Table - record Variable and Type Information
@@ -1396,27 +1397,7 @@ ValueType *EvalExpr::codegen() {
 }
 
 ValueType *FuncDecl::codegen() {
-    llvm::Function *prev = module->getFunction(this->name.str());
-    if (prev) {
-        LogError("function " << this->name.ClassName << "." 
-            << this->name.BaseName << " already declared");
-        return nullptr;
-    }
-
-    funcDecls[this->name] = this;
-
-    std::vector<llvm::Type *> ArgTypes;
-    for (auto p : this->pars) {
-        ArgTypes.push_back(type_trans(p->type));
-    }
-    llvm::FunctionType *Ft = llvm::FunctionType::get(
-        type_trans(this->ret), ArgTypes, false);
-    llvm::Function *F = llvm::Function::Create(
-        Ft, llvm::Function::ExternalLinkage, this->name.str(), module.get());
-    
-    unsigned Idx = 0;
-    for (auto &Arg : F->args())
-        Arg.setName(this->pars[Idx++]->name);
+    llvm::Function *F = module->getFunction(this->name.str());
 
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(
         context, this->name.str() + "_entry", F);
@@ -1424,7 +1405,7 @@ ValueType *FuncDecl::codegen() {
 
     NewSymLayer();
     
-    Idx = 0;
+    unsigned int Idx = 0;
     for (auto &Arg : F->args()) {
         llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
             F, Arg.getName(), type_trans(this->pars[Idx]->type), 
@@ -1435,16 +1416,19 @@ ValueType *FuncDecl::codegen() {
     }
 
     /*
-        Insert Global String Definitions
+        Insert Global String Definitions for main()
     */
-
-    for (auto p : strings) {
-        if (strLits.find(p) == strLits.end()) {
-            llvm::Value *v = builder.CreateGlobalStringPtr(llvm::StringRef(p));
-            strLits[p] = new ValueType(v, new TypeDecl(TypeDecl::STRING, "0"));
+    if (this->name.BaseName == "main" && this->name.ClassName == "") {
+        for (auto p : strings) {
+            if (strLits.find(p) == strLits.end()) {
+                llvm::Value *v = builder.CreateGlobalStringPtr(
+                    llvm::StringRef(p));
+                strLits[p] = new ValueType(
+                    v, new TypeDecl(TypeDecl::STRING, "0"));
+            }
         }
+        strings.clear();
     }
-    strings.clear();
 
     for (auto p : this->exprs) {
         p->codegen();
@@ -1686,6 +1670,47 @@ ValueType *WhileExpr::codegen() {
 ValueType *Program::codegen() {
     ClearSymLayer();
     NewSymLayer(); /* Global Variable Layer */
+
+    /*
+        Record functions and classes prior to code generation
+    */
+
+    for (auto p : this->stmts) {
+        if (p->stmtType == GlobalStatement::FUNCDECL) {
+            auto pp = dynamic_cast<FuncDecl *>(p);
+            funcDecls[pp->name] = pp;
+
+            llvm::Function *prev = module->getFunction(pp->name.str());
+            if (prev) {
+                LogError("function " << pp->name.ClassName << "." 
+                    << pp->name.BaseName << " already declared");
+                continue;
+            }
+
+            std::vector<llvm::Type *> ArgTypes;
+            for (auto arg : pp->pars) {
+                ArgTypes.push_back(type_trans(arg->type));
+            }
+            llvm::FunctionType *Ft = llvm::FunctionType::get(
+                type_trans(pp->ret), ArgTypes, false);
+            llvm::Function *F = llvm::Function::Create(
+                Ft, llvm::Function::ExternalLinkage, pp->name.str(), module.get());
+            
+            unsigned Idx = 0;
+            for (auto &Arg : F->args())
+                Arg.setName(pp->pars[Idx++]->name);
+
+            continue;
+        }
+        if (p->stmtType == GlobalStatement::CLASSDECL) {
+            auto pp = dynamic_cast<ClassDecl *>(p);
+            classDecls[pp->name] = pp;
+        }
+    }
+
+    /*
+        Code Generation Entrance
+    */
 
     for (auto p : this->stmts) {
         p->codegen();
