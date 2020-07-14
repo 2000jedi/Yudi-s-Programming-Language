@@ -1,6 +1,7 @@
 #include "ast.hpp"
 #include "lexical.hpp"
 #include "tree.hpp"
+#include "util.hpp"
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/Optional.h"
@@ -10,7 +11,6 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -27,79 +27,6 @@
 using namespace AST;
 
 static std::vector<std::string> strings;
-
-std::string unescape(std::string raw) {
-    raw = raw.substr(1, raw.size() - 2);
-
-    std::ostringstream ss;
-
-    unsigned int i = 0;
-    while (i < raw.size()) {
-        if (raw[i] != '\\') {
-            ss << raw[i];
-        } else {
-            if ((i + 1) == raw.size()) {
-                std::cerr << "Parser: invalid string literal" << std::endl;
-                return raw;
-            }
-
-            switch (raw[i+1]) {
-                case 'a': {
-                    ss << '\a';
-                    break;
-                }
-                case 'b': {
-                    ss << '\b';
-                    break;
-                }
-                case 't': {
-                    ss << '\t';
-                    break;
-                }
-                case 'n': {
-                    ss << '\n';
-                    break;
-                }
-                case 'v': {
-                    ss << '\v';
-                    break;
-                }
-                case 'f': {
-                    ss << '\f';
-                    break;
-                }
-                case 'r': {
-                    ss << '\r';
-                    break;
-                }
-                case '"': {
-                    ss << '\"';
-                    break;
-                }
-                case '\'': {
-                    ss << '\'';
-                    break;
-                }
-                case '\?': {
-                    ss << '\?';
-                    break;
-                }
-                case '\\': {
-                    ss << '\\';
-                    break;
-                }
-                default: {
-                    std::cerr << "Parser: undefined escape string: \\" 
-                        << raw[i+1] << std::endl;
-                }
-            }
-            i++;
-        }
-        i++;
-    }
-
-    return ss.str();
-}
 
 BaseAST* recursive_gen(Node<Lexical> *curr, ClassDecl *ParentClass) {
     if (curr->t.name == "<EPS>") {
@@ -760,6 +687,8 @@ Program AST::generate(Node<Lexical> *root) {
     return *dynamic_cast<Program *>(recursive_gen(root, nullptr));
 }
 
+#ifdef DEBUG
+
 /**
  * Message Printing Interface.
  * Defines `print()` method for every AST class.
@@ -1046,46 +975,35 @@ void MatchExpr::print(int indent) {
     std::cout << ")" << std::endl;
 }
 
+#endif
+
 /**
  * Code Generation Interface.
  * codeGen() methods to convert to llvm IR form.
  */
 
-static llvm::LLVMContext context;
-static llvm::IRBuilder<> builder(context);
-static std::unique_ptr<llvm::Module> module;
-static std::map<std::string, ValueType *> strLits;
-static std::map<NameSpace, FuncDecl *> funcDecls;
-static std::map<NameSpace, ClassDecl *> classDecls;
-
-/*
-    Symble Table - record Variable and Type Information
-    TODO: type inference
-*/
-
-static std::vector<std::unique_ptr<std::map<NameSpace, ValueType*>>> SymTable;
-
-static void ClearSymLayer(void) {
+void ClearSymLayer(void) {
     SymTable.clear();
 }
 
-static void NewSymLayer(void) {
-    SymTable.push_back(std::make_unique<std::map<NameSpace, ValueType *>>());
+void NewSymLayer(void) {
+    SymTable.push_back(
+        std::make_unique<std::map<NameSpace, ValueType *>>());
 }
 
-static void RemoveSymLayer(void) {
+void RemoveSymLayer(void) {
     SymTable.pop_back();
 }
 
-static void InsertVar(NameSpace name, llvm::Value *v, TypeDecl *t) {
+void InsertVar(NameSpace name, llvm::Value *v, TypeDecl *t) {
     (*SymTable.back())[name] = new ValueType(v, t);
 }
 
-static void InsertConst(NameSpace name, llvm::Value *v, TypeDecl *t) {
+void InsertConst(NameSpace name, llvm::Value *v, TypeDecl *t) {
     (*SymTable.back())[name] = new ValueType(v, t, true);
 }
 
-static ValueType *FindVar(NameSpace name) {
+ValueType *FindVar(NameSpace name) {
     for (int i = SymTable.size() - 1; i >= 0; i--) {
         if (SymTable[i]->find(name) != SymTable[i]->end()) {
             return (*SymTable[i])[name];
@@ -1095,7 +1013,7 @@ static ValueType *FindVar(NameSpace name) {
     return nullptr;
 }
 
-static ValueType *FindTopVar(NameSpace name) {
+ValueType *FindTopVar(NameSpace name) {
     if (SymTable.back()->find(name) != SymTable.back()->end()) {
         return (*SymTable.back())[name];
     } else {
@@ -1103,21 +1021,6 @@ static ValueType *FindTopVar(NameSpace name) {
     }
 }
 
-
-/* Variable Allocate Helper Function */
-static llvm::AllocaInst *CreateEntryBlockAlloca(
-    llvm::Function *F, const std::string &name, llvm::Type *type, int size) {
-    llvm::IRBuilder<> tmpBuilder(
-        &F->getEntryBlock(), F->getEntryBlock().begin());
-
-    llvm::Value *arr = 0;
-    if (size)
-        arr = llvm::ConstantInt::get(context, llvm::APInt(32, size, true));
-
-    return tmpBuilder.CreateAlloca(type, arr, name.c_str());
-}
-
-/* Type Translate */
 llvm::Type *type_trans(TypeDecl *td) {
     switch (td->baseType) {
         case TypeDecl::VOID:
@@ -1137,6 +1040,43 @@ llvm::Type *type_trans(TypeDecl *td) {
             return nullptr;
     }
     /* todo: array typing */
+}
+
+void Function_AST_Define(AST::FuncDecl *f) {
+    funcDecls[f->name] = f;
+
+    llvm::Function *prev = module->getFunction(f->name.str());
+    if (prev) {
+        LogError("function " << f->name.ClassName << "." 
+            << f->name.BaseName << " already declared");
+        return;
+    }
+
+    std::vector<llvm::Type *> ArgTypes;
+    for (auto arg : f->pars) {
+        ArgTypes.push_back(type_trans(arg->type));
+    }
+    llvm::FunctionType *Ft = llvm::FunctionType::get(
+        type_trans(f->ret), ArgTypes, false);
+    llvm::Function *F = llvm::Function::Create(
+        Ft, llvm::Function::ExternalLinkage, f->name.str(), module.get());
+    
+    unsigned Idx = 0;
+    for (auto &Arg : F->args())
+        Arg.setName(f->pars[Idx++]->name);
+}
+
+/* Variable Allocate Helper Function */
+static llvm::AllocaInst *CreateEntryBlockAlloca(
+    llvm::Function *F, const std::string &name, llvm::Type *type, int size) {
+    llvm::IRBuilder<> tmpBuilder(
+        &F->getEntryBlock(), F->getEntryBlock().begin());
+
+    llvm::Value *arr = 0;
+    if (size)
+        arr = llvm::ConstantInt::get(context, llvm::APInt(32, size, true));
+
+    return tmpBuilder.CreateAlloca(type, arr, name.c_str());
 }
 
 ValueType *BaseAST::codegen() {
@@ -1678,33 +1618,30 @@ ValueType *Program::codegen() {
     for (auto p : this->stmts) {
         if (p->stmtType == GlobalStatement::FUNCDECL) {
             auto pp = dynamic_cast<FuncDecl *>(p);
-            funcDecls[pp->name] = pp;
-
-            llvm::Function *prev = module->getFunction(pp->name.str());
-            if (prev) {
-                LogError("function " << pp->name.ClassName << "." 
-                    << pp->name.BaseName << " already declared");
-                continue;
-            }
-
-            std::vector<llvm::Type *> ArgTypes;
-            for (auto arg : pp->pars) {
-                ArgTypes.push_back(type_trans(arg->type));
-            }
-            llvm::FunctionType *Ft = llvm::FunctionType::get(
-                type_trans(pp->ret), ArgTypes, false);
-            llvm::Function *F = llvm::Function::Create(
-                Ft, llvm::Function::ExternalLinkage, pp->name.str(), module.get());
-            
-            unsigned Idx = 0;
-            for (auto &Arg : F->args())
-                Arg.setName(pp->pars[Idx++]->name);
-
-            continue;
+            Function_AST_Define(pp);
         }
         if (p->stmtType == GlobalStatement::CLASSDECL) {
-            auto pp = dynamic_cast<ClassDecl *>(p);
-            classDecls[pp->name] = pp;
+            auto cl = dynamic_cast<ClassDecl *>(p);
+            classDecls[cl->name] = cl;
+
+            // Create struct type for the class
+            // std::vector<llvm::Type *> members;
+            // for (auto statement : pp->stmts) {
+            //     if (statement->stmtType == GlobalStatement::VARDECL) {
+            //         // declare variable in the struct
+            //     }
+            // }
+            llvm::StructType *cur_class = llvm::StructType::create(
+                context, cl->name.ClassName + "_struct");
+            // cur_class->setBody(members);
+
+            // Declare member functions
+            for (auto statement : cl->stmts) {
+                if (statement->stmtType == GlobalStatement::FUNCDECL) {
+                    auto pp = dynamic_cast<FuncDecl *>(statement);
+                    Function_AST_Define(pp);
+                }
+            }
         }
     }
 

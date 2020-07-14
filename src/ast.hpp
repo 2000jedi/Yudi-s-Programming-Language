@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <map>
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -9,11 +10,17 @@
 #include "lexical.hpp"
 
 #include "llvm/IR/Value.h"
+#include "llvm/IR/IRBuilder.h"
 
 #include "err.hpp"
 
 /* Error Logging */
 #define LogError(e) std::cerr << "CodeGen Error: " << e << std::endl
+#define DEBUG
+
+static llvm::LLVMContext context;
+static llvm::IRBuilder<> builder(context);
+static std::unique_ptr<llvm::Module> module;
 
 namespace AST {
     class NameSpace {
@@ -576,3 +583,29 @@ class ClassDecl : public GlobalStatement {
     extern Program generate(Node<Lexical> *root);
     extern int codegen(Program prog, std::string outFile);
 }
+
+/* Type Translate */
+extern llvm::Type *type_trans(AST::TypeDecl *td);
+
+/*
+    Code Generation Global Variables
+*/
+static std::map<std::string, AST::ValueType *> strLits;
+static std::map<AST::NameSpace, AST::FuncDecl *> funcDecls;
+static std::map<AST::NameSpace, AST::ClassDecl *> classDecls;
+
+
+/*
+    Symble Table - record Variable and Type Information
+    TODO: type inference
+*/
+static std::vector<
+    std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
+
+extern void ClearSymLayer(void);
+extern void NewSymLayer(void);
+extern void RemoveSymLayer(void);
+extern void InsertVar(AST::NameSpace name, llvm::Value *v, AST::TypeDecl *t);
+extern void InsertConst(AST::NameSpace name, llvm::Value *v, AST::TypeDecl *t);
+extern AST::ValueType *FindVar(AST::NameSpace name);
+extern AST::ValueType *FindTopVar(AST::NameSpace name);
