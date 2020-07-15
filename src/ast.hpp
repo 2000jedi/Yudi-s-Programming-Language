@@ -94,6 +94,7 @@ namespace AST {
     class TypeDecl;
     class ExprVal;
     class WhileExpr;
+    class VarDecl;
 
     class BaseAST {
         public:
@@ -366,11 +367,12 @@ namespace AST {
         virtual ValueType *codegen();
     };
 
-class ClassDecl : public GlobalStatement {
+    class ClassDecl : public GlobalStatement {
         public:
         NameSpace name;
         GenericDecl *genType;
         std::vector<GlobalStatement*> stmts;
+        std::vector<VarDecl *> var_members;
 
         ClassDecl(std::string n, GenericDecl* g){
             this->stmtType = CLASSDECL;
@@ -593,7 +595,7 @@ extern llvm::Type *type_trans(AST::TypeDecl *td);
 static std::map<std::string, AST::ValueType *> strLits;
 static std::map<AST::NameSpace, AST::FuncDecl *> funcDecls;
 static std::map<AST::NameSpace, AST::ClassDecl *> classDecls;
-
+static std::map<std::string, llvm::StructType *> structDecls;
 
 /*
     Symble Table - record Variable and Type Information

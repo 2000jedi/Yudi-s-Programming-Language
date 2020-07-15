@@ -3,7 +3,7 @@
 class foo {
     var a : int32;
     function foo() {
-        a = 1;
+        printf("a=1\n");
     }
 }
 

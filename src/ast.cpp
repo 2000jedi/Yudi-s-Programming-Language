@@ -1053,6 +1053,9 @@ void Function_AST_Define(AST::FuncDecl *f) {
     }
 
     std::vector<llvm::Type *> ArgTypes;
+    if (f->name.ClassName != "") {
+        ArgTypes.push_back(structDecls[f->name.ClassName]);
+    }
     for (auto arg : f->pars) {
         ArgTypes.push_back(type_trans(arg->type));
     }
@@ -1062,8 +1065,14 @@ void Function_AST_Define(AST::FuncDecl *f) {
         Ft, llvm::Function::ExternalLinkage, f->name.str(), module.get());
     
     unsigned Idx = 0;
-    for (auto &Arg : F->args())
-        Arg.setName(f->pars[Idx++]->name);
+
+    for (auto &Arg : F->args()) {
+        if (Idx == 0 && f->name.ClassName != "") {
+            Arg.setName("this");
+        } else {
+            Arg.setName(f->pars[Idx++]->name);
+        }
+    }
 }
 
 /* Variable Allocate Helper Function */
@@ -1338,10 +1347,27 @@ ValueType *EvalExpr::codegen() {
 
 ValueType *FuncDecl::codegen() {
     llvm::Function *F = module->getFunction(this->name.str());
-
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(
         context, this->name.str() + "_entry", F);
     builder.SetInsertPoint(BB);
+
+    NewSymLayer();
+
+    if (this->name.ClassName != "") {
+        auto cl = classDecls[this->name.ClassName];
+        for (int i = 0; i < cl->var_members.size(); ++i) {
+            llvm::Value *val = builder.CreateGEP(
+                FindVar(NameSpace("", "this"))->val,
+                llvm::ConstantInt::get(context, llvm::APInt(32, i, true)),
+                "_");
+            InsertVar(
+                NameSpace("", cl->var_members[i]->name.BaseName), 
+                val, 
+                FindVar(NameSpace("", "this"))->type
+            );
+        }
+        
+    }
 
     NewSymLayer();
     
@@ -1356,9 +1382,9 @@ ValueType *FuncDecl::codegen() {
     }
 
     /*
-        Insert Global String Definitions for main()
+        Insert Global String Definitions. TODO: now it is not global
     */
-    if (this->name.BaseName == "main" && this->name.ClassName == "") {
+    //if (this->name.BaseName == "main" && this->name.ClassName == "") {
         for (auto p : strings) {
             if (strLits.find(p) == strLits.end()) {
                 llvm::Value *v = builder.CreateGlobalStringPtr(
@@ -1368,7 +1394,7 @@ ValueType *FuncDecl::codegen() {
             }
         }
         strings.clear();
-    }
+    //}
 
     for (auto p : this->exprs) {
         p->codegen();
@@ -1379,12 +1405,73 @@ ValueType *FuncDecl::codegen() {
     }
 
     RemoveSymLayer();
+    
+    RemoveSymLayer();
 
     llvm::verifyFunction(*F);
     return nullptr;
 }
 
 ValueType *ClassDecl::codegen() {
+    std::vector<llvm::Type *> members; /* struct members */
+    std::vector<VarDecl *> member_raw;
+
+    for (auto statement : this->stmts) {
+        if (statement->stmtType == GlobalStatement::VARDECL) {
+            // declare variable in the struct
+            auto pp = dynamic_cast<VarDecl *>(statement);
+            members.push_back(type_trans(pp->type));
+            member_raw.push_back(pp);
+        }
+    }
+    structDecls[this->name.ClassName + "_struct"]->setBody(members);
+    classDecls[this->name]->var_members = member_raw;
+
+    NewSymLayer();
+
+    for (auto statement : this->stmts) {
+        if (statement->stmtType != GlobalStatement::FUNCDECL) 
+            continue;
+        // auto p = dynamic_cast<FuncDecl *>(statement);
+        /*
+        llvm::Function *F = module->getFunction(p->name.str());
+
+        llvm::BasicBlock *BB = llvm::BasicBlock::Create(
+        context, p->name.str() + "_entry", F);
+        builder.SetInsertPoint(BB);
+
+        /* Create references to class members 
+        for (auto member : member_raw) {
+            llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
+                F, 
+                member->name.str(), 
+                type_trans(member->type), 
+                member->type->arrayT
+            );
+
+            // if (member->init) {
+            //     ValueType *v = member->init->codegen();
+            //     if (!v) {
+            //         LogError("initialization failure of variable " 
+            //             << member->name.str());
+            //         return nullptr;
+            //     }
+            //     if (! v->type->eq(member->type)) {
+            //         LogError("initialization type mismatch");
+            //         return nullptr;
+            //     }
+            //     builder.CreateStore(v->val, alloca);
+            // }
+
+            InsertVar(member->name, alloca, member->type);
+        }
+        // TODO: namespace and THIS keyword.
+        */
+        statement->codegen();
+    }
+
+    RemoveSymLayer();
+
     return nullptr;
 }
 
@@ -1614,7 +1701,6 @@ ValueType *Program::codegen() {
     /*
         Record functions and classes prior to code generation
     */
-
     for (auto p : this->stmts) {
         if (p->stmtType == GlobalStatement::FUNCDECL) {
             auto pp = dynamic_cast<FuncDecl *>(p);
@@ -1625,15 +1711,9 @@ ValueType *Program::codegen() {
             classDecls[cl->name] = cl;
 
             // Create struct type for the class
-            // std::vector<llvm::Type *> members;
-            // for (auto statement : pp->stmts) {
-            //     if (statement->stmtType == GlobalStatement::VARDECL) {
-            //         // declare variable in the struct
-            //     }
-            // }
             llvm::StructType *cur_class = llvm::StructType::create(
                 context, cl->name.ClassName + "_struct");
-            // cur_class->setBody(members);
+            structDecls[cl->name.ClassName + "_struct"] = cur_class;
 
             // Declare member functions
             for (auto statement : cl->stmts) {
