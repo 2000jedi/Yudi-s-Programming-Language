@@ -186,9 +186,11 @@ namespace AST {
         static const int FP64  = 4;
         static const int CHAR  = 5;
         static const int STRING= 6;
+        static const int OTHER = 7;
 
         int baseType;
         int arrayT;
+        std::string other;
 
         inline bool eq(TypeDecl *other) {
             return (this->baseType == other->baseType) && 
@@ -232,8 +234,8 @@ namespace AST {
                 return;
             }
             
-            LogError("internal: type " << t << " undefined");
-            exit(ERR_PARSER);
+            this->baseType = OTHER;
+            this->other = t;
         }
 
         void print(int);

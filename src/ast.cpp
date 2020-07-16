@@ -1035,6 +1035,15 @@ llvm::Type *type_trans(TypeDecl *td) {
             return llvm::Type::getDoubleTy(context);
         case TypeDecl::STRING:
             return llvm::Type::getInt8PtrTy(context);
+        case TypeDecl::OTHER: {
+            auto t = structDecls[td->other];
+            if (t) {
+                return t;
+            } else {
+                LogError("Type " << td->other << " not found");
+                return nullptr;
+            }
+        }
         default:
             LogError("TypeDecl index " << td->baseType << " not found");
             return nullptr;
@@ -1051,11 +1060,12 @@ void Function_AST_Define(AST::FuncDecl *f) {
             << f->name.BaseName << " already declared");
         return;
     }
+    if (f->name.ClassName != "") {
+        f->pars.insert(f->pars.begin(), 
+            new Param("this", new TypeDecl(f->name.ClassName, "0")));
+    }
 
     std::vector<llvm::Type *> ArgTypes;
-    if (f->name.ClassName != "") {
-        ArgTypes.push_back(structDecls[f->name.ClassName]);
-    }
     for (auto arg : f->pars) {
         ArgTypes.push_back(type_trans(arg->type));
     }
@@ -1067,11 +1077,7 @@ void Function_AST_Define(AST::FuncDecl *f) {
     unsigned Idx = 0;
 
     for (auto &Arg : F->args()) {
-        if (Idx == 0 && f->name.ClassName != "") {
-            Arg.setName("this");
-        } else {
-            Arg.setName(f->pars[Idx++]->name);
-        }
+        Arg.setName(f->pars[Idx++]->name);
     }
 }
 
@@ -1352,9 +1358,19 @@ ValueType *FuncDecl::codegen() {
     builder.SetInsertPoint(BB);
 
     NewSymLayer();
+    
+    unsigned int Idx = 0;
+    for (auto &Arg : F->args()) {
+        llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
+            F, Arg.getName(), type_trans(this->pars[Idx]->type), 
+            this->pars[Idx]->type->arrayT);
+        builder.CreateStore(&Arg, alloca);
+        InsertVar(NameSpace(Arg.getName()), alloca, this->pars[Idx]->type);
+        Idx++;
+    }
 
     if (this->name.ClassName != "") {
-        auto cl = classDecls[this->name.ClassName];
+        auto cl = classDecls[NameSpace(this->name.ClassName, "")];
         for (int i = 0; i < cl->var_members.size(); ++i) {
             llvm::Value *val = builder.CreateGEP(
                 FindVar(NameSpace("", "this"))->val,
@@ -1366,19 +1382,6 @@ ValueType *FuncDecl::codegen() {
                 FindVar(NameSpace("", "this"))->type
             );
         }
-        
-    }
-
-    NewSymLayer();
-    
-    unsigned int Idx = 0;
-    for (auto &Arg : F->args()) {
-        llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-            F, Arg.getName(), type_trans(this->pars[Idx]->type), 
-            this->pars[Idx]->type->arrayT);
-        builder.CreateStore(&Arg, alloca);
-        InsertVar(NameSpace(Arg.getName()), alloca, this->pars[Idx]->type);
-        Idx++;
     }
 
     /*
@@ -1403,8 +1406,6 @@ ValueType *FuncDecl::codegen() {
     if (F->getReturnType()->isVoidTy()) {
         builder.CreateRetVoid();
     }
-
-    RemoveSymLayer();
     
     RemoveSymLayer();
 
@@ -1424,53 +1425,12 @@ ValueType *ClassDecl::codegen() {
             member_raw.push_back(pp);
         }
     }
-    structDecls[this->name.ClassName + "_struct"]->setBody(members);
+    structDecls[this->name.ClassName]->setBody(members);
     classDecls[this->name]->var_members = member_raw;
 
-    NewSymLayer();
-
     for (auto statement : this->stmts) {
-        if (statement->stmtType != GlobalStatement::FUNCDECL) 
-            continue;
-        // auto p = dynamic_cast<FuncDecl *>(statement);
-        /*
-        llvm::Function *F = module->getFunction(p->name.str());
-
-        llvm::BasicBlock *BB = llvm::BasicBlock::Create(
-        context, p->name.str() + "_entry", F);
-        builder.SetInsertPoint(BB);
-
-        /* Create references to class members 
-        for (auto member : member_raw) {
-            llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-                F, 
-                member->name.str(), 
-                type_trans(member->type), 
-                member->type->arrayT
-            );
-
-            // if (member->init) {
-            //     ValueType *v = member->init->codegen();
-            //     if (!v) {
-            //         LogError("initialization failure of variable " 
-            //             << member->name.str());
-            //         return nullptr;
-            //     }
-            //     if (! v->type->eq(member->type)) {
-            //         LogError("initialization type mismatch");
-            //         return nullptr;
-            //     }
-            //     builder.CreateStore(v->val, alloca);
-            // }
-
-            InsertVar(member->name, alloca, member->type);
-        }
-        // TODO: namespace and THIS keyword.
-        */
         statement->codegen();
     }
-
-    RemoveSymLayer();
 
     return nullptr;
 }
@@ -1713,7 +1673,7 @@ ValueType *Program::codegen() {
             // Create struct type for the class
             llvm::StructType *cur_class = llvm::StructType::create(
                 context, cl->name.ClassName + "_struct");
-            structDecls[cl->name.ClassName + "_struct"] = cur_class;
+            structDecls[cl->name.ClassName] = cur_class;
 
             // Declare member functions
             for (auto statement : cl->stmts) {
