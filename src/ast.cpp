@@ -67,7 +67,7 @@ BaseAST* recursive_gen(Node<Lexical> *curr, ClassDecl *ParentClass) {
         return parent;
     }
 
-    if (curr->t.name == "<VARDEF>") {
+    if (curr->t.name == "<GLOBAL_VARDEF>") {
         auto res = dynamic_cast<VarDecl *>(
             recursive_gen(&curr->child[0], nullptr));
         if (! res) {
