@@ -393,6 +393,7 @@ namespace AST {
         NameSpace name;
         TypeDecl *type;
         EvalExpr *init;
+        bool is_global;
 
         VarDecl(std::string n, TypeDecl* t, EvalExpr* i, ClassDecl *cl) {
             this->stmtType = GlobalStatement::VARDECL;

@@ -68,6 +68,17 @@ BaseAST* recursive_gen(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<VARDEF>") {
+        auto res = dynamic_cast<VarDecl *>(
+            recursive_gen(&curr->child[0], nullptr));
+        if (! res) {
+            return nullptr;
+        } else {
+            res->is_global = true;
+            return res;
+        }
+    }
+
+    if (curr->t.name == "<VARDEF>") {
         TypeDecl *type = dynamic_cast<TypeDecl *>(
             recursive_gen(&curr->child[3], nullptr));
         Expr *init = dynamic_cast<Expr *>(
@@ -1595,6 +1606,9 @@ ValueType *TypeDecl::codegen() {
 }
 
 ValueType *VarDecl::codegen() {
+    if (this->is_global) {
+        // TODO: set-up global variable here
+    }
     if (FindTopVar(this->name)) {
         LogError("variable " << this->name.str() << " already declared");
         return nullptr;
