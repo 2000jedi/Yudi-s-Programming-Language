@@ -571,7 +571,10 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         }
     }
 
-    if (curr->t.name == "<EQ_NEQ>" || curr->t.name == "<LGTE>" || curr->t.name == "<ADD_SUB>" || curr->t.name == "<MUL_DIV>" || curr->t.name == "<CDOT>") {
+    if (curr->t.name == "<EQ_NEQ>" || 
+        curr->t.name == "<LGTE>" || 
+        curr->t.name == "<ADD_SUB>" || 
+        curr->t.name == "<MUL_DIV>") {
         BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
@@ -590,7 +593,10 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         }
     }
 
-    if (curr->t.name == "<EQ_NEQ_>" || curr->t.name == "<LGTE_>" || curr->t.name == "<ADD_SUB_>" || curr->t.name == "<MUL_DIV_>" || curr->t.name == "<CDOT_>") {
+    if (curr->t.name == "<EQ_NEQ_>" || 
+        curr->t.name == "<LGTE_>" || 
+        curr->t.name == "<ADD_SUB_>" || 
+        curr->t.name == "<MUL_DIV_>") {
         if (curr->child[0].t.name == "<EPS>")
             return nullptr;
         else {
@@ -647,6 +653,23 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
             return new EvalExpr(new ExprVal(str, 
                 new TypeDecl(TypeDecl::STRING, "0")));
         }
+        if (curr->child[0].t.name == "<NAMESPACE>") {
+            FuncCall *fc = dynamic_cast<FuncCall *>(
+                build_ast(&curr->child[1], nullptr));
+            EvalExpr *arr = dynamic_cast<EvalExpr *>(
+                build_ast(&curr->child[2], nullptr));
+
+            NameSpace *name;
+            if (curr->child[0].child[1].child[0].t.name == "<EPS>") {
+                name = new NameSpace(curr->child[0].child[0].t.data);
+            } else {
+                name = new NameSpace(
+                    curr->child[0].child[0].t.data,
+                    curr->child[0].child[1].child[1].t.data
+                );
+            }
+            return new EvalExpr(new ExprVal(*name, fc, arr));
+        }
     }
 
     if (curr->t.name == "<OPTIONAL_EVAL_EXPR>") {
@@ -660,15 +683,17 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     if (curr->t.name == "<OPTIONAL_FUNCCALL>") {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
-        } else {
-            FuncCall *fc = new FuncCall();
-            while (curr->child.size() > 1) {
-                fc->pars.push_back(dynamic_cast<EvalExpr *>(
-                    build_ast(&curr->child[1], nullptr)));
-                curr = &curr->child[2];
-            }
-            return fc;
         }
+
+        FuncCall *fc = new FuncCall();
+        while (curr->child.size() > 1) {
+            EvalExpr *expr = dynamic_cast<EvalExpr *>(
+                build_ast(&curr->child[1], nullptr));
+            if (expr != nullptr) 
+                fc->pars.push_back(expr);
+            curr = &curr->child[2];
+        }
+        return fc;
     }
 
     if (curr->t.name == "<OPTIONAL_ARRAY>") {

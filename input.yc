@@ -3,15 +3,17 @@
 class foo {
     var a : int32;
     function foo() {
-        printf("a=1\n");
+        a = 1;
     }
 }
 
 function main() {
     var foo_inst : foo;
     foo_inst.foo();
+    printf("a = %d\n", foo_inst.a);
     var i : int32;
     const len = 11;
+    len = len + 1; // TODO: constant cannot be assigned
     const j = "Printing factorial from 0 to ";
     var arr : int32[12];
 

@@ -484,21 +484,36 @@ ValueType *ExprVal::codegen() {
     }
 
     if (this->call) {
-        llvm::Function *F = module->getFunction(this->refName.str());
+        NameSpace called_function = this->refName;
+        bool is_class = false;
+        unsigned long num_args = this->call->pars.size();
+        if (called_function.ClassName != "") {
+            called_function.ClassName =
+                FindVar(NameSpace(called_function.ClassName))->type->other;
+            num_args ++;
+            is_class = true;
+        }
+
+        llvm::Function *F = module->getFunction(called_function.str());
         if (!F) {
-            LogError("function " << this->refName.str() <<" is not defined");
+            LogError("function " << called_function.str() <<" is not defined");
             return nullptr;
         }
 
-        if ((!F->isVarArg()) && (F->arg_size() != this->call->pars.size())) {
+        if ((!F->isVarArg()) && (F->arg_size() != num_args)) {
             LogError(
-                "function " << this->refName.str() <<" requires " 
+                "function " << called_function.str() <<" requires " 
                 << F->arg_size() << " argument(s), " << this->call->pars.size() 
                 << " argument(s) found");
             return nullptr;
         }
 
         std::vector<llvm::Value *> args;
+
+        if (is_class){
+            args.push_back(FindVar(NameSpace(this->refName.ClassName))->val);
+        }
+
         for (auto p : this->call->pars) {
             ValueType *arg = p->codegen();
             // TODO: check argument type match
@@ -514,7 +529,7 @@ ValueType *ExprVal::codegen() {
                 new TypeDecl(TypeDecl::VOID, "0"));
         }
         return new ValueType(builder.CreateCall(F, args, "_"), 
-            funcDecls[this->refName]->ret);
+            funcDecls[called_function]->ret);
     }
 
     ValueType* vt = FindVar(this->refName);
@@ -931,8 +946,6 @@ ValueType *VarDecl::codegen() {
     }
 
     llvm::Function *curF = builder.GetInsertBlock()->getParent();
-    llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name.str(), type_trans(this->type), this->type->arrayT);
 
     ValueType *v = nullptr;
     if (this->init) {
@@ -941,10 +954,18 @@ ValueType *VarDecl::codegen() {
             LogError("initialization failure of variable " << this->name.str());
             return nullptr;
         }
+        if (! this->type) {
+            this->type = v->type;
+        }
         if (! v->type->eq(this->type)) {
             LogError("initialization type mismatch");
             return nullptr;
         }
+    }
+
+    llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
+        curF, this->name.str(), type_trans(this->type), this->type->arrayT);
+    if (this->init) {
         builder.CreateStore(v->val, alloca);
     }
    
