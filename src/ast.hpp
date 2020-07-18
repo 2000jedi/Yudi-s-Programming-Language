@@ -567,9 +567,6 @@ namespace AST {
     extern Program build_ast(Node<Lexical> *root);
 }
 
-/* Type Translate */
-extern llvm::Type *type_trans(AST::TypeDecl *td);
-
 extern void ClearSymLayer(void);
 extern void NewSymLayer(void);
 extern void RemoveSymLayer(void);

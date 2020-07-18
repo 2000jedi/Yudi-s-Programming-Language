@@ -347,7 +347,15 @@ void InsertConst(NameSpace name, llvm::Value *v, TypeDecl *t) {
     (*SymTable.back())[name] = new ValueType(v, t, true);
 }
 
-ValueType *FindVar(NameSpace name) {
+ValueType *FindTopVar(NameSpace name) {
+    if (SymTable.back()->find(name) != SymTable.back()->end()) {
+        return (*SymTable.back())[name];
+    } else {
+        return nullptr;
+    }
+}
+
+ValueType *FindVarRaw(NameSpace name) {
     for (int i = SymTable.size() - 1; i >= 0; i--) {
         if (SymTable[i]->find(name) != SymTable[i]->end()) {
             return (*SymTable[i])[name];
@@ -357,15 +365,56 @@ ValueType *FindVar(NameSpace name) {
     return nullptr;
 }
 
-ValueType *FindTopVar(NameSpace name) {
-    if (SymTable.back()->find(name) != SymTable.back()->end()) {
-        return (*SymTable.back())[name];
-    } else {
-        return nullptr;
+llvm::Value *insertClassElemRef(ClassDecl *cl, NameSpace var) {
+    int i = 0;
+    for (auto v : cl->var_members) {
+        if (v->name.BaseName == var.BaseName)
+            break;
+        i++;
     }
+
+    llvm::Value *val = builder.CreateGEP(
+        FindVarRaw(NameSpace("", var.ClassName))->val,
+        llvm::ConstantInt::get(context, llvm::APInt(32, i, true)),
+        "_");
+    InsertVar(
+        var, 
+        val, 
+        cl->var_members[i]->type
+    );
+    return val;
 }
 
-llvm::Type *type_trans(TypeDecl *td) {
+ValueType *FindVar(NameSpace name) {
+    ValueType *vt;
+    if (name.ClassName == "") {
+        vt = FindVarRaw(name);
+        if (!vt) {
+            LogError("variable " << name.str() 
+                << " not found");
+            return nullptr;
+        }
+    } else {
+        vt = FindVarRaw(name);
+        if (!vt) {
+            ValueType *cl = FindVarRaw(NameSpace("", name.ClassName));
+            insertClassElemRef(
+                classDecls[NameSpace(cl->type->other, "")],
+                name
+            );
+            vt = FindVarRaw(name);
+            if (!vt) {
+                LogError("variable " << name.str() 
+                    << " not found");
+                return nullptr;
+            }
+        }
+    }
+
+    return vt;
+}
+
+llvm::Type *type_trans(TypeDecl *td, bool pointer = true) {
     switch (td->baseType) {
         case TypeDecl::VOID:
             return llvm::Type::getVoidTy(context);
@@ -382,7 +431,10 @@ llvm::Type *type_trans(TypeDecl *td) {
         case TypeDecl::OTHER: {
             auto t = structDecls[td->other];
             if (t) {
-                return t;
+                if (pointer)
+                    return llvm::PointerType::get(t, 0);
+                else
+                    return t;
             } else {
                 LogError("Type " << td->other << " not found");
                 return nullptr;
@@ -534,7 +586,6 @@ ValueType *ExprVal::codegen() {
 
     ValueType* vt = FindVar(this->refName);
     if (!vt) {
-        LogError("variable " << this->refName.str() << " used before defined");
         return nullptr;
     }
     llvm::Value *v = vt->val;
@@ -583,10 +634,8 @@ ValueType *EvalExpr::codegen() {
 
         ValueType *vt = FindVar(this->l->val->refName);
         if (!vt) {
-            LogError("variable " << this->l->val->refName.str() << "not found");
             return nullptr;
         }
-        llvm::Value *v = vt->val;
 
         if (this->l->val->array) {
             ValueType *index = this->l->val->array->codegen();
@@ -599,7 +648,7 @@ ValueType *EvalExpr::codegen() {
                 return nullptr;
             }
             vt = new ValueType(
-                builder.CreateGEP(v, index->val, "_"),
+                builder.CreateGEP(vt->val, index->val, "_"),
                 new TypeDecl(vt->type->baseType, "0")
             );
         }
@@ -723,7 +772,7 @@ ValueType *FuncDecl::codegen() {
     unsigned int Idx = 0;
     for (auto &Arg : F->args()) {
         llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-            F, Arg.getName(), type_trans(this->pars[Idx]->type), 
+            F, "_", type_trans(this->pars[Idx]->type), 
             this->pars[Idx]->type->arrayT);
         builder.CreateStore(&Arg, alloca);
         InsertVar(NameSpace(Arg.getName()), alloca, this->pars[Idx]->type);
@@ -733,9 +782,12 @@ ValueType *FuncDecl::codegen() {
     if (this->name.ClassName != "") {
         auto cl = classDecls[NameSpace(this->name.ClassName, "")];
         for (unsigned long i = 0; i < cl->var_members.size(); ++i) {
-            llvm::Value *val = builder.CreateGEP(
+            llvm::Value *ld = builder.CreateLoad(
                 FindVar(NameSpace("", "this"))->val,
-                llvm::ConstantInt::get(context, llvm::APInt(32, i, true)),
+                "_"
+            );
+            llvm::Value *val = builder.CreateInBoundsGEP(ld,
+                {builder.getInt32(i), builder.getInt32(0)},
                 "_");
             InsertVar(
                 NameSpace("", cl->var_members[i]->name.BaseName), 
@@ -966,7 +1018,8 @@ ValueType *VarDecl::codegen() {
     }
 
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name.str(), type_trans(this->type), this->type->arrayT);
+        curF, this->name.str(), 
+        type_trans(this->type, false), this->type->arrayT);
     if (this->init) {
         builder.CreateStore(v->val, alloca);
     }
