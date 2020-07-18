@@ -8,6 +8,8 @@ class foo {
 }
 
 function main() {
+    var foo_inst : foo;
+    foo_inst.foo();
     var i : int32;
     const len = 11;
     const j = "Printing factorial from 0 to ";

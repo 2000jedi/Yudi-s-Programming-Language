@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     auto result_parser  = parser::parse(result_scanner);
     // result_parser.print();
 
-    auto result_ast     = AST::generate(&result_parser);
+    auto result_ast     = AST::build_ast(&result_parser);
     // result_ast.print();
 
     AST::codegen(result_ast, "out");

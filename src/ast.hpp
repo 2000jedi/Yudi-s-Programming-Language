@@ -75,7 +75,6 @@ namespace AST {
     class ASTs;
     class BaseAST;
     class ClassDecl;
-    class ConstDecl;
     class EnumDecl;
     class EvalExpr;
     class Expr;
@@ -393,7 +392,8 @@ namespace AST {
         NameSpace name;
         TypeDecl *type;
         EvalExpr *init;
-        bool is_global;
+        bool is_global = false;
+        bool is_const = false;
 
         VarDecl(std::string n, TypeDecl* t, EvalExpr* i, ClassDecl *cl) {
             this->stmtType = GlobalStatement::VARDECL;
@@ -404,28 +404,6 @@ namespace AST {
             else
                 this->name = NameSpace(n);
             this->type = t;
-            this->init = i;
-        }
-
-        void print(int);
-        virtual ValueType *codegen();
-    };
-
-    class ConstDecl : public GlobalStatement, public Expr {
-        public:
-        NameSpace name;
-        TypeDecl *type;
-        EvalExpr *init;
-
-        ConstDecl(std::string n, EvalExpr* i, ClassDecl *cl) {
-            this->stmtType = GlobalStatement::CONSTDECL;
-            this->exprType = EvalExpr::CONSTDECL;
-
-            if (cl)
-                this->name = NameSpace(cl->name.ClassName, n);
-            else
-                this->name = NameSpace(n);
-            this->type = NULL;
             this->init = i;
         }
 
@@ -585,27 +563,12 @@ namespace AST {
         }
     };
 
-    extern Program generate(Node<Lexical> *root);
     extern int codegen(Program prog, std::string outFile);
+    extern Program build_ast(Node<Lexical> *root);
 }
 
 /* Type Translate */
 extern llvm::Type *type_trans(AST::TypeDecl *td);
-
-/*
-    Code Generation Global Variables
-*/
-static std::map<std::string, AST::ValueType *> strLits;
-static std::map<AST::NameSpace, AST::FuncDecl *> funcDecls;
-static std::map<AST::NameSpace, AST::ClassDecl *> classDecls;
-static std::map<std::string, llvm::StructType *> structDecls;
-
-/*
-    Symble Table - record Variable and Type Information
-    TODO: type inference
-*/
-static std::vector<
-    std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
 
 extern void ClearSymLayer(void);
 extern void NewSymLayer(void);

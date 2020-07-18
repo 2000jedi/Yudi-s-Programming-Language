@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iostream>
+#include <vector>
 
 std::string unescape(std::string raw) {
     raw = raw.substr(1, raw.size() - 2);
@@ -73,3 +74,5 @@ std::string unescape(std::string raw) {
 
     return ss.str();
 }
+
+std::vector<std::string> *strings = new std::vector<std::string>();

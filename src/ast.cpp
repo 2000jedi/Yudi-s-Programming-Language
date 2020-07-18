@@ -1,6 +1,5 @@
 #include "ast.hpp"
-#include "lexical.hpp"
-#include "tree.hpp"
+#include "ast_gen.hpp"
 #include "util.hpp"
 
 #include "llvm/ADT/APFloat.h"
@@ -25,678 +24,6 @@
 #include "llvm/Target/TargetOptions.h"
 
 using namespace AST;
-
-static std::vector<std::string> strings;
-
-BaseAST* recursive_gen(Node<Lexical> *curr, ClassDecl *ParentClass) {
-    if (curr->t.name == "<EPS>") {
-      return nullptr;
-    }
-    if (curr->t.name == "<STATEMENTS>") {
-        Program* prog = new AST::Program();
-        prog->insert(dynamic_cast<GlobalStatement *>(
-            recursive_gen(&curr->child[0], nullptr)));
-        while (curr->child.size() > 1) {
-            curr = &curr->child[1];
-            prog->insert(dynamic_cast<GlobalStatement *>(
-                recursive_gen(&curr->child[0], nullptr)));
-        }
-        return prog;
-    }
-
-    if (curr->t.name == "<CLASS_DOMAIN>") {
-        ASTs *parent = new ASTs();
-        parent->insert(recursive_gen(&curr->child[0], ParentClass));
-        while (curr->child.size() > 1) {
-            curr = &curr->child[1];
-            parent->insert(recursive_gen(&curr->child[0], ParentClass));
-        }
-        return parent;
-    }
-
-    if (curr->t.name == "<STATEMENT>") {
-        return recursive_gen(&curr->child[0], ParentClass);
-    }
-
-    if (curr->t.name == "<CONSTDEF>") {
-        EvalExpr *init = dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[3], nullptr));
-        ConstDecl* parent = new ConstDecl(
-            curr->child[1].t.data, init, ParentClass);
-
-        return parent;
-    }
-
-    if (curr->t.name == "<GLOBAL_VARDEF>") {
-        auto res = dynamic_cast<VarDecl *>(
-            recursive_gen(&curr->child[0], nullptr));
-        if (! res) {
-            return nullptr;
-        } else {
-            res->is_global = true;
-            return res;
-        }
-    }
-
-    if (curr->t.name == "<VARDEF>") {
-        TypeDecl *type = dynamic_cast<TypeDecl *>(
-            recursive_gen(&curr->child[3], nullptr));
-        Expr *init = dynamic_cast<Expr *>(
-            recursive_gen(&curr->child[4], nullptr));
-        if (! init) {
-            return new VarDecl(
-                curr->child[1].t.data, type, nullptr, ParentClass);
-        } else {
-            return new VarDecl(
-                curr->child[1].t.data, type, 
-                dynamic_cast<EvalExpr *>(init), ParentClass);
-        }
-    }
-
-    if (curr->t.name == "<TYPENAME>") {
-        std::string name;
-        if (curr->child[0].t.name == "NAME") {
-            name = curr->child[0].t.data;
-        } else {
-            name = curr->child[0].t.name;
-        }
-
-        if (curr->child[1].child[0].t.name == "<EPS>") {
-            return new TypeDecl(name, "0");
-        } else {
-            return new TypeDecl(name, curr->child[1].child[1].t.data);
-        }
-    }
-
-    if (curr->t.name == "<OPTIONAL_INIT>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return new Expr(); // empty statement
-        else {
-            return recursive_gen(&curr->child[1], nullptr);
-        }
-    }
-
-    if (curr->t.name == "<FUNCDEF>") {
-        GenericDecl *gen = dynamic_cast<GenericDecl *>(
-            recursive_gen(&curr->child[2], nullptr));
-        TypeDecl *ret = dynamic_cast<TypeDecl *>(
-            recursive_gen(&curr->child[6], nullptr));
-        FuncDecl *parent = new FuncDecl(
-            curr->child[1].t.data, gen, ret, ParentClass);
-
-        ASTs *params = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[4], nullptr));
-        ASTs *exprs  = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[8], nullptr));
-
-        for (auto p : params->stmts) {
-            parent->pars.push_back(dynamic_cast<Param *>(p));
-        }
-        
-        for (auto p : exprs->stmts) {
-            parent->exprs.push_back(dynamic_cast<Expr *>(p));
-        }
-
-        return parent;
-    }
-
-    if (curr->t.name == "<OPTIONAL_GENERIC_DEF>") {
-        if (curr->child[0].t.name == "<EPS>") {
-            return new GenericDecl();
-        } else {
-            return new GenericDecl(curr->child[1].t.data);
-        }
-    }
-
-    if (curr->t.name == "<OPTIONAL_PARAMS_DEF>") {
-        if (curr->child[0].t.name == "<EPS>") {
-            return new ASTs();
-        } else {
-            return recursive_gen(&curr->child[1], nullptr);
-        }
-    }
-
-    if (curr->t.name == "<PARAMS_DEF>") {
-        ASTs *params = new ASTs();
-        if (curr->child[0].t.name == "<EPS>") {
-          return params;
-        }
-
-        params->stmts.push_back(recursive_gen(&curr->child[0], nullptr));
-        curr = &curr->child[1];
-        while (curr->child[0].t.name != "<EPS>") {
-            params->stmts.push_back(recursive_gen(&curr->child[1], nullptr));
-            curr = &curr->child[2];
-        }
-        return params;
-    }
-
-    if (curr->t.name == "<PARAM>") {
-        TypeDecl *type = dynamic_cast<TypeDecl *>(
-            recursive_gen(&curr->child[2], nullptr));
-        Param *param = new Param(curr->child[0].t.data, type);;
-        return param;
-    }
-
-    if (curr->t.name == "<RETURN_DEF>") {
-        if (curr->child[0].t.name == "<EPS>") {
-            return new TypeDecl(TypeDecl::VOID, "0");
-        } else {
-            return recursive_gen(&curr->child[1], nullptr);
-        }
-    }
-
-    if (curr->t.name == "<ENUMDEF>") {
-        ASTs *options = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[3], nullptr));
-        EnumDecl *parent = new EnumDecl(curr->child[1].t.data, ParentClass);
-        
-        for (auto p : options->stmts) {
-            parent->options.push_back(dynamic_cast<Option *>(p));
-        }
-
-        return parent;
-    }
-
-    if (curr->t.name == "<OPTIONS>") {
-        ASTs *options = new ASTs();
-        if (curr->child[0].t.name == "<EPS>") {
-            return options;
-        }
-        Option *option = new Option(curr->child[0].t.data);
-        ASTs *pars = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[1], nullptr));
-        for (auto p : pars->stmts) {
-            option->pars.push_back(dynamic_cast<Param *>(p));
-        }
-        options->stmts.push_back(option);
-
-        curr = &curr->child[2];
-        
-        while (curr->child[0].t.name != "<EPS>") {
-            Option *option = new Option(curr->child[1].t.data);
-            ASTs *pars = dynamic_cast<ASTs *>(
-                recursive_gen(&curr->child[2], nullptr));
-            for (auto p : pars->stmts) {
-                option->pars.push_back(dynamic_cast<Param *>(p));
-            }
-            options->stmts.push_back(option);
-            curr = &curr->child[3];
-        }
-        return options;
-    }
-
-    if (curr->t.name == "<MATCH_OPTION>") {
-        ASTs *options = new ASTs();
-        if (curr->child[0].t.name == "<EPS>") {
-            return options;
-        }
-        curr = &curr->child[1];
-        options->insert(new Param(curr->child[0].t.data, nullptr));
-
-        curr = &curr->child[1];
-        while (curr->child[0].t.name != "<EPS>") {
-            options->insert(new Param(curr->child[1].t.data, nullptr));
-            curr = &curr->child[2];
-        }
-
-        return options;
-    }
-
-    if (curr->t.name == "<CLASSDEF>") {
-        GenericDecl *g = dynamic_cast<GenericDecl *>(
-            recursive_gen(&curr->child[2], nullptr));
-        ClassDecl *parent = new ClassDecl(curr->child[1].t.data, g);
-        ASTs *exprs = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[4], parent));
-        
-        for (auto p : exprs->stmts) {
-            parent->stmts.push_back(dynamic_cast<GlobalStatement *>(p));
-        }
-
-        return parent;
-    }
-
-    if (curr->t.name == "<EXPRS>") {
-        ASTs *exprs = new ASTs();
-        BaseAST *expr = recursive_gen(&curr->child[0], nullptr);
-        if (expr)
-            exprs->stmts.push_back(expr);
-        while (curr->child.size() > 1) {
-            curr = &curr->child[1];
-            expr = recursive_gen(&curr->child[0], nullptr);
-            if (expr)
-                exprs->stmts.push_back(expr);
-        }
-        return exprs;
-    }
-
-    if (curr->t.name == "<EXPR>")
-        return recursive_gen(&curr->child[0], nullptr);
-
-    if (curr->t.name == "<EMPTY_EXPR>")
-        return new Expr();
-
-    if (curr->t.name == "<RET_EXPR>") {
-        return new RetExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[1], nullptr)
-        ));
-    }
-
-    if (curr->t.name == "<IF_EXPR>") {
-        IfExpr *parent = new IfExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[2], nullptr)));
-
-        ASTs *iftrue = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[5], nullptr));
-        ASTs *iffalse = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[7], nullptr));
-        
-        for (auto p : iftrue->stmts) {
-            parent->iftrue.push_back(dynamic_cast<Expr *>(p));
-        }
-
-        for (auto p : iffalse->stmts) {
-            parent->iffalse.push_back(dynamic_cast<Expr *>(p));
-        }
-
-        return parent;
-    }
-
-    if (curr->t.name == "<OPTIONAL_ELSE_EXPR>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return new ASTs();
-        else {
-            return recursive_gen(&curr->child[2], nullptr);
-        }
-    }
-
-    if (curr->t.name == "<WHILE_EXPR>") {
-        WhileExpr *parent = new WhileExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[2], nullptr)));
-        ASTs *exprs = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[5], nullptr));
-
-        for (auto p : exprs->stmts) {
-            parent->exprs.push_back(dynamic_cast<Expr *>(p));
-        }
-        return parent;
-    }
-
-    if (curr->t.name == "<FOR_EXPR>") {
-        ForExpr *parent = new ForExpr(
-            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[2], nullptr)),
-            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[4], nullptr)),
-            dynamic_cast<EvalExpr *>(recursive_gen(&curr->child[6], nullptr))
-        );
-
-        ASTs *exprs = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[9], nullptr));
-        for (auto p : exprs->stmts) {
-            parent->exprs.push_back(dynamic_cast<Expr *>(p));
-        }
-
-        return parent;
-    }
-
-    if (curr->t.name == "<MATCH_EXPR>") {
-        MatchExpr *match = new MatchExpr(dynamic_cast<EvalExpr *>(
-            recursive_gen(&curr->child[2], nullptr)));
-
-        ASTs *exprs = dynamic_cast<ASTs *>(
-            recursive_gen(&curr->child[5], nullptr));
-        for (auto p : exprs->stmts) {
-            match->lines.push_back(dynamic_cast<MatchLine *>(p));
-        }
-
-        return match;
-    }
-
-    if (curr->t.name == "<MATCH_LINES>") {
-        ASTs *exprs = new ASTs();
-        while (curr->child.size() > 1) {
-            MatchLine *line = new MatchLine(curr->child[0].t.data);
-            ASTs *pars = dynamic_cast<ASTs *>(
-                recursive_gen(&curr->child[1], nullptr));
-            ASTs *expr = dynamic_cast<ASTs *>(
-                recursive_gen(&curr->child[4], nullptr));
-            
-            for (auto p : pars->stmts) {
-                line->pars.push_back(dynamic_cast<Param *>(p));
-            }
-            for (auto p : expr->stmts) {
-                line->exprs.push_back(dynamic_cast<Expr *>(p));
-            }
-
-            curr = &curr->child[6];
-            exprs->insert(line);
-        }
-        return exprs;
-    }
-
-    if (curr->t.name == "<EVAL_EXPR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            return new EvalExpr(
-                "=",
-                dynamic_cast<EvalExpr *>(opr1),
-                dynamic_cast<EvalExpr *>(opr2)
-            );
-        }
-    }
-
-    if (curr->t.name == "<ASSIGN>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (! opr2) {
-                return opr1;
-            } else {
-                return new EvalExpr(
-                    "=",
-                    dynamic_cast<EvalExpr *>(opr1),
-                    dynamic_cast<EvalExpr *>(opr2)
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<LOGICAL_OR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            return new EvalExpr(
-                "||",
-                dynamic_cast<EvalExpr *>(opr1),
-                dynamic_cast<EvalExpr *>(opr2)
-            );
-        }
-    }
-
-    if (curr->t.name == "<LOR>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (! opr2) {
-                return opr1;
-            } else {
-                return new EvalExpr(
-                    "||",
-                    dynamic_cast<EvalExpr *>(opr1),
-                    dynamic_cast<EvalExpr *>(opr2)
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<LOGICAL_AND>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            return new EvalExpr(
-                "&&",
-                dynamic_cast<EvalExpr *>(opr1),
-                dynamic_cast<EvalExpr *>(opr2)
-            );
-        }
-    }
-
-    if (curr->t.name == "<LAND>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (! opr2) {
-                return opr1;
-            } else {
-                return new EvalExpr(
-                    "&&",
-                    dynamic_cast<EvalExpr *>(opr1),
-                    dynamic_cast<EvalExpr *>(opr2)
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<BITWISE_OR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            return new EvalExpr(
-                "|",
-                dynamic_cast<EvalExpr *>(opr1),
-                dynamic_cast<EvalExpr *>(opr2)
-            );
-        }
-    }
-
-    if (curr->t.name == "<BOR>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (! opr2) {
-                return opr1;
-            } else {
-                return new EvalExpr(
-                    "|",
-                    dynamic_cast<EvalExpr *>(opr1),
-                    dynamic_cast<EvalExpr *>(opr2)
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<BITWISE_XOR>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            return new EvalExpr(
-                "^",
-                dynamic_cast<EvalExpr *>(opr1),
-                dynamic_cast<EvalExpr *>(opr2)
-            );
-        }
-    }
-
-    if (curr->t.name == "<BXOR>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (! opr2) {
-                return opr1;
-            } else {
-                return new EvalExpr(
-                    "^",
-                    dynamic_cast<EvalExpr *>(opr1),
-                    dynamic_cast<EvalExpr *>(opr2)
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<BITWISE_AND>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            return new EvalExpr(
-                "&",
-                dynamic_cast<EvalExpr *>(opr1),
-                dynamic_cast<EvalExpr *>(opr2)
-            );
-        }
-    }
-
-    if (curr->t.name == "<BAND>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            BaseAST *opr1 = recursive_gen(&curr->child[1], nullptr);
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (! opr2) {
-                return opr1;
-            } else {
-                return new EvalExpr(
-                    "&",
-                    dynamic_cast<EvalExpr *>(opr1),
-                    dynamic_cast<EvalExpr *>(opr2)
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<EQ_NEQ>" || curr->t.name == "<LGTE>" || curr->t.name == "<ADD_SUB>" || curr->t.name == "<MUL_DIV>" || curr->t.name == "<CDOT>") {
-        BaseAST *opr1 = recursive_gen(&curr->child[0], nullptr);
-        if (!opr1) {
-            std::cerr << "ast.cpp: missing left operation, terminating" << std::endl;
-            exit(-1);
-        }
-        BaseAST *opr2 = recursive_gen(&curr->child[1], nullptr);
-        if (!opr2) {
-            return opr1;
-        } else {
-            EvalExpr *opr2_ = dynamic_cast<EvalExpr *>(opr2);
-            return new EvalExpr(
-                opr2_->op,
-                dynamic_cast<EvalExpr *>(opr1),
-                opr2_->l
-            );
-        }
-    }
-
-    if (curr->t.name == "<EQ_NEQ_>" || curr->t.name == "<LGTE_>" || curr->t.name == "<ADD_SUB_>" || curr->t.name == "<MUL_DIV_>" || curr->t.name == "<CDOT_>") {
-        if (curr->child[0].t.name == "<EPS>")
-            return nullptr;
-        else {
-            EvalExpr *opr1 = dynamic_cast<EvalExpr *>(
-                recursive_gen(&curr->child[1], nullptr));
-            BaseAST *opr2 = recursive_gen(&curr->child[2], nullptr);
-            if (!opr2)
-                return new EvalExpr(
-                    curr->child[0].t.name,
-                    opr1,
-                    nullptr
-                );
-            else {
-                EvalExpr *opr2_ = dynamic_cast<EvalExpr *>(
-                    opr2);
-                EvalExpr *rec = new EvalExpr(
-                    opr2_->op,
-                    opr1,
-                    opr2_->l
-                );
-                return new EvalExpr(
-                    "recursive",
-                    rec,
-                    nullptr
-                );
-            }
-        }
-    }
-
-    if (curr->t.name == "<PARS>") {
-        if (curr->child[0].t.name == "NAME") {
-            FuncCall *fc = dynamic_cast<FuncCall *>(
-                recursive_gen(&curr->child[1], nullptr));
-            EvalExpr *arr = dynamic_cast<EvalExpr *>(
-                recursive_gen(&curr->child[2], nullptr));
-            return new EvalExpr(new ExprVal(curr->child[0].t.data, fc, arr));
-        }
-        if (curr->child[0].t.name == "LPAR") {
-            return recursive_gen(&curr->child[1], nullptr);
-        }
-
-        if (curr->child[0].t.name == "FLOAT")
-            return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::FP32, "0")));
-        if (curr->child[0].t.name == "INT")
-            return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::INT32, "0")));
-        if (curr->child[0].t.name == "CHAR")
-            return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
-        if (curr->child[0].t.name == "STRING") {
-            std::string str = unescape(curr->child[0].t.data);
-            strings.push_back(str);
-            return new EvalExpr(new ExprVal(str, 
-                new TypeDecl(TypeDecl::STRING, "0")));
-        }
-    }
-
-    if (curr->t.name == "<OPTIONAL_FUNCCALL>") {
-        if (curr->child[0].t.name == "<EPS>") {
-            return nullptr;
-        } else {
-            FuncCall *fc = new FuncCall();
-            while (curr->child.size() > 1) {
-                fc->pars.push_back(dynamic_cast<EvalExpr *>(
-                    recursive_gen(&curr->child[1], nullptr)));
-                curr = &curr->child[2];
-            }
-            return fc;
-        }
-    }
-
-    if (curr->t.name == "<OPTIONAL_ARRAY>") {
-        if (curr->child[0].t.name == "<EPS>") {
-            return nullptr;
-        } else {
-            return recursive_gen(&curr->child[1], nullptr);
-        }
-    }
-
-    std::cerr << curr->t.name << " is not defined" << std::endl;
-    return nullptr;
-}
-
-Program AST::generate(Node<Lexical> *root) {
-    return *dynamic_cast<Program *>(recursive_gen(root, nullptr));
-}
 
 #ifdef DEBUG
 
@@ -807,16 +134,6 @@ void VarDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "VarDecl(" << this->name.str() << ')' << std::endl;
-    if (this->type)
-        this->type->print(indent + 1);
-    if (this->init)
-        this->init->print(indent + 1);
-}
-
-void ConstDecl::print(int indent) {
-    for (int i = 0; i < indent; ++i)
-        std::cout << "  ";
-    std::cout << "ConstDecl(" << this->name.str() << ')' << std::endl;
     if (this->type)
         this->type->print(indent + 1);
     if (this->init)
@@ -987,6 +304,22 @@ void MatchExpr::print(int indent) {
 }
 
 #endif
+
+/*
+    Code Generation Global Variables
+*/
+static std::map<std::string, AST::ValueType *> strLits;
+static std::map<AST::NameSpace, AST::FuncDecl *> funcDecls;
+static std::map<AST::NameSpace, AST::ClassDecl *> classDecls;
+static std::map<std::string, llvm::StructType *> structDecls;
+extern std::vector<std::string> *strings;
+
+/*
+    Symble Table - record Variable and Type Information
+    TODO: type inference
+*/
+static std::vector<
+    std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
 
 /**
  * Code Generation Interface.
@@ -1178,7 +511,7 @@ ValueType *ExprVal::codegen() {
         // TODO: receive function return type
         if (F->getName() == "printf") {
             return new ValueType(builder.CreateCall(F, args, "_"), 
-            new TypeDecl(TypeDecl::VOID, "0"));
+                new TypeDecl(TypeDecl::VOID, "0"));
         }
         return new ValueType(builder.CreateCall(F, args, "_"), 
             funcDecls[this->refName]->ret);
@@ -1382,7 +715,7 @@ ValueType *FuncDecl::codegen() {
 
     if (this->name.ClassName != "") {
         auto cl = classDecls[NameSpace(this->name.ClassName, "")];
-        for (int i = 0; i < cl->var_members.size(); ++i) {
+        for (unsigned long i = 0; i < cl->var_members.size(); ++i) {
             llvm::Value *val = builder.CreateGEP(
                 FindVar(NameSpace("", "this"))->val,
                 llvm::ConstantInt::get(context, llvm::APInt(32, i, true)),
@@ -1399,7 +732,7 @@ ValueType *FuncDecl::codegen() {
         Insert Global String Definitions. TODO: now it is not global
     */
     //if (this->name.BaseName == "main" && this->name.ClassName == "") {
-        for (auto p : strings) {
+        for (auto p : *strings) {
             if (strLits.find(p) == strLits.end()) {
                 llvm::Value *v = builder.CreateGlobalStringPtr(
                     llvm::StringRef(p));
@@ -1407,7 +740,7 @@ ValueType *FuncDecl::codegen() {
                     v, new TypeDecl(TypeDecl::STRING, "0"));
             }
         }
-        strings.clear();
+        strings->clear();
     //}
 
     for (auto p : this->exprs) {
@@ -1440,33 +773,10 @@ ValueType *ClassDecl::codegen() {
     classDecls[this->name]->var_members = member_raw;
 
     for (auto statement : this->stmts) {
-        statement->codegen();
+        if (statement->stmtType != GlobalStatement::VARDECL) {
+            statement->codegen();
+        }
     }
-
-    return nullptr;
-}
-
-ValueType *ConstDecl::codegen() {
-    if (FindTopVar(this->name)) {
-        LogError("variable " << this->name.str() << " already declared");
-        return nullptr;
-    }
-    if (!this->init) {
-        LogError("constant " << this->name.str() << " has no initialization");
-        return nullptr;
-    }
-    ValueType *v = this->init->codegen();
-    if (!v) {
-        LogError("initialization failure of variable " << this->name.str());
-        return nullptr;
-    }
-
-    llvm::Function *curF = builder.GetInsertBlock()->getParent();
-    llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name.str(), type_trans(v->type), v->type->arrayT);
-    builder.CreateStore(v->val, alloca);
-
-    InsertConst(this->name, alloca, v->type);
 
     return nullptr;
 }
@@ -1609,6 +919,12 @@ ValueType *VarDecl::codegen() {
     if (this->is_global) {
         // TODO: set-up global variable here
     }
+
+    if (this->is_const && (! this->init)) {
+        LogError("constant must have initializers.");
+        return nullptr;
+    }
+
     if (FindTopVar(this->name)) {
         LogError("variable " << this->name.str() << " already declared");
         return nullptr;
@@ -1618,8 +934,9 @@ ValueType *VarDecl::codegen() {
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
         curF, this->name.str(), type_trans(this->type), this->type->arrayT);
 
+    ValueType *v = nullptr;
     if (this->init) {
-        ValueType *v = this->init->codegen();
+        v = this->init->codegen();
         if (!v) {
             LogError("initialization failure of variable " << this->name.str());
             return nullptr;
@@ -1630,8 +947,12 @@ ValueType *VarDecl::codegen() {
         }
         builder.CreateStore(v->val, alloca);
     }
-
-    InsertVar(this->name, alloca, this->type);
+   
+    if (this->is_const) {
+        InsertConst(this->name, alloca, v->type);
+    } else {
+        InsertVar(this->name, alloca, this->type);
+    }
 
     return nullptr;
 }
