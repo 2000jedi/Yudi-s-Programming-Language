@@ -606,7 +606,8 @@ ValueType *EvalExpr::codegen() {
 
         ValueType *rVT = this->r->codegen();
         if (! vt->type->eq(rVT->type)) {
-            LogError("assignment has different types");
+            LogError("assignment has different types" << std::endl << "  L: " <<
+                vt->type->baseType << ", R: " << rVT->type->baseType);
             return nullptr;
         }
         builder.CreateStore(rVT->val, vt->val, false);
@@ -626,7 +627,8 @@ ValueType *EvalExpr::codegen() {
 
     if (lv->type->arrayT == 0) { // not an array type
         if (! lv->type->eq(rv->type)) {
-            LogError("assignment has different types");
+            LogError("assignment has different types" << std::endl << "  L: " <<
+                lv->type->baseType << ", R: " << rv->type->baseType);
             return nullptr;
         }
         switch (lv->type->baseType) {
@@ -738,7 +740,7 @@ ValueType *FuncDecl::codegen() {
             InsertVar(
                 NameSpace("", cl->var_members[i]->name.BaseName), 
                 val, 
-                FindVar(NameSpace("", "this"))->type
+                cl->var_members[i]->type
             );
         }
     }
