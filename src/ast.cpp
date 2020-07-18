@@ -376,7 +376,7 @@ llvm::Value *insertClassElemRef(ClassDecl *cl, NameSpace var) {
     llvm::Value *val = builder.CreateGEP(
         FindVarRaw(NameSpace("", var.ClassName))->val,
         llvm::ConstantInt::get(context, llvm::APInt(32, i, true)),
-        "_");
+        "");
     InsertVar(
         var, 
         val, 
@@ -577,10 +577,10 @@ ValueType *ExprVal::codegen() {
         }
         // TODO: receive function return type
         if (F->getName() == "printf") {
-            return new ValueType(builder.CreateCall(F, args, "_"), 
+            return new ValueType(builder.CreateCall(F, args, ""), 
                 new TypeDecl(TypeDecl::VOID, "0"));
         }
-        return new ValueType(builder.CreateCall(F, args, "_"), 
+        return new ValueType(builder.CreateCall(F, args, ""), 
             funcDecls[called_function]->ret);
     }
 
@@ -603,7 +603,7 @@ ValueType *ExprVal::codegen() {
         TypeDecl *singletonType = new TypeDecl(vt->type->baseType, "0");
         return new ValueType(
             new llvm::LoadInst(
-                builder.CreateGEP(v, index->val, "_"), 
+                builder.CreateGEP(v, index->val, ""), 
                 "", builder.GetInsertBlock()),
             singletonType
         );
@@ -648,7 +648,7 @@ ValueType *EvalExpr::codegen() {
                 return nullptr;
             }
             vt = new ValueType(
-                builder.CreateGEP(vt->val, index->val, "_"),
+                builder.CreateGEP(vt->val, index->val, ""),
                 new TypeDecl(vt->type->baseType, "0")
             );
         }
@@ -684,61 +684,61 @@ ValueType *EvalExpr::codegen() {
             case TypeDecl::INT32: {
                 if (this->op == "ADD") {
                     return new ValueType(
-                        builder.CreateAdd(lv->val, rv->val, "_"),
+                        builder.CreateAdd(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "SUB") {
                     return new ValueType(
-                        builder.CreateSub(lv->val, rv->val, "_"),
+                        builder.CreateSub(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "MUL") {
                     return new ValueType(
-                        builder.CreateMul(lv->val, rv->val, "_"),
+                        builder.CreateMul(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "DIV") {
                     return new ValueType(
-                        builder.CreateSDiv(lv->val, rv->val, "_"),
+                        builder.CreateSDiv(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "GT") {
                     return new ValueType(
-                        builder.CreateICmpSGT(lv->val, rv->val, "_"),
+                        builder.CreateICmpSGT(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "LT") {
                     return new ValueType(
-                        builder.CreateICmpSLT(lv->val, rv->val, "_"),
+                        builder.CreateICmpSLT(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "GE") {
                     return new ValueType(
-                        builder.CreateICmpSGE(lv->val, rv->val, "_"),
+                        builder.CreateICmpSGE(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "LE") {
                     return new ValueType(
-                        builder.CreateICmpSLE(lv->val, rv->val, "_"),
+                        builder.CreateICmpSLE(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "EQ") {
                     return new ValueType(
-                        builder.CreateICmpEQ(lv->val, rv->val, "_"),
+                        builder.CreateICmpEQ(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
                 if (this->op == "NEQ") {
                     return new ValueType(
-                        builder.CreateICmpNE(lv->val, rv->val, "_"),
+                        builder.CreateICmpNE(lv->val, rv->val, ""),
                         lv->type
                     );
                 }
@@ -772,7 +772,7 @@ ValueType *FuncDecl::codegen() {
     unsigned int Idx = 0;
     for (auto &Arg : F->args()) {
         llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-            F, "_", type_trans(this->pars[Idx]->type), 
+            F, "", type_trans(this->pars[Idx]->type), 
             this->pars[Idx]->type->arrayT);
         builder.CreateStore(&Arg, alloca);
         InsertVar(NameSpace(Arg.getName()), alloca, this->pars[Idx]->type);
@@ -784,11 +784,11 @@ ValueType *FuncDecl::codegen() {
         for (unsigned long i = 0; i < cl->var_members.size(); ++i) {
             llvm::Value *ld = builder.CreateLoad(
                 FindVar(NameSpace("", "this"))->val,
-                "_"
+                ""
             );
             llvm::Value *val = builder.CreateInBoundsGEP(ld,
                 {builder.getInt32(i), builder.getInt32(0)},
-                "_");
+                "");
             InsertVar(
                 NameSpace("", cl->var_members[i]->name.BaseName), 
                 val, 
@@ -878,7 +878,7 @@ ValueType *ForExpr::codegen() {
         llvm::Value *condB = builder.CreateICmpNE(
             condV->val, 
             llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
-            "_");
+            "");
         builder.CreateCondBr(condB, loopBB, finalBB);
     }
 
@@ -914,7 +914,7 @@ ValueType *IfExpr::codegen() {
     llvm::Value *condE = builder.CreateICmpNE(
         condV->val, 
         llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
-        "_");
+        "");
 
     llvm::Function *parent = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock *trueBB = llvm::BasicBlock::Create(
@@ -1051,7 +1051,7 @@ ValueType *WhileExpr::codegen() {
         condE = builder.CreateICmpNE(
             condV->val, 
             llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
-            "_");
+            "");
     }
     builder.CreateCondBr(condE, loopBB, finalBB);
     builder.SetInsertPoint(loopBB);
