@@ -41,6 +41,14 @@ namespace AST {
             this->BaseName  = b;
         }
 
+        /**
+         * Constructor given a parent namespace and current name.
+         */
+        NameSpace(NameSpace *parent, std::string b) {
+            this->ClassName = parent->BaseName;
+            this->BaseName  = b;
+        }
+
         std::string str(void) {
             if (this->ClassName == "") {
                 if (this->BaseName == "main" || this->BaseName == "printf")
@@ -444,7 +452,7 @@ namespace AST {
         NameSpace name;
         std::vector<Option*> options;
 
-        EnumDecl(std::string n, ClassDecl *cl) {
+        EnumDecl(std::string n, ClassDecl *cl = nullptr) {
             this->stmtType = ENUMDECL;
 
             if (cl)

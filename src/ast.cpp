@@ -311,6 +311,7 @@ void MatchExpr::print(int indent) {
 static std::map<std::string, AST::ValueType *> strLits;
 static std::map<AST::NameSpace, AST::FuncDecl *> funcDecls;
 static std::map<AST::NameSpace, AST::ClassDecl *> classDecls;
+static std::map<AST::NameSpace, AST::EnumDecl *> enumDecls;
 static std::map<std::string, llvm::StructType *> structDecls;
 extern std::vector<std::string> *strings;
 
@@ -365,7 +366,7 @@ ValueType *FindVarRaw(NameSpace name) {
     return nullptr;
 }
 
-llvm::Value *insertClassElemRef(ClassDecl *cl, NameSpace var) {
+llvm::Value *InsertClassElemRef(ClassDecl *cl, NameSpace var) {
     int i = 0;
     for (auto v : cl->var_members) {
         if (v->name.BaseName == var.BaseName)
@@ -398,7 +399,7 @@ ValueType *FindVar(NameSpace name) {
         vt = FindVarRaw(name);
         if (!vt) {
             ValueType *cl = FindVarRaw(NameSpace("", name.ClassName));
-            insertClassElemRef(
+            InsertClassElemRef(
                 classDecls[NameSpace(cl->type->other, "")],
                 name
             );
@@ -797,21 +798,6 @@ ValueType *FuncDecl::codegen() {
         }
     }
 
-    /*
-        Insert Global String Definitions. TODO: now it is not global
-    */
-    //if (this->name.BaseName == "main" && this->name.ClassName == "") {
-        for (auto p : *strings) {
-            if (strLits.find(p) == strLits.end()) {
-                llvm::Value *v = builder.CreateGlobalStringPtr(
-                    llvm::StringRef(p));
-                strLits[p] = new ValueType(
-                    v, new TypeDecl(TypeDecl::STRING, "0"));
-            }
-        }
-        strings->clear();
-    //}
-
     for (auto p : this->exprs) {
         p->codegen();
     }
@@ -851,6 +837,37 @@ ValueType *ClassDecl::codegen() {
 }
 
 ValueType *EnumDecl::codegen() {
+    enumDecls[this->name] = this;
+
+    // Create struct type for the enum
+    llvm::StructType *cur_enum = llvm::StructType::create(
+        context, this->name.str() + "_enum");
+
+    cur_enum->setBody({
+        llvm::Type::getInt8Ty(context),   // index of enum choice
+        llvm::Type::getInt8PtrTy(context) // void pointer to data field
+    });
+    structDecls[this->name.str() + "_enum"] = cur_enum;
+
+    // Create struct types for data field
+    for (auto option : this->options) {
+        if (option->pars.size() == 0) {
+            continue;
+        }
+        
+        NameSpace curr_ns = NameSpace(&this->name, option->name);
+        llvm::StructType *cur_option = llvm::StructType::create(
+            context, curr_ns.str() + "_option");
+        
+        std::vector<llvm::Type *> cur_option_fields;
+        for (auto field : option->pars) {
+            cur_option_fields.push_back(type_trans(field->type));
+        }
+        cur_option->setBody(cur_option_fields);
+
+        structDecls[curr_ns.str() + "_option"] = cur_option;
+    }
+
     return nullptr;
 }
 
@@ -986,7 +1003,22 @@ ValueType *TypeDecl::codegen() {
 
 ValueType *VarDecl::codegen() {
     if (this->is_global) {
-        // TODO: set-up global variable here
+        module->getOrInsertGlobal(
+            this->name.str(),
+            type_trans(this->type)
+        );
+        llvm::GlobalVariable *v = module->getNamedGlobal(this->name.str());
+        v->setLinkage(llvm::GlobalValue::CommonLinkage);
+
+        if (this->init) {
+            LogError("Global Initializer is not supported");
+        }
+        if (this->is_const) {
+            return nullptr;
+        } else {
+            InsertVar(this->name, v, this->type);
+        }
+        return nullptr;
     }
 
     if (this->is_const && (! this->init)) {
@@ -1066,9 +1098,6 @@ ValueType *WhileExpr::codegen() {
 }
 
 ValueType *Program::codegen() {
-    ClearSymLayer();
-    NewSymLayer(); /* Global Variable Layer */
-
     /*
         Record functions and classes prior to code generation
     */
@@ -1096,12 +1125,43 @@ ValueType *Program::codegen() {
         }
     }
 
+    ClearSymLayer();
+    NewSymLayer(); /* Global Variable Layer */
+
+    for (auto p : this->stmts) {
+        if (p->stmtType == GlobalStatement::VARDECL)
+            p->codegen();
+    }
+
+    /*
+        Insert Global String Definitions.
+    */
+    llvm::FunctionType *Ft = llvm::FunctionType::get(
+        builder.getVoidTy(), {}, false);
+    llvm::Function *F = llvm::Function::Create(
+        Ft, llvm::Function::ExternalLinkage, "globals", module.get());
+    llvm::BasicBlock *BB = llvm::BasicBlock::Create(
+        context, "_globals", F);
+    builder.SetInsertPoint(BB);
+    for (auto p : *strings) {
+        if (strLits.find(p) == strLits.end()) {
+            llvm::Value *v = builder.CreateGlobalStringPtr(
+                llvm::StringRef(p));
+            strLits[p] = new ValueType(
+                v, new TypeDecl(TypeDecl::STRING, "0"));
+        }
+    }
+    strings->clear();
+
+    builder.CreateRetVoid();
+
     /*
         Code Generation Entrance
     */
 
     for (auto p : this->stmts) {
-        p->codegen();
+        if (p->stmtType != GlobalStatement::VARDECL)
+            p->codegen();
     }
     return nullptr;
 }
