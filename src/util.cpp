@@ -75,4 +75,4 @@ std::string unescape(std::string raw) {
     return ss.str();
 }
 
-std::vector<std::string> *strings = new std::vector<std::string>();
+std::vector<std::string> *g_strings = new std::vector<std::string>();

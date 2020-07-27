@@ -1,15 +1,14 @@
-#include "lexical.hpp"
-#include "scanner.hpp"
-#include "parser.hpp"
-#include "ast.hpp"
-
-#include "err.hpp"
-
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <vector>
 #include <string>
+
+#include "lexical.hpp"
+#include "scanner.hpp"
+#include "parser.hpp"
+#include "ast.hpp"
+#include "err.hpp"
 
 int main(int argc, char** argv) {
     std::ifstream file("input.yc");

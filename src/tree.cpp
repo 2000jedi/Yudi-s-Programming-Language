@@ -1,23 +1,21 @@
+#include "tree.hpp"
+
 #include <string>
 #include <iostream>
-#include "tree.hpp"
+
 #include "lexical.hpp"
 #include "ast.hpp"
 
-template <class T> 
+// default constructor
+template <class T>
 Node<T>::Node(T x) {
-  /**
-   * default constructor
-   */
   this->t = x;
   child.clear();
 }
 
-template <class T> 
+// tree_print_rec - recursive helper function to print out the tree
+template <class T>
 void tree_print_rec(Node<T> node, int indent) {
-  /**
-   * tree_print_rec - recursive helper function to print out the tree
-   */
   int i;
   for (i = 0; i < indent; ++i) printf("  ");
   std::cout << node.t << std::endl;
@@ -27,11 +25,9 @@ void tree_print_rec(Node<T> node, int indent) {
   }
 }
 
-template <class T> 
+// print - print out the tree in indented form
+template <class T>
 void Node<T>::print(void) {
-  /**
-   * print - print out the tree in indented form
-   */
   tree_print_rec(*this, 0);
 }
 

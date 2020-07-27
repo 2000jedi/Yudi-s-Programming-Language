@@ -1,4 +1,7 @@
 #include "ast.hpp"
+
+#include <memory>
+
 #include "ast_gen.hpp"
 #include "util.hpp"
 
@@ -43,14 +46,13 @@ void ASTs::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "ASTs()" << std::endl;
-    for (auto p : this->stmts) 
-        p->print(indent + 1);
+    for (auto p : this->stmts) p->print(indent + 1);
 }
 
 void TypeDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "TypeDecl(" << this->baseType << ',' 
+    std::cout << "TypeDecl(" << this->baseType << ','
         << this->arrayT << ')' << std::endl;
 }
 
@@ -70,16 +72,15 @@ void FuncCall::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "FuncCall()" << std::endl;
-    for (auto p : this->pars) 
-        p->print(indent + 1);
+    for (auto p : this->pars) p->print(indent + 1);
 }
 
 void ExprVal::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    if (this->isConst)
+    if (this->isConst) {
         std::cout << "ConstVal(" << this->constVal << ')' << std::endl;
-    else {
+    } else {
         std::cout << "ExprVal(" << this->refName.str() << ')' << std::endl;
         if (this->call)
             this->call->print(indent + 1);
@@ -95,7 +96,6 @@ void GenericDecl::print(int indent) {
         std::cout << "GenericDecl(" << this->name << ')' << std::endl;
     else
         std::cout << "GenericDecl()" << std::endl;
-    
 }
 
 void Param::print(int indent) {
@@ -111,7 +111,7 @@ void Option::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "Option(" << this->name << ')' << std::endl;
-    
+
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Params(" << std::endl;
@@ -308,16 +308,16 @@ void MatchExpr::print(int indent) {
 /*
     Code Generation Global Variables
 */
-static std::map<std::string, AST::ValueType *> strLits;
-static std::map<AST::NameSpace, AST::FuncDecl *> funcDecls;
-static std::map<AST::NameSpace, AST::ClassDecl *> classDecls;
-static std::map<AST::NameSpace, AST::EnumDecl *> enumDecls;
-static std::map<std::string, llvm::StructType *> structDecls;
-extern std::vector<std::string> *strings;
+static std::map<std::string, AST::ValueType *> g_str_lits;
+static std::map<AST::NameSpace, AST::FuncDecl *> g_func_decls;
+static std::map<AST::NameSpace, AST::ClassDecl *> g_class_decls;
+static std::map<AST::NameSpace, AST::EnumDecl *> g_enum_decls;
+static std::map<std::string, llvm::StructType *> g_struct_decls;
+extern std::vector<std::string> *g_strings;
 
 /*
     Symble Table - record Variable and Type Information
-    TODO: type inference
+    TODO: type inference. Arrays.
 */
 static std::vector<
     std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
@@ -374,15 +374,14 @@ llvm::Value *InsertClassElemRef(ClassDecl *cl, NameSpace var) {
         i++;
     }
 
-    llvm::Value *val = builder.CreateGEP(
+    llvm::Value *val = builder.CreateInBoundsGEP(
         FindVarRaw(NameSpace("", var.ClassName))->val,
-        llvm::ConstantInt::get(context, llvm::APInt(32, i, true)),
+        builder.getInt32(i),
         "");
     InsertVar(
-        var, 
-        val, 
-        cl->var_members[i]->type
-    );
+        var,
+        val,
+        cl->var_members[i]->type);
     return val;
 }
 
@@ -391,7 +390,7 @@ ValueType *FindVar(NameSpace name) {
     if (name.ClassName == "") {
         vt = FindVarRaw(name);
         if (!vt) {
-            LogError("variable " << name.str() 
+            LogError("variable " << name.str()
                 << " not found");
             return nullptr;
         }
@@ -400,12 +399,11 @@ ValueType *FindVar(NameSpace name) {
         if (!vt) {
             ValueType *cl = FindVarRaw(NameSpace("", name.ClassName));
             InsertClassElemRef(
-                classDecls[NameSpace(cl->type->other, "")],
-                name
-            );
+                g_class_decls[NameSpace(cl->type->other, "")],
+                name);
             vt = FindVarRaw(name);
             if (!vt) {
-                LogError("variable " << name.str() 
+                LogError("variable " << name.str()
                     << " not found");
                 return nullptr;
             }
@@ -430,7 +428,7 @@ llvm::Type *type_trans(TypeDecl *td, bool pointer = true) {
         case TypeDecl::STRING:
             return llvm::Type::getInt8PtrTy(context);
         case TypeDecl::OTHER: {
-            auto t = structDecls[td->other];
+            auto t = g_struct_decls[td->other];
             if (t) {
                 if (pointer)
                     return llvm::PointerType::get(t, 0);
@@ -438,6 +436,7 @@ llvm::Type *type_trans(TypeDecl *td, bool pointer = true) {
                     return t;
             } else {
                 LogError("Type " << td->other << " not found");
+                std::abort();
                 return nullptr;
             }
         }
@@ -445,20 +444,20 @@ llvm::Type *type_trans(TypeDecl *td, bool pointer = true) {
             LogError("TypeDecl index " << td->baseType << " not found");
             return nullptr;
     }
-    /* todo: array typing */
+    // TODO: array typing
 }
 
-void Function_AST_Define(AST::FuncDecl *f) {
-    funcDecls[f->name] = f;
+llvm::Function *FuncASTDef(AST::FuncDecl *f) {
+    g_func_decls[f->name] = f;
 
     llvm::Function *prev = module->getFunction(f->name.str());
     if (prev) {
-        LogError("function " << f->name.ClassName << "." 
+        LogError("function " << f->name.ClassName << "."
             << f->name.BaseName << " already declared");
-        return;
+        return nullptr;
     }
     if (f->name.ClassName != "") {
-        f->pars.insert(f->pars.begin(), 
+        f->pars.insert(f->pars.begin(),
             new Param("this", new TypeDecl(f->name.ClassName, "0")));
     }
 
@@ -470,15 +469,17 @@ void Function_AST_Define(AST::FuncDecl *f) {
         type_trans(f->ret), ArgTypes, false);
     llvm::Function *F = llvm::Function::Create(
         Ft, llvm::Function::ExternalLinkage, f->name.str(), module.get());
-    
+
     unsigned Idx = 0;
 
     for (auto &Arg : F->args()) {
         Arg.setName(f->pars[Idx++]->name);
     }
+
+    return F;
 }
 
-/* Variable Allocate Helper Function */
+// Variable Allocation Helper Function
 static llvm::AllocaInst *CreateEntryBlockAlloca(
     llvm::Function *F, const std::string &name, llvm::Type *type, int size) {
     llvm::IRBuilder<> tmpBuilder(
@@ -508,22 +509,22 @@ ValueType *ConstToValue(ExprVal *e) {
             return nullptr;
         case TypeDecl::INT32:
             return new ValueType(
-                llvm::ConstantInt::get(context, 
+                llvm::ConstantInt::get(context,
                 llvm::APInt(32, std::stoi(e->constVal), true)),
                 e->type, true);
         case TypeDecl::CHAR:
             return new ValueType(
-                llvm::ConstantInt::get(context, 
+                llvm::ConstantInt::get(context,
                 llvm::APInt(8, std::stoi(e->constVal), false)),
                 e->type, true);
         case TypeDecl::FP32:
         case TypeDecl::FP64:
             return new ValueType(
-                llvm::ConstantFP::get(context, 
+                llvm::ConstantFP::get(context,
                 llvm::APFloat(std::stod(e->constVal))),
                 e->type, true);
         case TypeDecl::STRING: {
-            return strLits[e->constVal];
+            return g_str_lits[e->constVal];
         }
         default:
             LogError("TypeDecl index " << e->type->baseType << " not found");
@@ -539,11 +540,11 @@ ValueType *ExprVal::codegen() {
     if (this->call) {
         NameSpace called_function = this->refName;
         bool is_class = false;
-        unsigned long num_args = this->call->pars.size();
+        unsigned num_args = this->call->pars.size();
         if (called_function.ClassName != "") {
             called_function.ClassName =
                 FindVar(NameSpace(called_function.ClassName))->type->other;
-            num_args ++;
+            num_args++;
             is_class = true;
         }
 
@@ -555,15 +556,15 @@ ValueType *ExprVal::codegen() {
 
         if ((!F->isVarArg()) && (F->arg_size() != num_args)) {
             LogError(
-                "function " << called_function.str() <<" requires " 
-                << F->arg_size() << " argument(s), " << this->call->pars.size() 
+                "function " << called_function.str() <<" requires "
+                << F->arg_size() << " argument(s), " << this->call->pars.size()
                 << " argument(s) found");
             return nullptr;
         }
 
         std::vector<llvm::Value *> args;
 
-        if (is_class){
+        if (is_class) {
             args.push_back(FindVar(NameSpace(this->refName.ClassName))->val);
         }
 
@@ -578,11 +579,11 @@ ValueType *ExprVal::codegen() {
         }
         // TODO: receive function return type
         if (F->getName() == "printf") {
-            return new ValueType(builder.CreateCall(F, args, ""), 
+            return new ValueType(builder.CreateCall(F, args, ""),
                 new TypeDecl(TypeDecl::VOID, "0"));
         }
-        return new ValueType(builder.CreateCall(F, args, ""), 
-            funcDecls[called_function]->ret);
+        return new ValueType(builder.CreateCall(F, args, ""),
+            g_func_decls[called_function]->ret);
     }
 
     ValueType* vt = FindVar(this->refName);
@@ -593,7 +594,7 @@ ValueType *ExprVal::codegen() {
 
     if (this->array) {
         ValueType *index = this->array->codegen();
-        if (! index) {
+        if (!index) {
             LogError("invalid array index");
             return nullptr;
         }
@@ -604,10 +605,9 @@ ValueType *ExprVal::codegen() {
         TypeDecl *singletonType = new TypeDecl(vt->type->baseType, "0");
         return new ValueType(
             new llvm::LoadInst(
-                builder.CreateGEP(v, index->val, ""), 
+                builder.CreateGEP(v, index->val, ""),
                 "", builder.GetInsertBlock()),
-            singletonType
-        );
+            singletonType);
     } else {
         return new ValueType(
             new llvm::LoadInst(v, "", builder.GetInsertBlock()),
@@ -620,7 +620,7 @@ ValueType *EvalExpr::codegen() {
         return this->val->codegen();
 
     if (this->op == "=") {
-        if (! this->l->isVal) {
+        if (!this->l->isVal) {
             LogError("LHS of assignment must be a variable");
             return nullptr;
         }
@@ -629,7 +629,8 @@ ValueType *EvalExpr::codegen() {
             return nullptr;
         }
         if (this->l->val->call) {
-            LogError("function return value cannot be used in LHS of assignment");
+            LogError(
+                "function return value cannot be used in LHS of assignment");
             return nullptr;
         }
 
@@ -640,7 +641,7 @@ ValueType *EvalExpr::codegen() {
 
         if (this->l->val->array) {
             ValueType *index = this->l->val->array->codegen();
-            if (! index) {
+            if (!index) {
                 LogError("invalid array index");
                 return nullptr;
             }
@@ -650,12 +651,11 @@ ValueType *EvalExpr::codegen() {
             }
             vt = new ValueType(
                 builder.CreateGEP(vt->val, index->val, ""),
-                new TypeDecl(vt->type->baseType, "0")
-            );
+                new TypeDecl(vt->type->baseType, "0"));
         }
 
         ValueType *rVT = this->r->codegen();
-        if (! vt->type->eq(rVT->type)) {
+        if (!vt->type->eq(rVT->type)) {
             LogError("assignment has different types" << std::endl << "  L: " <<
                 vt->type->baseType << ", R: " << rVT->type->baseType);
             return nullptr;
@@ -663,8 +663,7 @@ ValueType *EvalExpr::codegen() {
         builder.CreateStore(rVT->val, vt->val, false);
         return new ValueType(
             new llvm::LoadInst(vt->val, "", builder.GetInsertBlock()),
-            vt->type
-        );
+            vt->type);
     }
 
     ValueType *lv = this->l->codegen();
@@ -675,8 +674,8 @@ ValueType *EvalExpr::codegen() {
         return nullptr;
     }
 
-    if (lv->type->arrayT == 0) { // not an array type
-        if (! lv->type->eq(rv->type)) {
+    if (lv->type->arrayT == 0) {  // not an array type
+        if (!lv->type->eq(rv->type)) {
             LogError("assignment has different types" << std::endl << "  L: " <<
                 lv->type->baseType << ", R: " << rv->type->baseType);
             return nullptr;
@@ -686,62 +685,52 @@ ValueType *EvalExpr::codegen() {
                 if (this->op == "ADD") {
                     return new ValueType(
                         builder.CreateAdd(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "SUB") {
                     return new ValueType(
                         builder.CreateSub(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "MUL") {
                     return new ValueType(
                         builder.CreateMul(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "DIV") {
                     return new ValueType(
                         builder.CreateSDiv(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "GT") {
                     return new ValueType(
                         builder.CreateICmpSGT(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "LT") {
                     return new ValueType(
                         builder.CreateICmpSLT(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "GE") {
                     return new ValueType(
                         builder.CreateICmpSGE(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "LE") {
                     return new ValueType(
                         builder.CreateICmpSLE(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "EQ") {
                     return new ValueType(
                         builder.CreateICmpEQ(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 if (this->op == "NEQ") {
                     return new ValueType(
                         builder.CreateICmpNE(lv->val, rv->val, ""),
-                        lv->type
-                    );
+                        lv->type);
                 }
                 LogError("operator " << this->op << " not supported");
                 return nullptr;
@@ -750,9 +739,7 @@ ValueType *EvalExpr::codegen() {
                 LogError("type " << lv->type << " not supported");
                 return nullptr;
             }
-
         }
-        
     } else {
         LogError("array arithmetics still not supported");
         return nullptr;
@@ -769,11 +756,11 @@ ValueType *FuncDecl::codegen() {
     builder.SetInsertPoint(BB);
 
     NewSymLayer();
-    
+
     unsigned int Idx = 0;
     for (auto &Arg : F->args()) {
         llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-            F, "", type_trans(this->pars[Idx]->type), 
+            F, "", type_trans(this->pars[Idx]->type),
             this->pars[Idx]->type->arrayT);
         builder.CreateStore(&Arg, alloca);
         InsertVar(NameSpace(Arg.getName()), alloca, this->pars[Idx]->type);
@@ -781,20 +768,17 @@ ValueType *FuncDecl::codegen() {
     }
 
     if (this->name.ClassName != "") {
-        auto cl = classDecls[NameSpace(this->name.ClassName, "")];
-        for (unsigned long i = 0; i < cl->var_members.size(); ++i) {
+        auto cl = g_class_decls[NameSpace(this->name.ClassName, "")];
+        for (unsigned i = 0; i < cl->var_members.size(); ++i) {
             llvm::Value *ld = builder.CreateLoad(
                 FindVar(NameSpace("", "this"))->val,
-                ""
-            );
+                "");
             llvm::Value *val = builder.CreateInBoundsGEP(ld,
                 {builder.getInt32(i), builder.getInt32(0)},
                 "");
             InsertVar(
-                NameSpace("", cl->var_members[i]->name.BaseName), 
-                val, 
-                cl->var_members[i]->type
-            );
+                NameSpace("", cl->var_members[i]->name.BaseName),
+                val, cl->var_members[i]->type);
         }
     }
 
@@ -805,7 +789,7 @@ ValueType *FuncDecl::codegen() {
     if (F->getReturnType()->isVoidTy()) {
         builder.CreateRetVoid();
     }
-    
+
     RemoveSymLayer();
 
     llvm::verifyFunction(*F);
@@ -813,7 +797,7 @@ ValueType *FuncDecl::codegen() {
 }
 
 ValueType *ClassDecl::codegen() {
-    std::vector<llvm::Type *> members; /* struct members */
+    std::vector<llvm::Type *> members;  // struct members
     std::vector<VarDecl *> member_raw;
 
     for (auto statement : this->stmts) {
@@ -824,8 +808,8 @@ ValueType *ClassDecl::codegen() {
             member_raw.push_back(pp);
         }
     }
-    structDecls[this->name.ClassName]->setBody(members);
-    classDecls[this->name]->var_members = member_raw;
+    g_struct_decls[this->name.ClassName]->setBody(members);
+    g_class_decls[this->name]->var_members = member_raw;
 
     for (auto statement : this->stmts) {
         if (statement->stmtType != GlobalStatement::VARDECL) {
@@ -837,35 +821,64 @@ ValueType *ClassDecl::codegen() {
 }
 
 ValueType *EnumDecl::codegen() {
-    enumDecls[this->name] = this;
+    g_enum_decls[this->name] = this;
 
     // Create struct type for the enum
     llvm::StructType *cur_enum = llvm::StructType::create(
         context, this->name.str() + "_enum");
 
     cur_enum->setBody({
-        llvm::Type::getInt8Ty(context),   // index of enum choice
-        llvm::Type::getInt8PtrTy(context) // void pointer to data field
+        llvm::Type::getInt8Ty(context),    // index of enum choice
+        llvm::Type::getInt8PtrTy(context)  // void pointer to data field
     });
-    structDecls[this->name.str() + "_enum"] = cur_enum;
+    g_struct_decls[this->name.str()] = cur_enum;
 
     // Create struct types for data field
     for (auto option : this->options) {
         if (option->pars.size() == 0) {
             continue;
         }
-        
+
         NameSpace curr_ns = NameSpace(&this->name, option->name);
         llvm::StructType *cur_option = llvm::StructType::create(
             context, curr_ns.str() + "_option");
-        
+
         std::vector<llvm::Type *> cur_option_fields;
         for (auto field : option->pars) {
             cur_option_fields.push_back(type_trans(field->type));
         }
         cur_option->setBody(cur_option_fields);
 
-        structDecls[curr_ns.str() + "_option"] = cur_option;
+        g_struct_decls[curr_ns.str() + "_option"] = cur_option;
+
+        // create constructors for each enum
+        FuncDecl *fd = new FuncDecl(
+            option->name,
+            nullptr,
+            new TypeDecl(this->name.str(), "0"),
+            nullptr);
+        fd->name.BaseName = this->name.BaseName;
+
+        for (auto field : option->pars) {
+            fd->pars.push_back(field);
+        }
+
+        llvm::Function *f = FuncASTDef(fd);
+        llvm::BasicBlock *BB = llvm::BasicBlock::Create(
+            context, this->name.str() + "_entry", f);
+        builder.SetInsertPoint(BB);
+
+        auto alloca = CreateEntryBlockAlloca(f, "this", cur_option, 0);
+
+        int Idx = 0;
+        for (auto &Arg : f->args()) {
+            llvm::Value *param = builder.CreateInBoundsGEP(alloca,
+                {builder.getInt32(0), builder.getInt32(Idx)},
+                "");
+            builder.CreateStore(&Arg, param);
+            Idx++;
+        }
+        builder.CreateRet(alloca);
     }
 
     return nullptr;
@@ -886,15 +899,15 @@ ValueType *ForExpr::codegen() {
     builder.SetInsertPoint(condBB);
 
     ValueType *condV = this->cond->codegen();
-    if (! condV->type->eq(new TypeDecl(TypeDecl::INT32, "0"))) {
-        LogError("type " << condV->type->baseType 
+    if (!condV->type->eq(new TypeDecl(TypeDecl::INT32, "0"))) {
+        LogError("type " << condV->type->baseType
             << " cannot be used in condition");
         return nullptr;
     }
     if (condV) {
         llvm::Value *condB = builder.CreateICmpNE(
-            condV->val, 
-            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
+            condV->val,
+            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)),
             "");
         builder.CreateCondBr(condB, loopBB, finalBB);
     }
@@ -924,13 +937,13 @@ ValueType *IfExpr::codegen() {
         return nullptr;
     }
     if (!condV->type->eq(new TypeDecl(TypeDecl::INT32, "0"))) {
-        LogError("type " << condV->type->baseType 
+        LogError("type " << condV->type->baseType
             << " cannot be used in condition");
         return nullptr;
     }
     llvm::Value *condE = builder.CreateICmpNE(
-        condV->val, 
-        llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
+        condV->val,
+        llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)),
         "");
 
     llvm::Function *parent = builder.GetInsertBlock()->getParent();
@@ -982,7 +995,7 @@ ValueType *Param::codegen() {
 }
 
 ValueType *RetExpr::codegen() {
-    if (! this->stmt) {
+    if (!this->stmt) {
         builder.CreateRetVoid();
         return nullptr;
     }
@@ -1005,8 +1018,7 @@ ValueType *VarDecl::codegen() {
     if (this->is_global) {
         module->getOrInsertGlobal(
             this->name.str(),
-            type_trans(this->type)
-        );
+            type_trans(this->type));
         llvm::GlobalVariable *v = module->getNamedGlobal(this->name.str());
         v->setLinkage(llvm::GlobalValue::CommonLinkage);
 
@@ -1021,7 +1033,7 @@ ValueType *VarDecl::codegen() {
         return nullptr;
     }
 
-    if (this->is_const && (! this->init)) {
+    if (this->is_const && (!this->init)) {
         LogError("constant must have initializers.");
         return nullptr;
     }
@@ -1040,22 +1052,22 @@ ValueType *VarDecl::codegen() {
             LogError("initialization failure of variable " << this->name.str());
             return nullptr;
         }
-        if (! this->type) {
+        if (!this->type) {
             this->type = v->type;
         }
-        if (! v->type->eq(this->type)) {
+        if (!v->type->eq(this->type)) {
             LogError("initialization type mismatch");
             return nullptr;
         }
     }
 
     llvm::AllocaInst *alloca = CreateEntryBlockAlloca(
-        curF, this->name.str(), 
+        curF, this->name.str(),
         type_trans(this->type, false), this->type->arrayT);
     if (this->init) {
         builder.CreateStore(v->val, alloca);
     }
-   
+
     if (this->is_const) {
         InsertConst(this->name, alloca, v->type);
     } else {
@@ -1081,8 +1093,8 @@ ValueType *WhileExpr::codegen() {
     llvm::Value *condE;
     if (condV) {
         condE = builder.CreateICmpNE(
-            condV->val, 
-            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)), 
+            condV->val,
+            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)),
             "");
     }
     builder.CreateCondBr(condE, loopBB, finalBB);
@@ -1093,7 +1105,7 @@ ValueType *WhileExpr::codegen() {
     }
     builder.CreateBr(condBB);
     builder.SetInsertPoint(finalBB);
-    
+
     return nullptr;
 }
 
@@ -1104,29 +1116,29 @@ ValueType *Program::codegen() {
     for (auto p : this->stmts) {
         if (p->stmtType == GlobalStatement::FUNCDECL) {
             auto pp = dynamic_cast<FuncDecl *>(p);
-            Function_AST_Define(pp);
+            FuncASTDef(pp);
         }
         if (p->stmtType == GlobalStatement::CLASSDECL) {
             auto cl = dynamic_cast<ClassDecl *>(p);
-            classDecls[cl->name] = cl;
+            g_class_decls[cl->name] = cl;
 
             // Create struct type for the class
             llvm::StructType *cur_class = llvm::StructType::create(
                 context, cl->name.ClassName + "_struct");
-            structDecls[cl->name.ClassName] = cur_class;
+            g_struct_decls[cl->name.ClassName] = cur_class;
 
             // Declare member functions
             for (auto statement : cl->stmts) {
                 if (statement->stmtType == GlobalStatement::FUNCDECL) {
                     auto pp = dynamic_cast<FuncDecl *>(statement);
-                    Function_AST_Define(pp);
+                    FuncASTDef(pp);
                 }
             }
         }
     }
 
     ClearSymLayer();
-    NewSymLayer(); /* Global Variable Layer */
+    NewSymLayer();  // Global Variable Layer
 
     for (auto p : this->stmts) {
         if (p->stmtType == GlobalStatement::VARDECL)
@@ -1143,15 +1155,15 @@ ValueType *Program::codegen() {
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(
         context, "_globals", F);
     builder.SetInsertPoint(BB);
-    for (auto p : *strings) {
-        if (strLits.find(p) == strLits.end()) {
+    for (auto p : *g_strings) {
+        if (g_str_lits.find(p) == g_str_lits.end()) {
             llvm::Value *v = builder.CreateGlobalStringPtr(
                 llvm::StringRef(p));
-            strLits[p] = new ValueType(
+            g_str_lits[p] = new ValueType(
                 v, new TypeDecl(TypeDecl::STRING, "0"));
         }
     }
-    strings->clear();
+    g_strings->clear();
 
     builder.CreateRetVoid();
 
@@ -1174,10 +1186,8 @@ int AST::codegen(Program prog, std::string outputFileName) {
         "printf",
         llvm::FunctionType::get(
             llvm::IntegerType::getInt32Ty(context),
-            llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0), 
-            true /* this is var arg func type*/
-        )
-    );
+            llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0),
+            true));  // printf is var arg func type
 
     /* Generate IR code */
     prog.codegen();
@@ -1213,7 +1223,7 @@ int AST::codegen(Program prog, std::string outputFileName) {
         LogError("could not open file: " << ec.message());
         return ERR_OBJCODE;
     }
-    
+
     /* Pass Manager and File Output */
     llvm::legacy::PassManager pass;
     auto FileType = llvm::TargetMachine::CGFT_ObjectFile;

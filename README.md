@@ -6,11 +6,13 @@ This project is still under development and not all function modules defined in 
 
 - [x] Scanner, Parser, and AST constructor.
 - [x] Implementation for basic arithmetics and variable definition.
+- [ ] Global Variables.
 - [x] Control-Flow definition including loops and functions.
 - [x] Basic `printf` function for debugging.
 - [ ] Class definition.
 - [ ] Enum defintion (support for pattern-matching with tagged union).
 - [ ] Support for Standard Library.
+- [ ] Generics.
 
 ## File and Directory Layout
 

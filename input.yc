@@ -1,17 +1,10 @@
-// var global_1 : int32;  TODO: This expression causes error
-
-class foo {
-    var a : int32;
-    function foo() {
-        a = 1;
-        printf("a = %d\n", a);
-    }
+// var global_1 : int32; // TODO: This expression causes error
+enum try {
+    a,
+    b(first : int32, second : char)
 }
 
 function main() {
-    var foo_inst : foo;
-    foo_inst.foo();
-    printf("a = %d\n", foo_inst.a);
     var i : int32;
     const len = 11;
     len = len + 1; // TODO: constant cannot be assigned
