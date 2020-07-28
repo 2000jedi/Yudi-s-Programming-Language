@@ -1,3 +1,10 @@
+/**
+ * Copyright (c) 2020 by Yudi Yang <2000jedi@gmail.com>.
+ * All rights reserved.
+ */
+
+#include "scanner.hpp"
+
 #include <string>
 #include <algorithm>
 #include <regex>
@@ -5,7 +12,7 @@
 #include <numeric>
 #include <fstream>
 #include <iostream>
-#include "scanner.hpp"
+
 #include "lexical.hpp"
 
 std::vector<std::pair<std::string, std::regex>> ScanTable;

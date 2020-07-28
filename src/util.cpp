@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2020 by Yudi Yang <2000jedi@gmail.com>.
+ * All rights reserved.
+ */
+
 #include <sstream>
 #include <iostream>
 #include <vector>

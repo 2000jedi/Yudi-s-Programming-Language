@@ -1,5 +1,8 @@
-/*
- * Table Driver Parser
+/**
+ * Copyright (c) 2020 by Yudi Yang <2000jedi@gmail.com>.
+ * All rights reserved.
+ * -------------------
+ * Table Driven Parser
  */
 
 #include <string>
