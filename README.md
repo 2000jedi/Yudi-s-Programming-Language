@@ -9,9 +9,10 @@ This project is still under development and not all function modules defined in 
 - [ ] Global Variables.
 - [x] Control-Flow definition including loops and functions.
 - [x] Basic `printf` function for debugging.
-- [ ] Class definition.
+- [x] Class definition. `TODO(yyang): debug`
 - [ ] Enum defintion (support for pattern-matching with tagged union).
 - [ ] Support for Standard Library.
+- [ ] Rework `NameSpace`.
 - [ ] Generics.
 
 ## File and Directory Layout
