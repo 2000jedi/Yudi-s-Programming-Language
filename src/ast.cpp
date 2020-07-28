@@ -510,19 +510,17 @@ ValueType *ConstToValue(ExprVal *e) {
             return nullptr;
         case TypeDecl::INT32:
             return new ValueType(
-                llvm::ConstantInt::get(context,
-                llvm::APInt(32, std::stoi(e->constVal), true)),
+                builder.getInt32(std::stoi(e->constVal)),
                 e->type, true);
         case TypeDecl::CHAR:
             return new ValueType(
-                llvm::ConstantInt::get(context,
-                llvm::APInt(8, std::stoi(e->constVal), false)),
+                builder.getInt8(std::stoi(e->constVal)),
                 e->type, true);
         case TypeDecl::FP32:
         case TypeDecl::FP64:
             return new ValueType(
                 llvm::ConstantFP::get(context,
-                llvm::APFloat(std::stod(e->constVal))),
+                    llvm::APFloat(std::stod(e->constVal))),
                 e->type, true);
         case TypeDecl::STRING: {
             return g_str_lits[e->constVal];
@@ -834,6 +832,7 @@ ValueType *EnumDecl::codegen() {
     });
     g_struct_decls[this->name.str()] = cur_enum;
 
+    int option_count = 0;
     // Create struct types for data field
     for (auto option : this->options) {
         if (option->pars.size() == 0) {
@@ -869,17 +868,26 @@ ValueType *EnumDecl::codegen() {
             context, this->name.str() + "_entry", f);
         builder.SetInsertPoint(BB);
 
-        auto alloca = CreateEntryBlockAlloca(f, "this", cur_option, 0);
+        auto storage = CreateEntryBlockAlloca(f, "", cur_option, 0);
 
         int Idx = 0;
         for (auto &Arg : f->args()) {
-            llvm::Value *param = builder.CreateInBoundsGEP(alloca,
+            llvm::Value *param = builder.CreateInBoundsGEP(storage,
                 {builder.getInt32(0), builder.getInt32(Idx)},
                 "");
             builder.CreateStore(&Arg, param);
             Idx++;
         }
+
+        // Storage struct entry
+        auto alloca = CreateEntryBlockAlloca(f, "", cur_enum, 0);
+        llvm::Value *ind = builder.CreateInBoundsGEP(alloca,
+            {builder.getInt32(0), builder.getInt32(0)},
+            "");
+        builder.CreateStore(builder.getInt8(option_count), ind);
+
         builder.CreateRet(alloca);
+        ++option_count;
     }
 
     return nullptr;
@@ -907,9 +915,7 @@ ValueType *ForExpr::codegen() {
     }
     if (condV) {
         llvm::Value *condB = builder.CreateICmpNE(
-            condV->val,
-            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)),
-            "");
+            condV->val, builder.getInt1(0), "");
         builder.CreateCondBr(condB, loopBB, finalBB);
     }
 
@@ -943,9 +949,7 @@ ValueType *IfExpr::codegen() {
         return nullptr;
     }
     llvm::Value *condE = builder.CreateICmpNE(
-        condV->val,
-        llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)),
-        "");
+        condV->val, builder.getInt1(0), "");
 
     llvm::Function *parent = builder.GetInsertBlock()->getParent();
     llvm::BasicBlock *trueBB = llvm::BasicBlock::Create(
@@ -1094,9 +1098,7 @@ ValueType *WhileExpr::codegen() {
     llvm::Value *condE;
     if (condV) {
         condE = builder.CreateICmpNE(
-            condV->val,
-            llvm::ConstantInt::get(context, llvm::APInt(1, 0, true)),
-            "");
+            condV->val, builder.getInt1(0), "");
     }
     builder.CreateCondBr(condE, loopBB, finalBB);
     builder.SetInsertPoint(loopBB);
