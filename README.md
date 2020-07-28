@@ -28,7 +28,7 @@ This project is still under development and not all function modules defined in 
 
 ## Installation
 
-The compiler requires `clang` and `LLVM` version 10 installed. It has been tested under several OS.
+The compiler requires `clang` and `llvm 10` installed. It has been tested under several OS.
 
 - [X] Arch Linux
 - [ ] Mac OS (under development)

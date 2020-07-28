@@ -1175,7 +1175,7 @@ ValueType *Program::codegen() {
 }
 
 int AST::codegen(Program prog, std::string outputFileName) {
-    module = llvm::make_unique<llvm::Module>(outputFileName, context);
+    module = std::make_unique<llvm::Module>(outputFileName, context);
 
     // insert standard C library functions
     module->getOrInsertFunction(
@@ -1219,7 +1219,7 @@ int AST::codegen(Program prog, std::string outputFileName) {
 
     // Pass Manager and Object File Output
     llvm::legacy::PassManager pass;
-    auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
+    auto FileType = llvm::CGFT_ObjectFile;
 
     if (TargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType)) {
         LogError("TargetMachine can't emit a file of this type");
