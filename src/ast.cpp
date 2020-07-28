@@ -305,9 +305,7 @@ void MatchExpr::print(int indent) {
 
 #endif
 
-/*
-    Code Generation Global Variables
-*/
+// Code Generation Global Variables
 static std::map<std::string, AST::ValueType *> g_str_lits;
 static std::map<AST::NameSpace, AST::FuncDecl *> g_func_decls;
 static std::map<AST::NameSpace, AST::ClassDecl *> g_class_decls;
@@ -315,10 +313,8 @@ static std::map<AST::NameSpace, AST::EnumDecl *> g_enum_decls;
 static std::map<std::string, llvm::StructType *> g_struct_decls;
 extern std::vector<std::string> *g_strings;
 
-/*
-    Symble Table - record Variable and Type Information
-    TODO: type inference. Arrays.
-*/
+// Symble Table - record Variable and Type Information
+// TODO: type inference. Arrays.
 static std::vector<
     std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
 
@@ -1110,9 +1106,7 @@ ValueType *WhileExpr::codegen() {
 }
 
 ValueType *Program::codegen() {
-    /*
-        Record functions and classes prior to code generation
-    */
+    // Record functions and classes prior to code generation
     for (auto p : this->stmts) {
         if (p->stmtType == GlobalStatement::FUNCDECL) {
             auto pp = dynamic_cast<FuncDecl *>(p);
@@ -1145,9 +1139,7 @@ ValueType *Program::codegen() {
             p->codegen();
     }
 
-    /*
-        Insert Global String Definitions.
-    */
+    // Insert Global String Definitions.
     llvm::FunctionType *Ft = llvm::FunctionType::get(
         builder.getVoidTy(), {}, false);
     llvm::Function *F = llvm::Function::Create(
@@ -1167,10 +1159,7 @@ ValueType *Program::codegen() {
 
     builder.CreateRetVoid();
 
-    /*
-        Code Generation Entrance
-    */
-
+    // Code Generation Entrance
     for (auto p : this->stmts) {
         if (p->stmtType != GlobalStatement::VARDECL)
             p->codegen();
@@ -1181,7 +1170,7 @@ ValueType *Program::codegen() {
 int AST::codegen(Program prog, std::string outputFileName) {
     module = llvm::make_unique<llvm::Module>(outputFileName, context);
 
-    /* insert standard C library functions */
+    // insert standard C library functions
     module->getOrInsertFunction(
         "printf",
         llvm::FunctionType::get(
@@ -1189,14 +1178,11 @@ int AST::codegen(Program prog, std::string outputFileName) {
             llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0),
             true));  // printf is var arg func type
 
-    /* Generate IR code */
+    // Generate IR code
     prog.codegen();
     module->print(llvm::errs(), nullptr);
 
-    /*
-        Initialize Targets
-    */
-
+    // Initialize Targets
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();
@@ -1224,7 +1210,7 @@ int AST::codegen(Program prog, std::string outputFileName) {
         return ERR_OBJCODE;
     }
 
-    /* Pass Manager and File Output */
+    // Pass Manager and Object File Output
     llvm::legacy::PassManager pass;
     auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
 

@@ -38,9 +38,7 @@ std::vector<catagory> rules;
 int selection[RULE_LEN][LEX_LEN];
 
 void print_rules() {
-  /** debug use only
-   * print_rules - print all catagory rules out
-   */
+  // print_rules - print all catagory rules out (debug only)
   #ifdef DEBUG_RULES
   std::cout << "RULE TABLE" << std::endl;
   for (unsigned int i = 0; i < rule_table.size(); ++i)
@@ -84,24 +82,6 @@ int find_rule(std::string rule) {
   }
   return -1;
 }
-
-// filter empty non-terminals (epsilons)
-/*
-Node<Lexical> FilterEmpty(Node<Lexical> root) {
-  auto tree = Node<Lexical>(root.t);
-
-  for (unsigned int i = 0; i < root.child.size(); ++i) {
-    auto fe = FilterEmpty(root.child[i]);
-    if (fe.t.name.size() != 0)
-      tree.child.push_back(fe);
-  }
-
-  if (tree.t.name[0] == '<' && tree.child.size() == 0) {
-    return Node<Lexical>(Lexical());
-  }
-
-  return tree;
-} */
 
 // construct parse table from file
 void TableConstructor(std::ifstream *fd) {

@@ -42,9 +42,7 @@ class NameSpace {
         this->BaseName  = b;
     }
 
-    /**
-     * Constructor given a parent namespace and current name.
-     */
+    // Constructor given a parent namespace and current name.
     NameSpace(NameSpace *parent, std::string b) {
         this->ClassName = parent->BaseName;
         this->BaseName  = b;
