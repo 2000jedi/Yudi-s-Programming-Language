@@ -1,7 +1,10 @@
 // var global_1 : int32; // TODO: This expression causes error
-enum try {
-    a,
-    b(first : int32, second : char)
+union try {
+    class a {}
+    class b {
+        var first : int32;
+        var second : char;
+    }
 }
 
 function main() {

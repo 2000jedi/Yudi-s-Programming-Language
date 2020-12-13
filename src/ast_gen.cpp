@@ -175,44 +175,24 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         }
     }
 
-    if (curr->t.name == "<ENUMDEF>") {
+    if (curr->t.name == "<UNIONDEF>") {  // TODO: modified
         ASTs *options = dynamic_cast<ASTs *>(
             build_ast(&curr->child[3], nullptr));
-        EnumDecl *parent = new EnumDecl(curr->child[1].t.data, ParentClass);
-
-        for (auto p : options->stmts) {
-            parent->options.push_back(dynamic_cast<Option *>(p));
-        }
+        UnionDecl *parent = new UnionDecl(curr->child[1].t.data, options);
 
         return parent;
     }
 
-    if (curr->t.name == "<OPTIONS>") {
-        ASTs *options = new ASTs();
-        if (curr->child[0].t.name == "<EPS>") {
-            return options;
-        }
-        Option *option = new Option(curr->child[0].t.data);
-        ASTs *pars = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[1], nullptr));
-        for (auto p : pars->stmts) {
-            option->pars.push_back(dynamic_cast<Param *>(p));
-        }
-        options->stmts.push_back(option);
-
-        curr = &curr->child[2];
+    if (curr->t.name == "<CLASSES>") {  // TODO: modified
+        ASTs *classes = new ASTs();
 
         while (curr->child[0].t.name != "<EPS>") {
-            Option *option = new Option(curr->child[1].t.data);
-            ASTs *pars = dynamic_cast<ASTs *>(
-                build_ast(&curr->child[2], nullptr));
-            for (auto p : pars->stmts) {
-                option->pars.push_back(dynamic_cast<Param *>(p));
-            }
-            options->stmts.push_back(option);
-            curr = &curr->child[3];
+            ClassDecl *cd = dynamic_cast<ClassDecl *>(
+                build_ast(&curr->child[0], nullptr));
+            classes->stmts.push_back(cd);
+            curr = &curr->child[1];
         }
-        return options;
+        return classes;
     }
 
     if (curr->t.name == "<MATCH_OPTION>") {

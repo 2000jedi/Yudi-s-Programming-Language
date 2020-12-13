@@ -15,18 +15,11 @@
 #include "tree.hpp"
 #include "lexical.hpp"
 
-#include "llvm/IR/Value.h"
-#include "llvm/IR/IRBuilder.h"
-
 #include "err.hpp"
 
 // Error Logging
 #define LogError(e) std::cerr << "CodeGen Error: " << e << std::endl
 #define DEBUG
-
-static llvm::LLVMContext context;
-static llvm::IRBuilder<> builder(context);
-static std::unique_ptr<llvm::Module> module;
 
 namespace AST {
 class NameSpace {
@@ -86,7 +79,7 @@ class ValueType;
 class ASTs;
 class BaseAST;
 class ClassDecl;
-class EnumDecl;
+class UnionDecl;
 class EvalExpr;
 class Expr;
 class ForExpr;
@@ -138,7 +131,7 @@ class GlobalStatement : virtual public BaseAST  {
     static const int CONSTDECL = 2;
     static const int FUNCDECL  = 3;
     static const int CLASSDECL = 4;
-    static const int ENUMDECL  = 5;
+    static const int UNIONDECL  = 5;
 
     int stmtType = ERROR;
 
@@ -450,19 +443,18 @@ class FuncDecl : public GlobalStatement {
     virtual ValueType *codegen();
 };
 
-class EnumDecl : public GlobalStatement {
+class UnionDecl : public GlobalStatement {
  public:
     NameSpace name;
-    std::vector<Option*> options;
+    std::vector<ClassDecl *> classes;
 
-    explicit EnumDecl(std::string n, ClassDecl *cl = nullptr) {
-        this->stmtType = ENUMDECL;
+    explicit UnionDecl(std::string n, ASTs *cls = nullptr) {
+        this->stmtType = UNIONDECL;
+        this->name = NameSpace(n);
 
-        if (cl)
-            this->name = NameSpace(cl->name.ClassName, n);
-        else
-            this->name = NameSpace(n);
-        this->options.clear();
+        for (auto p : cls->stmts) {
+            classes.push_back(dynamic_cast<ClassDecl *>(p));
+        }
     }
 
     void print(int);
@@ -557,31 +549,34 @@ class MatchExpr : public Expr {
 
 class ValueType {
  public:
-    llvm::Value *val;
+    void *val;
     TypeDecl *type;
     bool isConst;
 
-    ValueType(llvm::Value *v, TypeDecl *t) {
+    ValueType(void *v, TypeDecl *t) {
         this->isConst = false;
         this->val = v;
         this->type = t;
     }
 
-    ValueType(llvm::Value *v, TypeDecl *t, bool c) {
+    ValueType(void *v, TypeDecl *t, bool c) {
         this->isConst = c;
         this->val = v;
         this->type = t;
     }
 };
 
-extern int codegen(Program prog, std::string outFile);
+extern int interpret(Program prog, std::string outFile);
 extern Program build_ast(Node<Lexical> *root);
 }  // namespace AST
+
+static std::vector<
+    std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
 
 extern void ClearSymLayer(void);
 extern void NewSymLayer(void);
 extern void RemoveSymLayer(void);
-extern void InsertVar(AST::NameSpace name, llvm::Value *v, AST::TypeDecl *t);
-extern void InsertConst(AST::NameSpace name, llvm::Value *v, AST::TypeDecl *t);
+extern void InsertVar(AST::NameSpace name, void *v, AST::TypeDecl *t);
+extern void InsertConst(AST::NameSpace name, void *v, AST::TypeDecl *t);
 extern AST::ValueType *FindVar(AST::NameSpace name);
 extern AST::ValueType *FindTopVar(AST::NameSpace name);
