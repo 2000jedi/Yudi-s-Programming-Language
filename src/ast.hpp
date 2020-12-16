@@ -18,11 +18,12 @@
 #include "err.hpp"
 
 // Error Logging
-#define LogError(e) std::cerr << "CodeGen Error: " << e << std::endl
+#define LogError(e) std::cerr << "AST Error: " << e << std::endl
 #define DEBUG
 
 namespace AST {
 class SymTable;
+class TypeDecl;
 // Runtime Information
 class Name {
  public:
@@ -33,7 +34,7 @@ class Name {
     }
 
     explicit Name(std::string b) : BaseName(b) {}
-    Name (Name *p, std::string b) : BaseName(b) {
+    Name(Name *p, std::string b) : BaseName(b) {
         this->ClassName = p->ClassName;
         this->ClassName.push_back(p->BaseName);
     }
@@ -89,7 +90,6 @@ class Option;
 class Param;
 class Program;
 class RetExpr;
-class TypeDecl;
 class ExprVal;
 class WhileExpr;
 class VarDecl;
@@ -119,7 +119,9 @@ class ASTs : public BaseAST  {
     }
 
     void print(int);
-    virtual ValueType *interpret(SymTable *st);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("ASTs cannot be interpreted");
+    }
 };
 
 class GlobalStatement : virtual public BaseAST  {
@@ -127,7 +129,7 @@ class GlobalStatement : virtual public BaseAST  {
     enum globalStmtTypes {
         gs_error, gs_var, gs_func, gs_class, gs_union
     };
-    
+
     globalStmtTypes stmtType = gs_error;
 
     virtual void print(int indent) {
@@ -149,7 +151,7 @@ class Expr : virtual public BaseAST  {
         std::cout << "NOT COMPLETED" << std::endl;
     }
 
-    virtual ValueType *interpret(SymTable *st) = 0;
+    virtual ValueType *interpret(SymTable *st) {return nullptr;}
 };
 
 class Program : public BaseAST {
@@ -169,7 +171,8 @@ class Program : public BaseAST {
 class TypeDecl : public BaseAST  {
  public:
     enum Types {
-        t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn, t_other
+        t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
+        t_other
     } baseType;
 
     int arrayT;
@@ -222,7 +225,9 @@ class TypeDecl : public BaseAST  {
     }
 
     void print(int);
-    virtual ValueType *interpret(SymTable *st);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("TypeDecl cannot be interpreted");
+    }
 };
 
 class EvalExpr : public Expr {
@@ -307,7 +312,9 @@ class GenericDecl : public BaseAST  {
     }
 
     void print(int);
-    virtual ValueType *interpret(SymTable *st);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("GenericDecl cannot be interpreted");
+    }
 };
 
 class Param : public BaseAST  {
@@ -321,7 +328,9 @@ class Param : public BaseAST  {
     }
 
     void print(int);
-    virtual ValueType *interpret(SymTable *st);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("Param cannot be interpreted");
+    }
 };
 
 class Option : public BaseAST  {
@@ -368,7 +377,10 @@ class ClassDecl : public GlobalStatement {
     }
 
     void print(int);
-    virtual ValueType *interpret(SymTable *st);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("ClassDecl cannot be evaluated");
+    }
+
     virtual void declare(SymTable *st);
 };
 
@@ -441,7 +453,9 @@ class UnionDecl : public GlobalStatement {
     }
 
     void print(int);
-    virtual ValueType *interpret(SymTable *st);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("UnionDecl cannot be interpreted");
+    }
     virtual void declare(SymTable *st);
 };
 
@@ -531,6 +545,6 @@ class MatchExpr : public Expr {
     virtual ValueType *interpret();
 };
 
-extern int interpret(Program prog, std::string outFile);
+extern int interpret(Program prog);
 extern Program build_ast(Node<Lexical> *root);
 }  // namespace AST

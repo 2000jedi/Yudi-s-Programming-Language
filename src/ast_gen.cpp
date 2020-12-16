@@ -169,7 +169,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<RETURN_DEF>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return new TypeDecl(TypeDecl::VOID, "0");
+            return new TypeDecl(TypeDecl::t_void, "0");
         } else {
             return build_ast(&curr->child[1], nullptr);
         }
@@ -610,7 +610,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
             EvalExpr *arr = dynamic_cast<EvalExpr *>(
                 build_ast(&curr->child[2], nullptr));
             return new EvalExpr(new ExprVal(
-                NameSpace(curr->child[0].t.data), fc, arr));
+                Name(curr->child[0].t.data), fc, arr));
         }
         if (curr->child[0].t.name == "LPAR") {
             return build_ast(&curr->child[1], nullptr);
@@ -618,18 +618,18 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
         if (curr->child[0].t.name == "FLOAT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::FP32, "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::t_fp32, "0")));
         if (curr->child[0].t.name == "INT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::INT32, "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::t_int32, "0")));
         if (curr->child[0].t.name == "CHAR")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::CHAR, "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::t_char, "0")));
         if (curr->child[0].t.name == "STRING") {
             std::string str = unescape(curr->child[0].t.data);
             g_strings->push_back(str);
             return new EvalExpr(new ExprVal(str,
-                new TypeDecl(TypeDecl::STRING, "0")));
+                new TypeDecl(TypeDecl::t_str, "0")));
         }
         if (curr->child[0].t.name == "<NAMESPACE>") {
             FuncCall *fc = dynamic_cast<FuncCall *>(
@@ -637,12 +637,12 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
             EvalExpr *arr = dynamic_cast<EvalExpr *>(
                 build_ast(&curr->child[2], nullptr));
 
-            NameSpace *name;
+            Name *name;
             if (curr->child[0].child[1].child[0].t.name == "<EPS>") {
-                name = new NameSpace(curr->child[0].child[0].t.data);
+                name = new Name(curr->child[0].child[0].t.data);
             } else {
-                name = new NameSpace(
-                    curr->child[0].child[0].t.data,
+                name = new Name(
+                    new Name(curr->child[0].child[0].t.data),
                     curr->child[0].child[1].child[1].t.data);
             }
             return new EvalExpr(new ExprVal(*name, fc, arr));

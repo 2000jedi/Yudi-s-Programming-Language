@@ -292,7 +292,8 @@ void MatchExpr::print(int indent) {
 // Symble Table - record Variable and Type Information
 class AST::SymTable {
  private:
-    static std::vector<std::map<AST::Name, AST::ValueType*>> d;
+    std::vector<std::map<AST::Name, AST::ValueType*>> d;
+
  public:
     void reset(void) {
         this->d.clear();
@@ -345,34 +346,44 @@ class AST::SymTable {
  */
 ValueType *ConstEval(ExprVal *e) {
     switch (e->type->baseType) {
-        case TypeDecl::VOID:
+        case TypeDecl::t_void: {
             LogError("no constant type \"void\"");
             return nullptr;
-        case TypeDecl::INT32:
+        }
+        case TypeDecl::t_int32: {
             int *i = new int(std::stoi(e->constVal));
             return new ValueType(i, e->type, true);
-        case TypeDecl::CHAR:
+        }
+        case TypeDecl::t_char: {
             char *c = new char(std::stoi(e->constVal));
             return new ValueType(c, e->type, true);
-        case TypeDecl::FP32:
-        case TypeDecl::FP64:
+        }
+        case TypeDecl::t_fp32: {
+            float *f = new float(std::stof(e->constVal));
+            return new ValueType(f, e->type, true);
+        }
+        case TypeDecl::t_fp64: {
             double *f = new double(std::stod(e->constVal));
             return new ValueType(f, e->type, true);
-        case TypeDecl::STRING: {
+        }
+        case TypeDecl::t_str: {
             std::string *s = new std::string(e->constVal);
             return new ValueType(s, e->type, true);
         }
-        default:
-            LogError("TypeDecl index " << e->type->baseType << " not found");
+        default: {
+            LogError("TypeDecl index " << e->type->baseType << " not handled");
             return nullptr;
+        }
     }
 }
 
 
-int AST::interpret(Program prog, std::string outputFileName) {
+int AST::interpret(Program prog) {
     SymTable *st = new SymTable();
     prog.interpret(st);
     delete st;
+
+    return 0;
 }
 
 ValueType* AST::Program::interpret(SymTable *st) {
@@ -380,7 +391,8 @@ ValueType* AST::Program::interpret(SymTable *st) {
     for (auto stmt : stmts) {
         stmt->declare(st);
     }
-    FuncStore *fs = (FuncStore *)st->lookup(Name("main"))->val;
+    FuncStore *fs = reinterpret_cast<FuncStore *>(
+        st->lookup(Name("main"))->val);
     st->addLayer();
     (*fs)->interpret(st);
     st->removeLayer();
@@ -408,7 +420,7 @@ ValueType *AST::VarDecl::interpret(SymTable *st) {
                 throw std::runtime_error(
                     "variable \"" + this->name.str() + "\" has void type");
             }
-            if (! t->type->eq(this->type)) {
+            if (!t->type->eq(this->type)) {
                 throw std::runtime_error(
                     "type mismatch for \"" + this->name.str() + '\"');
             }
@@ -446,14 +458,7 @@ void AST::ClassDecl::declare(SymTable *st) {
     // runtime helper function to create initializer
 }
 
-ValueType *AST::ClassDecl::interpret(SymTable *st) {
-    throw std::runtime_error("ClassDecl cannot be evaluated");
-}
-
 void AST::UnionDecl::declare(SymTable *st) {
     // union declaration
 }
 
-ValueType *AST::UnionDecl::interpret(SymTable *st) {
-    throw std::runtime_error("UnionDecl cannot be evaluated");
-}
