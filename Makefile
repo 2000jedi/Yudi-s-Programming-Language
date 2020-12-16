@@ -1,6 +1,5 @@
 CXX = c++
-LLVMFLAGS = `llvm-config --cxxflags --libs core`
-CXXFLAGS = -g -Wall -frtti $(FLAGS) -fexceptions -std=c++1y
+CXXFLAGS = -g -Wall $(FLAGS) -fexceptions -std=c++1y
 
 TARGET = auto
 SRCS = src/err.cpp src/util.cpp src/lexical.cpp src/tree.cpp src/ast.cpp src/ast_gen.cpp src/scanner.cpp src/parser.cpp

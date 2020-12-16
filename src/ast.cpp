@@ -12,6 +12,8 @@
 
 using namespace AST;
 
+#define INTERPRET(x) ValueType *AST::x::interpret(SymTable *st)
+
 #ifdef DEBUG
 
 /**
@@ -326,8 +328,6 @@ class AST::SymTable {
         if (is_top) {
             if (d.back().find(name) != d.back().end()) {
                 return d.back()[name];
-            } else {
-                return nullptr;
             }
         } else {
             for (int i = d.size() - 1; i >= 0; i--) {
@@ -335,8 +335,8 @@ class AST::SymTable {
                     return d[i][name];
                 }
             }
-            return nullptr;
         }
+        throw std::runtime_error("variable " + name.str() + "is not declared");
     }
 };
 
@@ -386,12 +386,12 @@ int AST::interpret(Program prog) {
     return 0;
 }
 
-ValueType* AST::Program::interpret(SymTable *st) {
+INTERPRET(Program) {
     st->addLayer();
     for (auto stmt : stmts) {
         stmt->declare(st);
     }
-    FuncStore *fs = reinterpret_cast<FuncStore *>(
+    auto fs = reinterpret_cast<FuncStore *>(
         st->lookup(Name("main"))->val);
     st->addLayer();
     (*fs)->interpret(st);
@@ -400,7 +400,7 @@ ValueType* AST::Program::interpret(SymTable *st) {
     return nullptr;
 }
 
-ValueType *AST::VarDecl::interpret(SymTable *st) {
+INTERPRET(VarDecl) {
     ValueType *t;
     if (this->type == nullptr) {
         if (this->init == nullptr) {
@@ -440,7 +440,7 @@ void AST::FuncDecl::declare(SymTable *st) {
     st->insert(this->name, fs, new TypeDecl(TypeDecl::t_fn, 0), true);
 }
 
-ValueType *AST::FuncDecl::interpret(SymTable *st) {
+INTERPRET(FuncDecl) {
     // parameters already passed in st
     // st layer handled in FuncCall
     ValueType *ret_val = nullptr;
@@ -453,6 +453,27 @@ ValueType *AST::FuncDecl::interpret(SymTable *st) {
     return ret_val;
 }
 
+INTERPRET(FuncCall) {
+    st->addLayer();
+
+    auto fn_ = st->lookup(this->function);
+    auto fn = *(reinterpret_cast<FuncStore *>(fn_->val));
+
+    for (unsigned int i = 0; i < this->pars.size(); ++i) {
+        auto vt = this->pars[i]->interpret(st);
+        auto prm = fn->pars[i];
+        if (!vt->type->eq(prm->type)) {
+            throw std::runtime_error("type mismatch for argument " + prm->name);
+        }
+        st->insert(Name(prm->name), vt);
+    }
+
+    auto ret = fn->interpret(st);
+    st->removeLayer();
+
+    return ret;
+}
+
 void AST::ClassDecl::declare(SymTable *st) {
     // class declaration
     // runtime helper function to create initializer
@@ -462,3 +483,52 @@ void AST::UnionDecl::declare(SymTable *st) {
     // union declaration
 }
 
+bool vt_is_true(ValueType *vt) {
+    if (vt == nullptr) {
+        throw std::runtime_error("expression is nullptr");
+    }
+    if ((vt->type->baseType != TypeDecl::t_bool) && (vt->type->arrayT == 0)) {
+        throw std::runtime_error("expression is not boolean");
+    }
+    return *reinterpret_cast<bool *>(vt->val);
+}
+
+INTERPRET(ForExpr) {
+    this->init->interpret(st);
+    auto cond_vt = this->cond->interpret(st);
+    while (vt_is_true(cond_vt)) {
+        for (auto expr : this->exprs) {
+            expr->interpret(st);
+        }
+        this->step->interpret(st);
+        cond_vt = this->cond->interpret(st);
+    }
+    return nullptr;
+}
+
+INTERPRET(WhileExpr) {
+    auto cond_vt = this->cond->interpret(st);
+    while (vt_is_true(cond_vt)) {
+        for (auto expr : this->exprs) {
+            expr->interpret(st);
+        }
+        cond_vt = this->cond->interpret(st);
+    }
+    return nullptr;
+}
+
+INTERPRET(ExprVal) {  // TODO: implementation
+    return nullptr;
+}
+
+INTERPRET(RetExpr) {
+    return this->stmt->interpret(st);
+}
+
+INTERPRET(MatchExpr) {  // TODO: implementation
+    return nullptr;
+}
+
+INTERPRET(MatchLine) {  // TODO : implementation
+    return nullptr;
+}

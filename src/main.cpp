@@ -38,9 +38,9 @@ int main(int argc, char** argv) {
     // result_parser.print();
 
     auto result_ast     = AST::build_ast(&result_parser);
-    // result_ast.print();
+    result_ast.print();
 
     AST::interpret(result_ast);
 
     return 0;
-    }
+}

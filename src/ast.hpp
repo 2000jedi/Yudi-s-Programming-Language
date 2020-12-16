@@ -58,17 +58,8 @@ class ValueType {
     TypeDecl *type;
     bool isConst;
 
-    ValueType(void *v, TypeDecl *t) {
-        this->isConst = false;
-        this->val = v;
-        this->type = t;
-    }
-
-    ValueType(void *v, TypeDecl *t, bool c) {
-        this->isConst = c;
-        this->val = v;
-        this->type = t;
-    }
+    ValueType(void *v, TypeDecl *t, bool c = false) :
+        val(v), type(t), isConst(c) {}
 };
 
 // Abstract Syntax Tree
@@ -172,7 +163,7 @@ class TypeDecl : public BaseAST  {
  public:
     enum Types {
         t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-        t_other
+        t_other, t_bool
     } baseType;
 
     int arrayT;
@@ -183,14 +174,11 @@ class TypeDecl : public BaseAST  {
                 (this->arrayT == other->arrayT);
     }
 
-    TypeDecl(Types t, std::string i) {
-        this->baseType = t;
-        this->arrayT = std::stoi(i);
-    }
+    TypeDecl(Types t, int i) : baseType(t), arrayT(i) {}
 
-    TypeDecl(std::string t, std::string i) {
-        this->arrayT = std::stoi(i);
+    TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)) {}
 
+    TypeDecl(std::string t, int i) : arrayT(i) {
         if (t == "VOIDT") {
             this->baseType = t_void;
             return;
@@ -224,6 +212,8 @@ class TypeDecl : public BaseAST  {
         this->other = t;
     }
 
+    TypeDecl(std::string t, std::string i) : TypeDecl(t, std::stoi(i)) {}
+
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("TypeDecl cannot be interpreted");
@@ -237,20 +227,13 @@ class EvalExpr : public Expr {
     std::string op;
     EvalExpr *l, *r;
 
-    explicit EvalExpr(ExprVal *v) {
+    explicit EvalExpr(ExprVal *v) : isVal(true), val(v) {
         this->exprType = e_eval;
-        this->isVal = true;
-
-        this->val = v;
     }
 
-    EvalExpr(std::string o, EvalExpr *l, EvalExpr *r) {
+    EvalExpr(std::string o, EvalExpr *l, EvalExpr *r) :
+    isVal(false), op(o), l(l), r(r) {
         this->exprType = e_eval;
-        this->isVal = false;
-
-        this->op = o;
-        this->l = l;
-        this->r = r;
     }
 
     void print(int);
@@ -260,6 +243,7 @@ class EvalExpr : public Expr {
 class FuncCall : public BaseAST {
  public:
     std::vector<EvalExpr*> pars;
+    Name function;
 
     FuncCall() {
         pars.clear();
@@ -280,17 +264,12 @@ class ExprVal : public BaseAST {
     FuncCall *call;
     EvalExpr *array;
 
-    ExprVal(std::string v, TypeDecl *t) {
-        this->isConst = true;
-        this->constVal = v;
-        this->type = t;
-    }
+    ExprVal(std::string v, TypeDecl *t) : isConst(true), constVal(v), type(t) {}
 
-    ExprVal(Name n, FuncCall *c, EvalExpr *a) {
-        this->isConst = false;
-        this->refName = n;
-        this->call = c;
-        this->array = a;
+    ExprVal(Name n, FuncCall *c, EvalExpr *a) :
+        isConst(false), refName(n), call(c), array(a) {
+        if (c != nullptr)
+            c->function = n;
     }
 
     void print(int);
@@ -302,14 +281,9 @@ class GenericDecl : public BaseAST  {
     bool valid;
     std::string name;
 
-    GenericDecl() {
-        this->valid = false;
-    }
+    GenericDecl() : valid(false) {}
 
-    explicit GenericDecl(std::string n) {
-        this->valid = true;
-        this->name = n;
-    }
+    explicit GenericDecl(std::string n) : valid(true), name(n) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
@@ -322,10 +296,7 @@ class Param : public BaseAST  {
     std::string name;
     TypeDecl *type;
 
-    Param(std::string n, TypeDecl *t) {
-        this->name = n;
-        this->type = t;
-    }
+    Param(std::string n, TypeDecl *t) : name(n), type(t) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
@@ -338,8 +309,7 @@ class Option : public BaseAST  {
     std::string name;
     std::vector<Param*> pars;
 
-    explicit Option(std::string n) {
-        this->name = n;
+    explicit Option(std::string n) : name(n) {
         this->pars.clear();
     }
 
@@ -351,10 +321,8 @@ class RetExpr : public Expr {
  public:
     EvalExpr *stmt;
 
-    explicit RetExpr(EvalExpr* s) {
+    explicit RetExpr(EvalExpr* s) : stmt(s) {
         this->exprType = e_ret;
-
-        this->stmt = s;
     }
 
     void print(int);
@@ -368,11 +336,8 @@ class ClassDecl : public GlobalStatement {
     std::vector<GlobalStatement*> stmts;
     std::vector<VarDecl *> var_members;
 
-    ClassDecl(std::string n, GenericDecl* g) {
+    ClassDecl(std::string n, GenericDecl* g) : name(Name(n)), genType(g) {
         this->stmtType = gs_class;
-
-        this->name = Name(n);
-        this->genType = g;
         this->stmts.clear();
     }
 
@@ -392,7 +357,8 @@ class VarDecl : public GlobalStatement, public Expr {
     bool is_global = false;
     bool is_const = false;
 
-    VarDecl(std::string n, TypeDecl* t, EvalExpr* i, ClassDecl *cl) {
+    VarDecl(std::string n, TypeDecl* t, EvalExpr* i, ClassDecl *cl) :
+        type(t), init(i) {
         this->stmtType = gs_var;
         this->exprType = e_var;
 
@@ -400,8 +366,6 @@ class VarDecl : public GlobalStatement, public Expr {
             this->name = Name(& (cl->name), n);
         else
             this->name = Name(n);
-        this->type = t;
-        this->init = i;
     }
 
     void print(int);
@@ -419,7 +383,8 @@ class FuncDecl : public GlobalStatement {
     TypeDecl *ret;
     std::vector<Expr*> exprs;
 
-    FuncDecl(std::string n, GenericDecl* g, TypeDecl* r, ClassDecl* cl) {
+    FuncDecl(std::string n, GenericDecl* g, TypeDecl* r, ClassDecl* cl) :
+        genType(g), ret(r) {
         this->stmtType = gs_func;
 
         if (cl)
@@ -427,9 +392,7 @@ class FuncDecl : public GlobalStatement {
         else
             this->name = Name(n);
 
-        this->genType = g;
         pars.clear();
-        this->ret = r;
         exprs.clear();
     }
 
@@ -443,9 +406,8 @@ class UnionDecl : public GlobalStatement {
     Name name;
     std::vector<ClassDecl *> classes;
 
-    explicit UnionDecl(std::string n, ASTs *cls = nullptr) {
+    explicit UnionDecl(std::string n, ASTs *cls = nullptr) : name(Name(n)) {
         this->stmtType = gs_union;
-        this->name = Name(n);
 
         for (auto p : cls->stmts) {
             classes.push_back(dynamic_cast<ClassDecl *>(p));
@@ -465,10 +427,9 @@ class IfExpr : public Expr {
     std::vector<Expr*> iftrue;
     std::vector<Expr*> iffalse;
 
-    explicit IfExpr(EvalExpr *c) {
+    explicit IfExpr(EvalExpr *c) : cond(c) {
         this->exprType = e_if;
 
-        this->cond = c;
         this->iftrue.clear();
         this->iffalse.clear();
     }
@@ -482,10 +443,9 @@ class WhileExpr : public Expr {
     EvalExpr *cond;
     std::vector<Expr*> exprs;
 
-    explicit WhileExpr(EvalExpr* c) {
+    explicit WhileExpr(EvalExpr* c) : cond(c) {
         this->exprType = e_while;
 
-        this->cond = c;
         this->exprs.clear();
     }
 
@@ -500,12 +460,8 @@ class ForExpr : public Expr {
     EvalExpr *step;
     std::vector<Expr*> exprs;
 
-    ForExpr(EvalExpr* i, EvalExpr* c, EvalExpr* s) {
+    ForExpr(EvalExpr* i, EvalExpr* c, EvalExpr* s) : init(i), cond(c), step(s) {
         this->exprType = e_for;
-
-        this->init = i;
-        this->cond = c;
-        this->step = s;
         this->exprs.clear();
     }
 
@@ -519,8 +475,7 @@ class MatchLine : public BaseAST  {
     std::vector<Param*> pars;
     std::vector<Expr*> exprs;
 
-    explicit MatchLine(std::string n) {
-        this->name = n;
+    explicit MatchLine(std::string n) : name(n) {
         this->pars.clear();
         this->exprs.clear();
     }
@@ -534,15 +489,13 @@ class MatchExpr : public Expr {
     EvalExpr *var;
     std::vector<MatchLine*> lines;
 
-    explicit MatchExpr(EvalExpr* v) {
+    explicit MatchExpr(EvalExpr* v) : var(v) {
         this->exprType = e_match;
-
-        this->var = v;
         this->lines.clear();
     }
 
     void print(int);
-    virtual ValueType *interpret();
+    virtual ValueType *interpret(SymTable *st);
 };
 
 extern int interpret(Program prog);
