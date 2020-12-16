@@ -289,72 +289,61 @@ void MatchExpr::print(int indent) {
 
 #endif
 
-// Global Variables
-
 // Symble Table - record Variable and Type Information
-// static std::vector<
-//     std::unique_ptr<std::map<AST::NameSpace, AST::ValueType*>>> SymTable;
+class AST::SymTable {
+ private:
+    static std::vector<std::map<AST::Name, AST::ValueType*>> d;
+ public:
+    void reset(void) {
+        this->d.clear();
+    }
+
+    void addLayer(void) {
+        d.push_back(std::map<Name, ValueType *>());
+    }
+
+    void removeLayer(void) {
+        for (auto vt : d.back()) {
+            delete vt.second;
+        }
+        d.pop_back();
+    }
+
+    void insert(Name name, ValueType *vt) {
+        d.back()[name] = vt;
+    }
+
+    void insert(Name name, void *v, TypeDecl *t, bool is_const = false) {
+        if (is_const) {
+            d.back()[name] = new ValueType(v, t, true);
+        } else {
+            d.back()[name] = new ValueType(v, t);
+        }
+    }
+
+    ValueType* lookup(Name name, bool is_top = false) {
+        if (is_top) {
+            if (d.back().find(name) != d.back().end()) {
+                return d.back()[name];
+            } else {
+                return nullptr;
+            }
+        } else {
+            for (int i = d.size() - 1; i >= 0; i--) {
+                if (d[i].find(name) != d[i].end()) {
+                    return d[i][name];
+                }
+            }
+            return nullptr;
+        }
+    }
+};
+
 
 /**
  * Interpreter Interface - interpret() methods
  */
-
-void ClearSymLayer(void) {
-    SymTable.clear();
-}
-
-void NewSymLayer(void) {
-    SymTable.push_back(
-        std::make_unique<std::map<NameSpace, ValueType *>>());
-}
-
-void RemoveSymLayer(void) {
-    SymTable.pop_back();
-}
-
-void InsertVar(NameSpace name, void *v, TypeDecl *t) {
-    (*SymTable.back())[name] = new ValueType(v, t);
-}
-
-void InsertConst(NameSpace name, void *v, TypeDecl *t) {
-    (*SymTable.back())[name] = new ValueType(v, t, true);
-}
-
-ValueType *FindTopVar(NameSpace name) {
-    if (SymTable.back()->find(name) != SymTable.back()->end()) {
-        return (*SymTable.back())[name];
-    } else {
-        return nullptr;
-    }
-}
-
-ValueType *FindVarRaw(NameSpace name) {
-    for (int i = SymTable.size() - 1; i >= 0; i--) {
-        if (SymTable[i]->find(name) != SymTable[i]->end()) {
-            return (*SymTable[i])[name];
-        }
-    }
-
-    return nullptr;
-}
-
-ValueType *FindVar(NameSpace name) {
-    ValueType *vt;
-    if (name.ClassName == "") {
-        vt = FindVarRaw(name);
-        if (!vt) {
-            LogError("variable " << name.str()
-                << " not found");
-            return nullptr;
-        }
-    } else {
-        return nullptr;
-    }
-
-    return vt;
-}
-
-ValueType *ConstToValue(ExprVal *e) {
+ValueType *ConstEval(ExprVal *e) {
     switch (e->type->baseType) {
         case TypeDecl::VOID:
             LogError("no constant type \"void\"");
@@ -381,4 +370,90 @@ ValueType *ConstToValue(ExprVal *e) {
 
 
 int AST::interpret(Program prog, std::string outputFileName) {
+    SymTable *st = new SymTable();
+    prog.interpret(st);
+    delete st;
+}
+
+ValueType* AST::Program::interpret(SymTable *st) {
+    st->addLayer();
+    for (auto stmt : stmts) {
+        stmt->declare(st);
+    }
+    FuncStore *fs = (FuncStore *)st->lookup(Name("main"))->val;
+    st->addLayer();
+    (*fs)->interpret(st);
+    st->removeLayer();
+    st->removeLayer();
+    return nullptr;
+}
+
+ValueType *AST::VarDecl::interpret(SymTable *st) {
+    ValueType *t;
+    if (this->type == nullptr) {
+        if (this->init == nullptr) {
+            throw std::runtime_error(
+                "variable " + this->name.str() + " has unknown type");
+        } else {
+            t = this->init->interpret(st);
+            if (t == nullptr) {
+                throw std::runtime_error(
+                    "variable " + this->name.str() + " has void type");
+            }
+        }
+    } else {
+        if (this->init != nullptr) {
+            t = this->init->interpret(st);
+            if (t == nullptr) {
+                throw std::runtime_error(
+                    "variable \"" + this->name.str() + "\" has void type");
+            }
+            if (! t->type->eq(this->type)) {
+                throw std::runtime_error(
+                    "type mismatch for \"" + this->name.str() + '\"');
+            }
+        } else {
+            t = new ValueType(nullptr, this->type);
+        }
+    }
+    if (this->is_const) {
+            t->isConst = true;
+        }
+    st->insert(this->name, t);
+    return t;
+}
+
+void AST::FuncDecl::declare(SymTable *st) {
+    FuncStore *fs = new FuncStore(this);
+    st->insert(this->name, fs, new TypeDecl(TypeDecl::t_fn, 0), true);
+}
+
+ValueType *AST::FuncDecl::interpret(SymTable *st) {
+    // parameters already passed in st
+    // st layer handled in FuncCall
+    ValueType *ret_val = nullptr;
+    for (auto e : this->exprs) {
+        ValueType *vt = e->interpret(st);
+        if (vt != nullptr) {
+            ret_val = vt;
+        }
+    }
+    return ret_val;
+}
+
+void AST::ClassDecl::declare(SymTable *st) {
+    // class declaration
+    // runtime helper function to create initializer
+}
+
+ValueType *AST::ClassDecl::interpret(SymTable *st) {
+    throw std::runtime_error("ClassDecl cannot be evaluated");
+}
+
+void AST::UnionDecl::declare(SymTable *st) {
+    // union declaration
+}
+
+ValueType *AST::UnionDecl::interpret(SymTable *st) {
+    throw std::runtime_error("UnionDecl cannot be evaluated");
 }
