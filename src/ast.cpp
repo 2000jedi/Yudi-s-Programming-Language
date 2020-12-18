@@ -9,6 +9,7 @@
 
 #include "ast_gen.hpp"
 #include "util.hpp"
+#include "runtime.hpp"
 
 using namespace AST;
 
@@ -371,7 +372,11 @@ ValueType *ConstEval(ExprVal *e) {
 
 int AST::interpret(Program prog) {
     SymTable *st = new SymTable();
+    st->addLayer();
+    // TODO: runtime
+    st->insert(Name("print"), new ValueType(nullptr, &RuntimeType));
     prog.interpret(st);
+    st->removeLayer();
     delete st;
 
     return 0;
@@ -434,22 +439,27 @@ void AST::FuncDecl::declare(SymTable *st) {
 INTERPRET(FuncDecl) {
     // parameters already passed in st
     // st layer handled in FuncCall
-    ValueType *ret_val = nullptr;
+    ValueType *ret_val = & AST::None;
     for (auto e : this->exprs) {
         ValueType *vt = e->interpret(st);
         if (vt != nullptr) {
             ret_val = vt;
         }
     }
-    std::cout << ret_val->type->baseType << std::endl;
     return ret_val;
 }
 
 INTERPRET(FuncCall) {
     st->addLayer();
 
-    std::cout << "this->function: " << this->function.str() << std::endl;  // TODO:remove
+    // std::cout << "this->function: " << this->function.str() << std::endl;  // TODO: remove
     auto fn_ = st->lookup(this->function);
+    if (fn_->type->baseType == TypeDecl::t_rtfn) {
+        return runtime_handler(this->function.str(), this, st);
+    }
+    if (fn_->type->baseType != TypeDecl::t_fn)
+        throw std::runtime_error("type cannot be called");
+
     auto fn = *((FuncStore *)(fn_->val));
 
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
@@ -535,8 +545,9 @@ INTERPRET(ExprVal) {
     ValueType *vt;
     if (this->call != nullptr) {
         vt = this->call->interpret(st);
+    } else {
+        vt = st->lookup(this->refName);
     }
-    vt = st->lookup(this->refName);
 
     // TODO: array
     return vt;
@@ -558,7 +569,7 @@ INTERPRET(EvalExpr) {
     if (this->isVal) {
         return this->val->interpret(st);
     }
-    std::cout << this->op << std::endl;  // TODO: remove
+    // std::cout << this->op << std::endl;  // TODO: print remove
     if (this->op == "=") {
         if (!this->l->isVal)
             throw std::runtime_error("lvalue is unassignable");

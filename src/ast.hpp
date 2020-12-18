@@ -72,7 +72,8 @@ class TypeDecl : public BaseAST  {
  public:
     enum Types {
         t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-        t_other, t_bool
+        t_other, t_bool,
+        t_rtfn /* runtime function */
     } baseType;
 
     int arrayT;
@@ -128,8 +129,10 @@ class TypeDecl : public BaseAST  {
         throw std::runtime_error("TypeDecl cannot be interpreted");
     }
 };
+static TypeDecl VoidType = TypeDecl(TypeDecl::t_void);
 static TypeDecl BoolType = TypeDecl(TypeDecl::t_bool);
 static TypeDecl IntType  = TypeDecl(TypeDecl::t_int32);
+static TypeDecl RuntimeType = TypeDecl(TypeDecl::t_rtfn);
 
 class ValueType {
  public:
@@ -144,6 +147,8 @@ class ValueType {
         type = &BoolType;
     }
 };
+
+static ValueType None = ValueType(nullptr, &VoidType, true);
 
 // Abstract Syntax Tree
 class ASTs;
