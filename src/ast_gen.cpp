@@ -618,18 +618,17 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
         if (curr->child[0].t.name == "FLOAT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::t_fp32, "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::t_fp32)));
         if (curr->child[0].t.name == "INT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::t_int32, "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::t_int32)));
         if (curr->child[0].t.name == "CHAR")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::t_char, "0")));
+                curr->child[0].t.data, new TypeDecl(TypeDecl::t_char)));
         if (curr->child[0].t.name == "STRING") {
             std::string str = unescape(curr->child[0].t.data);
-            g_strings->push_back(str);
             return new EvalExpr(new ExprVal(str,
-                new TypeDecl(TypeDecl::t_str, "0")));
+                new TypeDecl(TypeDecl::t_str)));
         }
         if (curr->child[0].t.name == "<NAMESPACE>") {
             FuncCall *fc = dynamic_cast<FuncCall *>(

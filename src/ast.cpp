@@ -93,22 +93,6 @@ void Param::print(int indent) {
         this->type->print(indent + 1);
 }
 
-void Option::print(int indent) {
-    for (int i = 0; i < indent; ++i)
-        std::cout << "  ";
-    std::cout << "Option(" << this->name << ')' << std::endl;
-
-    for (int i = 0; i < indent + 1; ++i)
-            std::cout << "  ";
-        std::cout << "Params(" << std::endl;
-    for (auto p : this->pars) {
-        p->print(indent + 2);
-    }
-    for (int i = 0; i < indent + 1; ++i)
-            std::cout << "  ";
-    std::cout << ")" << std::endl;
-}
-
 void RetExpr::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
@@ -306,9 +290,9 @@ class AST::SymTable {
     }
 
     void removeLayer(void) {
-        for (auto vt : d.back()) {
-            delete vt.second;
-        }
+        // for (auto vt : d.back()) {
+        //     delete vt.second;
+        // }
         d.pop_back();
     }
 
@@ -336,7 +320,14 @@ class AST::SymTable {
                 }
             }
         }
-        throw std::runtime_error("variable " + name.str() + "is not declared");
+        throw std::runtime_error("variable " + name.str() + " is not declared");
+    }
+
+    ValueType* lookup(ExprVal *name) {
+        if (name->call != nullptr)
+            throw std::runtime_error("cannot lookup a function call");
+        // TODO: array
+        return this->lookup(name->refName);
     }
 };
 
@@ -450,14 +441,16 @@ INTERPRET(FuncDecl) {
             ret_val = vt;
         }
     }
+    std::cout << ret_val->type->baseType << std::endl;
     return ret_val;
 }
 
 INTERPRET(FuncCall) {
     st->addLayer();
 
+    std::cout << "this->function: " << this->function.str() << std::endl;  // TODO:remove
     auto fn_ = st->lookup(this->function);
-    auto fn = *(reinterpret_cast<FuncStore *>(fn_->val));
+    auto fn = *((FuncStore *)(fn_->val));
 
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
@@ -490,10 +483,25 @@ bool vt_is_true(ValueType *vt) {
     if ((vt->type->baseType != TypeDecl::t_bool) && (vt->type->arrayT == 0)) {
         throw std::runtime_error("expression is not boolean");
     }
-    return *reinterpret_cast<bool *>(vt->val);
+    return vt->one_bit;
+}
+
+INTERPRET(IfExpr) {
+    st->addLayer();
+    auto cond_vt = this->cond->interpret(st);
+    if (vt_is_true(cond_vt)) {
+        for (auto expr : this->iftrue)
+            expr->interpret(st);
+    } else {
+        for (auto expr : this->iffalse)
+            expr->interpret(st);
+    }
+    st->removeLayer();
+    return nullptr;
 }
 
 INTERPRET(ForExpr) {
+    st->addLayer();
     this->init->interpret(st);
     auto cond_vt = this->cond->interpret(st);
     while (vt_is_true(cond_vt)) {
@@ -503,10 +511,12 @@ INTERPRET(ForExpr) {
         this->step->interpret(st);
         cond_vt = this->cond->interpret(st);
     }
+    st->removeLayer();
     return nullptr;
 }
 
 INTERPRET(WhileExpr) {
+    st->addLayer();
     auto cond_vt = this->cond->interpret(st);
     while (vt_is_true(cond_vt)) {
         for (auto expr : this->exprs) {
@@ -514,11 +524,22 @@ INTERPRET(WhileExpr) {
         }
         cond_vt = this->cond->interpret(st);
     }
+    st->removeLayer();
     return nullptr;
 }
 
-INTERPRET(ExprVal) {  // TODO: implementation
-    return nullptr;
+INTERPRET(ExprVal) {
+    if (this->isConst) {
+        return ConstEval(this);
+    }
+    ValueType *vt;
+    if (this->call != nullptr) {
+        vt = this->call->interpret(st);
+    }
+    vt = st->lookup(this->refName);
+
+    // TODO: array
+    return vt;
 }
 
 INTERPRET(RetExpr) {
@@ -530,5 +551,148 @@ INTERPRET(MatchExpr) {  // TODO: implementation
 }
 
 INTERPRET(MatchLine) {  // TODO : implementation
+    return nullptr;
+}
+
+INTERPRET(EvalExpr) {
+    if (this->isVal) {
+        return this->val->interpret(st);
+    }
+    std::cout << this->op << std::endl;  // TODO: remove
+    if (this->op == "=") {
+        if (!this->l->isVal)
+            throw std::runtime_error("lvalue is unassignable");
+        auto lvt = st->lookup(this->l->val);
+        if (lvt->isConst)
+            throw std::runtime_error("constant cannot be assigned");
+        auto rvt = this->r->interpret(st);
+        lvt->val = rvt->val;
+        return nullptr;
+    }
+    if (this->op == "ADD") {
+        auto lvt = this->l->interpret(st);
+        auto rvt = this->r->interpret(st);
+        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
+            throw std::runtime_error("+ cannot operate on array");
+        if (!lvt->type->eq(rvt->type))
+            throw std::runtime_error("type mismatch");
+        switch (lvt->type->baseType) {
+            case TypeDecl::t_int32: {
+                int *ans = new int((*(int *)lvt->val) + (*(int *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_int32), true);
+            }
+            case TypeDecl::t_fp32: {
+                float *ans = new float((*(float *)lvt->val) + (*(float *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_fp32), true);
+            }
+            case TypeDecl::t_fp64: {
+                double *ans = new double((*(double *)lvt->val) + (*(double *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_fp64), true);
+            }
+            default: {
+                throw std::runtime_error("+ cannot operate on this type");
+            }
+        }
+    }
+    if (this->op == "SUB") {
+        auto lvt = this->l->interpret(st);
+        auto rvt = this->r->interpret(st);
+        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
+            throw std::runtime_error("- cannot operate on array");
+        if (!lvt->type->eq(rvt->type))
+            throw std::runtime_error("type mismatch");
+        switch (lvt->type->baseType) {
+            case TypeDecl::t_int32: {
+                int *ans = new int((*(int *)lvt->val) - (*(int *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_int32), true);
+            }
+            case TypeDecl::t_fp32: {
+                float *ans = new float((*(float *)lvt->val) - (*(float *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_fp32), true);
+            }
+            case TypeDecl::t_fp64: {
+                double *ans = new double((*(double *)lvt->val) - (*(double *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_fp64), true);
+            }
+            default: {
+                throw std::runtime_error("- cannot operate on this type");
+            }
+        }
+    }
+    if (this->op == "MUL") {
+        auto lvt = this->l->interpret(st);
+        auto rvt = this->r->interpret(st);
+        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
+            throw std::runtime_error("* cannot operate on array");
+        if (!lvt->type->eq(rvt->type))
+            throw std::runtime_error("type mismatch: ");
+        switch (lvt->type->baseType) {
+            case TypeDecl::t_int32: {
+                int *ans = new int((*(int *)lvt->val) * (*(int *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_int32), true);
+            }
+            case TypeDecl::t_fp32: {
+                float *ans = new float((*(float *)lvt->val) * (*(float *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_fp32), true);
+            }
+            case TypeDecl::t_fp64: {
+                double *ans = new double((*(double *)lvt->val) * (*(double *)rvt->val));
+                return new ValueType((void *)ans, new TypeDecl(TypeDecl::t_fp64), true);
+            }
+            default: {
+                throw std::runtime_error("* cannot operate on this type");
+            }
+        }
+    }
+    if (this->op == "LT") {
+        auto lvt = this->l->interpret(st);
+        auto rvt = this->r->interpret(st);
+        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
+            throw std::runtime_error("< cannot operate on array");
+        if (!lvt->type->eq(rvt->type))
+            throw std::runtime_error("type mismatch");
+        switch (lvt->type->baseType) {
+            case TypeDecl::t_int32: {
+                bool ans = (*(int *)lvt->val) < (*(int *)rvt->val);
+                return new ValueType(ans);
+            }
+            case TypeDecl::t_fp32: {
+                bool ans = (*(float *)lvt->val) < (*(float *)rvt->val);
+                return new ValueType(ans);
+            }
+            case TypeDecl::t_fp64: {
+                bool ans = (*(double *)lvt->val) < (*(double *)rvt->val);
+                return new ValueType(ans);
+            }
+            default: {
+                throw std::runtime_error("< cannot operate on this type");
+            }
+        }
+    }
+    if (this->op == "GT") {
+        auto lvt = this->l->interpret(st);
+        auto rvt = this->r->interpret(st);
+        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
+            throw std::runtime_error("> cannot operate on array");
+        if (!lvt->type->eq(rvt->type))
+            throw std::runtime_error("type mismatch");
+        switch (lvt->type->baseType) {
+            case TypeDecl::t_int32: {
+                bool ans = (*(int *)lvt->val) > (*(int *)rvt->val);
+                return new ValueType(ans);
+            }
+            case TypeDecl::t_fp32: {
+                bool ans = (*(float *)lvt->val) > (*(float *)rvt->val);
+                return new ValueType(ans);
+            }
+            case TypeDecl::t_fp64: {
+                bool ans = (*(double *)lvt->val) > (*(double *)rvt->val);
+                return new ValueType(ans);
+            }
+            default: {
+                throw std::runtime_error("> cannot operate on this type");
+            }
+        }
+    }
     return nullptr;
 }

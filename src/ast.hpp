@@ -23,7 +23,8 @@
 
 namespace AST {
 class SymTable;
-class TypeDecl;
+class ValueType;
+class BaseAST;
 // Runtime Information
 class Name {
  public:
@@ -33,9 +34,12 @@ class Name {
     Name() {
     }
 
-    explicit Name(std::string b) : BaseName(b) {}
+    explicit Name(std::string b) : BaseName(b) {
+        this->ClassName.clear();
+    }
     Name(Name *p, std::string b) : BaseName(b) {
-        this->ClassName = p->ClassName;
+        for (auto n : p->ClassName)
+            this->ClassName.push_back(n);
         this->ClassName.push_back(p->BaseName);
     }
 
@@ -52,19 +56,97 @@ class Name {
     }
 };
 
+class BaseAST {
+ public:
+    virtual ~BaseAST() {}
+    virtual void print(int indent) {
+        for (int i = 0; i < indent; ++i)
+            std::cout << "  ";
+        std::cout << "BaseAST()" << std::endl;
+    }
+
+    virtual ValueType *interpret(SymTable *st) = 0;
+};
+
+class TypeDecl : public BaseAST  {
+ public:
+    enum Types {
+        t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
+        t_other, t_bool
+    } baseType;
+
+    int arrayT;
+    std::string other;
+
+    inline bool eq(TypeDecl *other) {
+        return (this->baseType == other->baseType) &&
+                (this->arrayT == other->arrayT);
+    }
+
+    explicit TypeDecl(Types t, int i = 0) : baseType(t), arrayT(i) {}
+
+    TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)) {}
+
+    TypeDecl(std::string t, int i) : arrayT(i) {
+        if (t == "VOIDT") {
+            this->baseType = t_void;
+            return;
+        }
+        if (t == "INT32") {
+            this->baseType = t_int32;
+            return;
+        }
+        if (t == "UINT8") {
+            this->baseType = t_uint8;
+            return;
+        }
+        if (t == "FP32") {
+            this->baseType = t_fp32;
+            return;
+        }
+        if (t == "FP64") {
+            this->baseType = t_fp64;
+            return;
+        }
+        if (t == "CHART") {
+            this->baseType = t_char;
+            return;
+        }
+        if (t == "STR") {
+            this->baseType = t_str;
+            return;
+        }
+
+        this->baseType = t_other;
+        this->other = t;
+    }
+
+    TypeDecl(std::string t, std::string i) : TypeDecl(t, std::stoi(i)) {}
+
+    void print(int);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("TypeDecl cannot be interpreted");
+    }
+};
+static TypeDecl BoolType = TypeDecl(TypeDecl::t_bool);
+static TypeDecl IntType  = TypeDecl(TypeDecl::t_int32);
+
 class ValueType {
  public:
     void *val;
     TypeDecl *type;
     bool isConst;
+    bool one_bit = false;
 
     ValueType(void *v, TypeDecl *t, bool c = false) :
         val(v), type(t), isConst(c) {}
+    explicit ValueType(bool b, bool c = true) : isConst(c), one_bit(b) {
+        type = &BoolType;
+    }
 };
 
 // Abstract Syntax Tree
 class ASTs;
-class BaseAST;
 class ClassDecl;
 class UnionDecl;
 class EvalExpr;
@@ -77,7 +159,6 @@ class GlobalStatement;
 class IfExpr;
 class MatchExpr;
 class MatchLine;
-class Option;
 class Param;
 class Program;
 class RetExpr;
@@ -88,17 +169,6 @@ class VarDecl;
 typedef FuncDecl *FuncStore;
 typedef UnionDecl *UnionStore;
 
-class BaseAST {
- public:
-    virtual ~BaseAST() {}
-    virtual void print(int indent) {
-        for (int i = 0; i < indent; ++i)
-            std::cout << "  ";
-        std::cout << "BaseAST()" << std::endl;
-    }
-
-    virtual ValueType *interpret(SymTable *st) = 0;
-};
 class ASTs : public BaseAST  {
  public:
     std::vector<BaseAST*> stmts;
@@ -157,67 +227,6 @@ class Program : public BaseAST {
 
     void print(void);
     virtual ValueType *interpret(SymTable *st);
-};
-
-class TypeDecl : public BaseAST  {
- public:
-    enum Types {
-        t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-        t_other, t_bool
-    } baseType;
-
-    int arrayT;
-    std::string other;
-
-    inline bool eq(TypeDecl *other) {
-        return (this->baseType == other->baseType) &&
-                (this->arrayT == other->arrayT);
-    }
-
-    TypeDecl(Types t, int i) : baseType(t), arrayT(i) {}
-
-    TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)) {}
-
-    TypeDecl(std::string t, int i) : arrayT(i) {
-        if (t == "VOIDT") {
-            this->baseType = t_void;
-            return;
-        }
-        if (t == "INT32") {
-            this->baseType = t_int32;
-            return;
-        }
-        if (t == "UINT8") {
-            this->baseType = t_uint8;
-            return;
-        }
-        if (t == "FP32") {
-            this->baseType = t_fp32;
-            return;
-        }
-        if (t == "FP64") {
-            this->baseType = t_fp64;
-            return;
-        }
-        if (t == "CHART") {
-            this->baseType = t_char;
-            return;
-        }
-        if (t == "STR") {
-            this->baseType = t_str;
-            return;
-        }
-
-        this->baseType = t_other;
-        this->other = t;
-    }
-
-    TypeDecl(std::string t, std::string i) : TypeDecl(t, std::stoi(i)) {}
-
-    void print(int);
-    virtual ValueType *interpret(SymTable *st) {
-        throw std::runtime_error("TypeDecl cannot be interpreted");
-    }
 };
 
 class EvalExpr : public Expr {
@@ -302,19 +311,6 @@ class Param : public BaseAST  {
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("Param cannot be interpreted");
     }
-};
-
-class Option : public BaseAST  {
- public:
-    std::string name;
-    std::vector<Param*> pars;
-
-    explicit Option(std::string n) : name(n) {
-        this->pars.clear();
-    }
-
-    void print(int);
-    virtual ValueType *interpret(SymTable *st);
 };
 
 class RetExpr : public Expr {
