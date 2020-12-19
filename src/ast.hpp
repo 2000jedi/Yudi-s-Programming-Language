@@ -22,8 +22,24 @@
 #define DEBUG
 
 namespace AST {
-class SymTable;
 class ValueType;
+class Name;
+class TypeDecl;
+class ExprVal;
+class SymTable {
+ private:
+    std::vector<std::map<AST::Name, AST::ValueType*>> d;
+
+ public:
+    void reset(void);
+    void addLayer(void);
+    void removeLayer(void);
+    void insert(Name name, ValueType *vt);
+    void insert(Name name, void *v, TypeDecl *t, bool is_const);
+    ValueType* lookup(Name name, bool is_top);
+    ValueType* lookup(ExprVal *name);
+};
+
 class BaseAST;
 // Runtime Information
 class Name {
@@ -221,7 +237,6 @@ class MatchLine;
 class Param;
 class Program;
 class RetExpr;
-class ExprVal;
 class WhileExpr;
 class VarDecl;
 

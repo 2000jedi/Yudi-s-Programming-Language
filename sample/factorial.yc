@@ -1,0 +1,24 @@
+function main() {
+    var i : int32;
+    const len = 11;
+    const j = "Printing factorial from 0 to";
+    var arr : int32[12];
+    print(j, len);
+    i = 0;
+    while (i < 12) {
+        arr[i] = fact(i);
+        i = i + 1;
+    }
+
+    for (i = 0; i < 12; i = i + 1) {
+        print(i, "=", arr[i]);
+    }
+}
+
+function fact(a : int32) : int32 {
+    if (a > 0) {
+        return a * fact(a - 1);
+    } else {
+        return 1;
+    }
+}

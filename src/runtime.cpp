@@ -6,6 +6,7 @@
 #include "runtime.hpp"
 
 #include <string>
+#include "ast.hpp"
 
 AST::ValueType *runtime_handler(std::string fn, AST::FuncCall *call, AST::SymTable *st) {
     if (fn == "print") {
@@ -40,4 +41,9 @@ AST::ValueType *runtime_handler(std::string fn, AST::FuncCall *call, AST::SymTab
         std::cout << std::endl;
     }
     return & AST::None;
+}
+
+void runtime_bind(AST::SymTable *st) {
+    st->insert(AST::Name("print"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("alloc"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
 }

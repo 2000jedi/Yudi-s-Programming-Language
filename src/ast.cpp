@@ -277,76 +277,72 @@ void MatchExpr::print(int indent) {
 #endif
 
 // Symble Table - record Variable and Type Information
-class AST::SymTable {
- private:
-    std::vector<std::map<AST::Name, AST::ValueType*>> d;
 
- public:
-    void reset(void) {
-        this->d.clear();
+void SymTable::reset(void) {
+    this->d.clear();
+}
+
+void SymTable::addLayer(void) {
+    d.push_back(std::map<Name, ValueType *>());
+}
+
+void SymTable::removeLayer(void) {
+    // for (auto vt : d.back()) {
+    //     delete vt.second;
+    // }
+    // TODO: need to find a method to auto-deallocate
+    d.pop_back();
+}
+
+void SymTable::insert(Name name, ValueType *vt) {
+    d.back()[name] = vt;
+}
+
+void SymTable::insert(Name name, void *v, TypeDecl *t, bool is_const = false) {
+    if (is_const) {
+        d.back()[name] = new ValueType(v, t, true);
+    } else {
+        d.back()[name] = new ValueType(v, t);
     }
+}
 
-    void addLayer(void) {
-        d.push_back(std::map<Name, ValueType *>());
-    }
-
-    void removeLayer(void) {
-        // for (auto vt : d.back()) {
-        //     delete vt.second;
-        // }
-        d.pop_back();
-    }
-
-    void insert(Name name, ValueType *vt) {
-        d.back()[name] = vt;
-    }
-
-    void insert(Name name, void *v, TypeDecl *t, bool is_const = false) {
-        if (is_const) {
-            d.back()[name] = new ValueType(v, t, true);
-        } else {
-            d.back()[name] = new ValueType(v, t);
+ValueType* SymTable::lookup(Name name, bool is_top = false) {
+    if (is_top) {
+        if (d.back().find(name) != d.back().end()) {
+            return d.back()[name];
+        }
+    } else {
+        for (int i = d.size() - 1; i >= 0; i--) {
+            if (d[i].find(name) != d[i].end()) {
+                return d[i][name];
+            }
         }
     }
+    throw std::runtime_error("variable " + name.str() + " is not declared");
+}
 
-    ValueType* lookup(Name name, bool is_top = false) {
-        if (is_top) {
-            if (d.back().find(name) != d.back().end()) {
-                return d.back()[name];
-            }
-        } else {
-            for (int i = d.size() - 1; i >= 0; i--) {
-                if (d[i].find(name) != d[i].end()) {
-                    return d[i][name];
-                }
-            }
+ValueType* SymTable::lookup(ExprVal *name) {
+    if (name->call != nullptr)
+        throw std::runtime_error("cannot lookup a function call");
+
+    if (name->array != nullptr) {
+        auto arr = this->lookup(name->refName);
+        auto arr_index_vt = name->array->interpret(this);
+        if (!arr_index_vt->type->eq(& IntType)) {
+            throw std::runtime_error("array index must be an int");
         }
-        throw std::runtime_error("variable " + name.str() + " is not declared");
-    }
+        int  arr_index = arr_index_vt->data.ival;
 
-    ValueType* lookup(ExprVal *name) {
-        if (name->call != nullptr)
-            throw std::runtime_error("cannot lookup a function call");
-
-        if (name->array != nullptr) {
-            auto arr = this->lookup(name->refName);
-            auto arr_index_vt = name->array->interpret(this);
-            if (!arr_index_vt->type->eq(& IntType)) {
-                throw std::runtime_error("array index must be an int");
-            }
-            int  arr_index = arr_index_vt->data.ival;
-
-            if (arr->type->arrayT <= arr_index) {
-                throw std::runtime_error("array index out of bound");
-            }
-
-            auto vts = (ValueType *)arr->data.ptr;
-            return &(vts[arr_index]);
-        } else {
-            return this->lookup(name->refName);
+        if (arr->type->arrayT <= arr_index) {
+            throw std::runtime_error("array index out of bound");
         }
+
+        auto vts = (ValueType *)arr->data.ptr;
+        return &(vts[arr_index]);
+    } else {
+        return this->lookup(name->refName);
     }
-};
+}
 
 /**
  * Interpreter Interface - interpret() methods
@@ -412,7 +408,7 @@ static int return_flag = 0;
 int AST::interpret(Program prog) {
     SymTable *st = new SymTable();
     st->addLayer();
-    st->insert(Name("print"), new ValueType(& AST::None, &RuntimeType, true));
+    runtime_bind(st);
     prog.interpret(st);
     st->removeLayer();
     delete st;
@@ -425,8 +421,7 @@ INTERPRET(Program) {
     for (auto stmt : stmts) {
         stmt->declare(st);
     }
-    auto fs = reinterpret_cast<FuncStore *>(
-        st->lookup(Name("main"))->data.ptr);
+    auto fs = (FuncStore *)(st->lookup(Name("main"))->data.ptr);
     st->addLayer();
     (*fs)->interpret(st);
     st->removeLayer();

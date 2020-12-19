@@ -1,7 +1,10 @@
 // this is a line of comment
-enum Enum1 {
-  T1,
-  T2(a: int32)
+union Enum1 {
+  class T1 {}
+  class T2 {
+    var a : int32;
+    var b : int32;
+  }
 }
 
 class Name<T> {
@@ -36,14 +39,11 @@ function foo(a : int32, b : char) : int32{
   }
 
   match (Enum1) {
-    val1(a, b): {
+    T1: {
       return 1;
     }
-    val2: {
+    T2(t2): {
       return 2;
-    }
-    val3: {
-      return 3;
     }
   }
   return sum;

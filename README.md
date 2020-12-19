@@ -5,15 +5,16 @@ Yudi's Programming Language (YCPL) is a new programming language that enforces m
 This project is still under development and not all function modules defined in specification coherce with the implementation. Below is the list of things undergoing construction.
 
 - [x] Scanner, Parser, and AST constructor.
-- [ ] Implementation for basic arithmetics and variable definition.
+- [x] Implementation for basic arithmetics and variable definition.
 - [x] Global Variables.
-- [ ] Control-Flow definition including loops and functions.
-- [ ] Basic `printf` function for debugging.
+- [x] Control-Flow definition including loops and functions.
+- [x] Basic `print` function for debugging.
 - [ ] Class definition. `TODO(yyang): debug`
-- [ ] Enum defintion (support for pattern-matching with tagged union).
+- [ ] Union defintion (support for pattern-matching with tagged union).
 - [ ] Support for Standard Library.
-- [ ] Rework `NameSpace`.
+- [x] Rework `NameSpace`.
 - [ ] Generics.
+- [ ] Better error messages.
 
 ## File and Directory Layout
 
@@ -30,9 +31,9 @@ This project is still under development and not all function modules defined in 
 
 The interpreter requires any form of a C++ compiler, including `gcc` and `llvm`. It has been tested under several OS.
 
-- [ ] Arch Linux
+- [x] Arch Linux
 - [ ] Mac OS (under development)
-- [ ] Ubuntu
+- [x] Ubuntu
 - [ ] Windows (it will never be supported)
 
 To compile the project

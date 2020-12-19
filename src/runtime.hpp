@@ -6,7 +6,9 @@
 #pragma once
 
 #include <iostream>
+#include <string>
 
 #include "ast.hpp"
 
 extern AST::ValueType *runtime_handler(std::string fn, AST::FuncCall *call, AST::SymTable *st);
+extern void runtime_bind(AST::SymTable *st);
