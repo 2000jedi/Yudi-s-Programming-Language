@@ -1,4 +1,4 @@
-var global_1 : int32; // TODO: This expression causes error
+var global_1 : int32;
 union try {
     class a {}
     class b {
@@ -10,13 +10,16 @@ union try {
 function main() {
     var i : int32;
     const len = 11;
-    // len = len + 1; should throw: constant cannot be assigned
     const j = "Printing factorial from 0 to";
+    global_1 = 10;
+    print(global_1);
     var arr : int32[12];
 
     print(j, len);
+    print(fact(2));
     i = 0;
     while (i < 12) {
+        print(i, fact(i));
         arr[i] = fact(i);
         i = i + 1;
     }
@@ -29,6 +32,7 @@ function main() {
 function fact(a : int32) : int32 {
     if (a > 0) {
         return a * fact(a - 1);
+    } else {
+        return 1;
     }
-    return 1;
 }

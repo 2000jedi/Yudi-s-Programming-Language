@@ -17,19 +17,19 @@ AST::ValueType *runtime_handler(std::string fn, AST::FuncCall *call, AST::SymTab
                 }
                 switch (pst->type->baseType) {
                 case AST::TypeDecl::t_int32:
-                    std::cout << *(int *)(pst->val) << " ";
+                    std::cout << pst->data.ival << " ";
                     break;
                 case AST::TypeDecl::t_fp32:
-                    std::cout << *(float *)(pst->val) << " ";
+                    std::cout << pst->data.fval << " ";
                     break;
                 case AST::TypeDecl::t_fp64:
-                    std::cout << *(double *)(pst->val) << " ";
+                    std::cout << pst->data.dval << " ";
                     break;
                 case AST::TypeDecl::t_char:
-                    std::cout << *(char *)(pst->val) << " ";
+                    std::cout << pst->data.cval << " ";
                     break;
                 case AST::TypeDecl::t_str:
-                    std::cout << *(std::string *)(pst->val) << " ";
+                    std::cout << *(std::string *)(pst->data.ptr) << " ";
                     break;
                 default:
                     std::cout << "Unsupported Type: " << pst->type->baseType << " ";

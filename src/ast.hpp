@@ -124,6 +124,20 @@ class TypeDecl : public BaseAST  {
 
     TypeDecl(std::string t, std::string i) : TypeDecl(t, std::stoi(i)) {}
 
+    int size(void) {
+        switch (this->baseType) {
+            case t_int32: return 4;
+            case t_uint8: return 1;
+            case t_char:  return 1;
+            case t_bool:  return 1;
+            case t_fp32:  return 4;
+            case t_fp64:  return 8;
+            default:      throw std::runtime_error("size of unsupported type");
+        }
+    }
+
+    ValueType *newVal(void);
+
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("TypeDecl cannot be interpreted");
@@ -131,21 +145,61 @@ class TypeDecl : public BaseAST  {
 };
 static TypeDecl VoidType = TypeDecl(TypeDecl::t_void);
 static TypeDecl BoolType = TypeDecl(TypeDecl::t_bool);
+static TypeDecl CharType = TypeDecl(TypeDecl::t_char);
 static TypeDecl IntType  = TypeDecl(TypeDecl::t_int32);
+static TypeDecl FloatType = TypeDecl(TypeDecl::t_fp32);
+static TypeDecl DoubleType = TypeDecl(TypeDecl::t_fp64);
 static TypeDecl RuntimeType = TypeDecl(TypeDecl::t_rtfn);
 
 class ValueType {
  public:
-    void *val;
+    union {
+        int ival;
+        float fval;
+        double dval;
+        char cval;
+        uint8_t bval;
+        bool one_bit;
+        void *ptr;
+    } data;
+
     TypeDecl *type;
     bool isConst;
-    bool one_bit = false;
 
-    ValueType(void *v, TypeDecl *t, bool c = false) :
-        val(v), type(t), isConst(c) {}
-    explicit ValueType(bool b, bool c = true) : isConst(c), one_bit(b) {
+    ValueType() {
+        data.ptr = nullptr;
+        type = &VoidType;
+    }
+
+    ValueType(void *v, TypeDecl *t, bool c = false) : type(t), isConst(c) {
+        data.ptr = v;
+    }
+    explicit ValueType(bool b, bool c = true) : isConst(c) {
+        data.one_bit = b;
         type = &BoolType;
     }
+
+    explicit ValueType(char b, bool c = true) : isConst(c) {
+        data.cval = b;
+        type = &CharType;
+    }
+
+    explicit ValueType(int b, bool c = true) : isConst(c) {
+        data.ival = b;
+        type = &IntType;
+    }
+
+    explicit ValueType(float b, bool c = true) : isConst(c) {
+        data.fval = b;
+        type = &FloatType;
+    }
+
+    explicit ValueType(double b, bool c = true) : isConst(c) {
+        data.dval = b;
+        type = &DoubleType;
+    }
+
+    void assign(ValueType *r);
 };
 
 static ValueType None = ValueType(nullptr, &VoidType, true);
