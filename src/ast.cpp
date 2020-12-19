@@ -354,8 +354,7 @@ class AST::SymTable {
 ValueType *ConstEval(ExprVal *e) {
     switch (e->type->baseType) {
         case TypeDecl::t_void: {
-            LogError("no constant type \"void\"");
-            return nullptr;
+            throw std::runtime_error("no constant type \"void\"");
         }
         case TypeDecl::t_int32: {
             return new ValueType(std::stoi(e->constVal));
@@ -402,16 +401,18 @@ ValueType *TypeDecl::newVal(void) {
     } else {
         ValueType* arr = new ValueType[this->arrayT];
         for (int i = 0; i < this->arrayT; ++i) {
-            arr[i] = ValueType(nullptr, new TypeDecl(this->baseType), false);
+            arr[i] = ValueType(& AST::None, new TypeDecl(this->baseType), false);
         }
         return new ValueType((void*)arr, this, false);
     }
 }
 
+static int return_flag = 0;
+
 int AST::interpret(Program prog) {
     SymTable *st = new SymTable();
     st->addLayer();
-    st->insert(Name("print"), new ValueType(nullptr, &RuntimeType, true));
+    st->insert(Name("print"), new ValueType(& AST::None, &RuntimeType, true));
     prog.interpret(st);
     st->removeLayer();
     delete st;
@@ -430,7 +431,7 @@ INTERPRET(Program) {
     (*fs)->interpret(st);
     st->removeLayer();
     st->removeLayer();
-    return nullptr;
+    return & AST::None;
 }
 
 INTERPRET(VarDecl) {
@@ -478,7 +479,8 @@ INTERPRET(FuncDecl) {
     // st layer handled in FuncCall
     for (auto e : this->exprs) {
         ValueType *vt = e->interpret(st);
-        if (e->exprType == e->e_ret) {
+        if (return_flag) {
+            return_flag--;
             return vt;
         }
     }
@@ -488,7 +490,6 @@ INTERPRET(FuncDecl) {
 INTERPRET(FuncCall) {
     st->addLayer();
 
-    // std::cout << "this->function: " << this->function.str() << std::endl;  // TODO: remove
     auto fn_ = st->lookup(this->function);
     if (fn_->type->baseType == TypeDecl::t_rtfn) {
         return runtime_handler(this->function.str(), this, st);
@@ -536,14 +537,22 @@ INTERPRET(IfExpr) {
     st->addLayer();
     auto cond_vt = this->cond->interpret(st);
     if (vt_is_true(cond_vt)) {
-        for (auto expr : this->iftrue)
-            expr->interpret(st);
+        for (auto expr : this->iftrue) {
+            auto ret = expr->interpret(st);
+            if (expr->exprType == expr->e_ret) {
+                return ret;
+            }
+        }
     } else {
-        for (auto expr : this->iffalse)
-            expr->interpret(st);
+        for (auto expr : this->iffalse) {
+            auto ret = expr->interpret(st);
+            if (expr->exprType == expr->e_ret) {
+                return ret;
+            }
+        }
     }
     st->removeLayer();
-    return nullptr;
+    return & AST::None;
 }
 
 INTERPRET(ForExpr) {
@@ -552,13 +561,16 @@ INTERPRET(ForExpr) {
     auto cond_vt = this->cond->interpret(st);
     while (vt_is_true(cond_vt)) {
         for (auto expr : this->exprs) {
-            expr->interpret(st);
+            auto ret = expr->interpret(st);
+            if (expr->exprType == expr->e_ret) {
+                return ret;
+            }
         }
         this->step->interpret(st);
         cond_vt = this->cond->interpret(st);
     }
     st->removeLayer();
-    return nullptr;
+    return & AST::None;
 }
 
 INTERPRET(WhileExpr) {
@@ -566,12 +578,15 @@ INTERPRET(WhileExpr) {
     auto cond_vt = this->cond->interpret(st);
     while (vt_is_true(cond_vt)) {
         for (auto expr : this->exprs) {
-            expr->interpret(st);
+            auto ret = expr->interpret(st);
+            if (expr->exprType == expr->e_ret) {
+                return ret;
+            }
         }
         cond_vt = this->cond->interpret(st);
     }
     st->removeLayer();
-    return nullptr;
+    return & AST::None;
 }
 
 INTERPRET(ExprVal) {
@@ -588,17 +603,18 @@ INTERPRET(ExprVal) {
 }
 
 INTERPRET(RetExpr) {
+    return_flag++;
     if (this->stmt == nullptr)
         return & AST::None;
     return this->stmt->interpret(st);
 }
 
 INTERPRET(MatchExpr) {  // TODO: implementation
-    return nullptr;
+    return & AST::None;
 }
 
 INTERPRET(MatchLine) {  // TODO : implementation
-    return nullptr;
+    return & AST::None;
 }
 
 void ValueType::assign(ValueType *that) {
@@ -620,15 +636,17 @@ INTERPRET(EvalExpr) {
             throw std::runtime_error("constant cannot be assigned");
         auto rvt = this->r->interpret(st);
         lvt->assign(rvt);
-        return nullptr;
+        return & AST::None;
     }
-    if (this->op == "ADD") {
-        auto lvt = this->l->interpret(st);
+
+    auto lvt = this->l->interpret(st);
         auto rvt = this->r->interpret(st);
         if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
-            throw std::runtime_error("+ cannot operate on array");
+            throw std::runtime_error(this->op + " cannot operate on array");
         if (!lvt->type->eq(rvt->type))
             throw std::runtime_error("type mismatch");
+
+    if (this->op == "ADD") {
         switch (lvt->type->baseType) {
             case TypeDecl::t_uint8:
                 return new ValueType(lvt->data.bval + rvt->data.bval);
@@ -643,12 +661,6 @@ INTERPRET(EvalExpr) {
         }
     }
     if (this->op == "SUB") {
-        auto lvt = this->l->interpret(st);
-        auto rvt = this->r->interpret(st);
-        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
-            throw std::runtime_error("- cannot operate on array");
-        if (!lvt->type->eq(rvt->type))
-            throw std::runtime_error("type mismatch");
         switch (lvt->type->baseType) {
             case TypeDecl::t_uint8:
                 return new ValueType(lvt->data.bval - rvt->data.bval);
@@ -663,12 +675,6 @@ INTERPRET(EvalExpr) {
         }
     }
     if (this->op == "MUL") {
-        auto lvt = this->l->interpret(st);
-        auto rvt = this->r->interpret(st);
-        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
-            throw std::runtime_error("* cannot operate on array");
-        if (!lvt->type->eq(rvt->type))
-            throw std::runtime_error("type mismatch: ");
         switch (lvt->type->baseType) {
             case TypeDecl::t_uint8:
                 return new ValueType(lvt->data.bval * rvt->data.bval);
@@ -683,12 +689,6 @@ INTERPRET(EvalExpr) {
         }
     }
     if (this->op == "LT") {
-        auto lvt = this->l->interpret(st);
-        auto rvt = this->r->interpret(st);
-        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
-            throw std::runtime_error("< cannot operate on array");
-        if (!lvt->type->eq(rvt->type))
-            throw std::runtime_error("type mismatch");
         switch (lvt->type->baseType) {
             case TypeDecl::t_uint8:
                 return new ValueType((bool)(lvt->data.bval < rvt->data.bval));
@@ -703,12 +703,6 @@ INTERPRET(EvalExpr) {
         }
     }
     if (this->op == "GT") {
-        auto lvt = this->l->interpret(st);
-        auto rvt = this->r->interpret(st);
-        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
-            throw std::runtime_error("> cannot operate on array");
-        if (!lvt->type->eq(rvt->type))
-            throw std::runtime_error("type mismatch");
         switch (lvt->type->baseType) {
             case TypeDecl::t_uint8:
                 return new ValueType((bool)(lvt->data.bval > rvt->data.bval));
@@ -722,5 +716,5 @@ INTERPRET(EvalExpr) {
                 throw std::runtime_error("> cannot operate on this type");
         }
     }
-    return nullptr;
+    return & AST::None;
 }

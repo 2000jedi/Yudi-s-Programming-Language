@@ -14,12 +14,9 @@ function main() {
     global_1 = 10;
     print(global_1);
     var arr : int32[12];
-
     print(j, len);
-    print(fact(2));
     i = 0;
     while (i < 12) {
-        print(i, fact(i));
         arr[i] = fact(i);
         i = i + 1;
     }
