@@ -25,14 +25,14 @@ This project is still under development and not all function modules defined in 
 - `input.yc`: Sample ycpl program.
 - `Makefile`
 - `LICENSE`
-- `README.md`: Project documentation file.
+- `README.md`: Documentation.
 
 ## Installation
 
 The interpreter requires any form of a C++ compiler, including `gcc` and `llvm`. It has been tested under several OS.
 
 - [x] Arch Linux
-- [ ] Mac OS (under development)
+- [x] Mac OS (under development)
 - [x] Ubuntu
 - [ ] Windows (it will never be supported)
 
