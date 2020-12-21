@@ -36,7 +36,7 @@ class SymTable {
     void removeLayer(void);
     void insert(Name name, ValueType *vt);
     void insert(Name name, void *v, TypeDecl *t, bool is_const);
-    ValueType* lookup(Name name, bool is_top);
+    ValueType* lookup(Name name);
     ValueType* lookup(ExprVal *name);
 };
 
@@ -84,18 +84,23 @@ class BaseAST {
     virtual ValueType *interpret(SymTable *st) = 0;
 };
 
+enum Types {
+    t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
+    t_other, t_bool,
+    t_rtfn /* runtime function */
+};
+
 class TypeDecl : public BaseAST  {
  public:
-    enum Types {
-        t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-        t_other, t_bool,
-        t_rtfn /* runtime function */
-    } baseType;
+    Types baseType;
 
     int arrayT;
     std::string other;
 
     inline bool eq(TypeDecl *other) {
+        if (this->baseType == t_other) {
+            return (this->baseType == other->baseType) && (this->other == other->other);
+        }
         return (this->baseType == other->baseType) &&
                 (this->arrayT == other->arrayT);
     }
@@ -159,13 +164,13 @@ class TypeDecl : public BaseAST  {
         throw std::runtime_error("TypeDecl cannot be interpreted");
     }
 };
-static TypeDecl VoidType = TypeDecl(TypeDecl::t_void);
-static TypeDecl BoolType = TypeDecl(TypeDecl::t_bool);
-static TypeDecl CharType = TypeDecl(TypeDecl::t_char);
-static TypeDecl IntType  = TypeDecl(TypeDecl::t_int32);
-static TypeDecl FloatType = TypeDecl(TypeDecl::t_fp32);
-static TypeDecl DoubleType = TypeDecl(TypeDecl::t_fp64);
-static TypeDecl RuntimeType = TypeDecl(TypeDecl::t_rtfn);
+static TypeDecl VoidType = TypeDecl(t_void);
+static TypeDecl BoolType = TypeDecl(t_bool);
+static TypeDecl CharType = TypeDecl(t_char);
+static TypeDecl IntType  = TypeDecl(t_int32);
+static TypeDecl FloatType = TypeDecl(t_fp32);
+static TypeDecl DoubleType = TypeDecl(t_fp64);
+static TypeDecl RuntimeType = TypeDecl(t_rtfn);
 
 class ValueType {
  public:
@@ -179,43 +184,39 @@ class ValueType {
         void *ptr;
     } data;
 
-    TypeDecl *type;
+    TypeDecl type;
     bool isConst;
 
-    ValueType() {
+    ValueType() : type(VoidType) {
         data.ptr = nullptr;
-        type = &VoidType;
     }
 
-    ValueType(void *v, TypeDecl *t, bool c = false) : type(t), isConst(c) {
+    ValueType(void *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
         data.ptr = v;
     }
-    explicit ValueType(bool b, bool c = true) : isConst(c) {
+    explicit ValueType(bool b, bool c = true) : type(BoolType), isConst(c) {
         data.one_bit = b;
-        type = &BoolType;
     }
 
-    explicit ValueType(char b, bool c = true) : isConst(c) {
+    explicit ValueType(char b, bool c = true) : type(CharType), isConst(c) {
         data.cval = b;
-        type = &CharType;
     }
 
-    explicit ValueType(int b, bool c = true) : isConst(c) {
+    explicit ValueType(int b, bool c = true) : type(IntType), isConst(c) {
         data.ival = b;
-        type = &IntType;
     }
 
-    explicit ValueType(float b, bool c = true) : isConst(c) {
+    explicit ValueType(float b, bool c = true) : type(FloatType), isConst(c) {
         data.fval = b;
-        type = &FloatType;
     }
 
-    explicit ValueType(double b, bool c = true) : isConst(c) {
+    explicit ValueType(double b, bool c = true) : type(DoubleType), isConst(c) {
         data.dval = b;
-        type = &DoubleType;
     }
 
     void assign(ValueType *r);
+
+    void Free(void);
 };
 
 static ValueType None = ValueType(nullptr, &VoidType, true);

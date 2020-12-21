@@ -287,9 +287,10 @@ void SymTable::addLayer(void) {
 }
 
 void SymTable::removeLayer(void) {
-    // for (auto vt : d.back()) {
-    //     delete vt.second;
-    // }
+    for (auto vt : d.back()) {
+        vt.second->Free();
+        delete vt.second;
+    }
     // TODO: need to find a method to auto-deallocate
     d.pop_back();
 }
@@ -306,16 +307,10 @@ void SymTable::insert(Name name, void *v, TypeDecl *t, bool is_const = false) {
     }
 }
 
-ValueType* SymTable::lookup(Name name, bool is_top = false) {
-    if (is_top) {
-        if (d.back().find(name) != d.back().end()) {
-            return d.back()[name];
-        }
-    } else {
-        for (int i = d.size() - 1; i >= 0; i--) {
-            if (d[i].find(name) != d[i].end()) {
-                return d[i][name];
-            }
+ValueType* SymTable::lookup(Name name) {
+    for (int i = d.size() - 1; i >= 0; i--) {
+        if (d[i].find(name) != d[i].end()) {
+            return d[i][name];
         }
     }
     throw std::runtime_error("variable " + name.str() + " is not declared");
@@ -328,12 +323,12 @@ ValueType* SymTable::lookup(ExprVal *name) {
     if (name->array != nullptr) {
         auto arr = this->lookup(name->refName);
         auto arr_index_vt = name->array->interpret(this);
-        if (!arr_index_vt->type->eq(& IntType)) {
+        if (!arr_index_vt->type.eq(& IntType)) {
             throw std::runtime_error("array index must be an int");
         }
         int  arr_index = arr_index_vt->data.ival;
 
-        if (arr->type->arrayT <= arr_index) {
+        if (arr->type.arrayT <= arr_index) {
             throw std::runtime_error("array index out of bound");
         }
 
@@ -344,27 +339,49 @@ ValueType* SymTable::lookup(ExprVal *name) {
     }
 }
 
+void ValueType::Free(void) {
+        return;  // TODO: determine free method for each type
+        if (this->type.arrayT != 0) {
+            auto arr = (ValueType*) this->data.ptr;
+            for (int i = 0; i < this->type.arrayT; ++i);
+                // TODO: remove arr[i]
+        }
+
+        switch (this->type.baseType) {
+            case t_str:
+                delete (std::string*) data.ptr;
+            case t_class:
+                delete (AST::ClassDecl*) data.ptr;
+            case t_fn:
+                delete (AST::FuncDecl*) data.ptr;
+            case t_other:
+                delete (AST::SymTable*) data.ptr;
+            default:
+                return;
+        }
+    }
+
 /**
  * Interpreter Interface - interpret() methods
  */
 ValueType *ConstEval(ExprVal *e) {
     switch (e->type->baseType) {
-        case TypeDecl::t_void: {
+        case t_void: {
             throw std::runtime_error("no constant type \"void\"");
         }
-        case TypeDecl::t_int32: {
+        case t_int32: {
             return new ValueType(std::stoi(e->constVal));
         }
-        case TypeDecl::t_char: {
+        case t_char: {
             return new ValueType((char)std::stoi(e->constVal));
         }
-        case TypeDecl::t_fp32: {
+        case t_fp32: {
             return new ValueType(std::stof(e->constVal));
         }
-        case TypeDecl::t_fp64: {
+        case t_fp64: {
             return new ValueType(std::stod(e->constVal));
         }
-        case TypeDecl::t_str: {
+        case t_str: {
             std::string *s = new std::string(e->constVal);
             return new ValueType(s, e->type, true);
         }
@@ -379,17 +396,17 @@ ValueType *ConstEval(ExprVal *e) {
 ValueType *TypeDecl::newVal(void) {
     if (this->arrayT == 0) {
         switch (this->baseType) {
-            case TypeDecl::t_bool:
+            case t_bool:
                 return new ValueType(false, false);
-            case TypeDecl::t_uint8:
+            case t_uint8:
                 return new ValueType((uint8_t)0, false);
-            case TypeDecl::t_char:
+            case t_char:
                 return new ValueType((char)0, false);
-            case TypeDecl::t_int32:
+            case t_int32:
                 return new ValueType(0, false);
-            case TypeDecl::t_fp32:
+            case t_fp32:
                 return new ValueType((float)0.0, false);
-            case TypeDecl::t_fp64:
+            case t_fp64:
                 return new ValueType(0.0, false);
             default:
                 throw std::runtime_error("cannot initialize this type");
@@ -437,7 +454,7 @@ INTERPRET(VarDecl) {
                 "variable " + this->name.str() + " has unknown type");
         } else {
             t = this->init->interpret(st);
-            if (t == nullptr) {
+            if (t == & AST::None) {
                 throw std::runtime_error(
                     "variable " + this->name.str() + " has void type");
             }
@@ -449,7 +466,7 @@ INTERPRET(VarDecl) {
                 throw std::runtime_error(
                     "variable \"" + this->name.str() + "\" has void type");
             }
-            if (!t->type->eq(this->type)) {
+            if (!t->type.eq(this->type)) {
                 throw std::runtime_error(
                     "type mismatch for \"" + this->name.str() + '\"');
             }
@@ -464,9 +481,9 @@ INTERPRET(VarDecl) {
     return t;
 }
 
-void AST::FuncDecl::declare(SymTable *st) {
+void FuncDecl::declare(SymTable *st) {
     FuncStore *fs = new FuncStore(this);
-    st->insert(this->name, fs, new TypeDecl(TypeDecl::t_fn, 0), true);
+    st->insert(this->name, fs, new TypeDecl(t_fn, 0), true);
 }
 
 INTERPRET(FuncDecl) {
@@ -486,10 +503,10 @@ INTERPRET(FuncCall) {
     st->addLayer();
 
     auto fn_ = st->lookup(this->function);
-    if (fn_->type->baseType == TypeDecl::t_rtfn) {
-        return runtime_handler(this->function.str(), this, st);
+    if (fn_->type.baseType == t_rtfn) {
+        return runtime_handler(this->function, this, st);
     }
-    if (fn_->type->baseType != TypeDecl::t_fn)
+    if (fn_->type.baseType != t_fn)
         throw std::runtime_error("type cannot be called");
 
     auto fn = *((FuncStore *)(fn_->data.ptr));
@@ -497,7 +514,7 @@ INTERPRET(FuncCall) {
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
         auto prm = fn->pars[i];
-        if (!vt->type->eq(prm->type)) {
+        if (!vt->type.eq(prm->type)) {
             throw std::runtime_error("type mismatch for argument " + prm->name);
         }
         st->insert(Name(prm->name), vt);
@@ -509,12 +526,12 @@ INTERPRET(FuncCall) {
     return ret;
 }
 
-void AST::ClassDecl::declare(SymTable *st) {
-    // TODO: class declaration
-    // runtime helper function to create initializer
+// runtime helper function to create initializer
+void ClassDecl::declare(SymTable *st) {
+    st->insert(this->name, new AST::ValueType((void*)this, &AST::RuntimeType, true));
 }
 
-void AST::UnionDecl::declare(SymTable *st) {
+void UnionDecl::declare(SymTable *st) {
     // TODO: union declaration
 }
 
@@ -522,7 +539,7 @@ bool vt_is_true(ValueType *vt) {
     if (vt == nullptr) {
         throw std::runtime_error("expression is nullptr");
     }
-    if ((vt->type->baseType != TypeDecl::t_bool) && (vt->type->arrayT == 0)) {
+    if ((vt->type.baseType != t_bool) && (vt->type.arrayT == 0)) {
         throw std::runtime_error("expression is not boolean");
     }
     return vt->data.one_bit;
@@ -613,7 +630,7 @@ INTERPRET(MatchLine) {  // TODO : implementation
 }
 
 void ValueType::assign(ValueType *that) {
-    if (!this->type->eq(that->type))
+    if (!this->type.eq(& that->type))
         throw std::runtime_error("type mismatch");
     this->data = that->data;
 }
@@ -636,76 +653,76 @@ INTERPRET(EvalExpr) {
 
     auto lvt = this->l->interpret(st);
         auto rvt = this->r->interpret(st);
-        if ((lvt->type->arrayT != 0) || (rvt->type->arrayT != 0))
+        if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
             throw std::runtime_error(this->op + " cannot operate on array");
-        if (!lvt->type->eq(rvt->type))
+        if (!lvt->type.eq(& rvt->type))
             throw std::runtime_error("type mismatch");
 
     if (this->op == "ADD") {
-        switch (lvt->type->baseType) {
-            case TypeDecl::t_uint8:
+        switch (lvt->type.baseType) {
+            case t_uint8:
                 return new ValueType(lvt->data.bval + rvt->data.bval);
-            case TypeDecl::t_int32:
+            case t_int32:
                 return new ValueType(lvt->data.ival + rvt->data.ival);
-            case TypeDecl::t_fp32:
+            case t_fp32:
                 return new ValueType(lvt->data.fval + rvt->data.fval);
-            case TypeDecl::t_fp64:
+            case t_fp64:
                 return new ValueType(lvt->data.dval + rvt->data.dval);
             default:
                 throw std::runtime_error("+ cannot operate on this type");
         }
     }
     if (this->op == "SUB") {
-        switch (lvt->type->baseType) {
-            case TypeDecl::t_uint8:
+        switch (lvt->type.baseType) {
+            case t_uint8:
                 return new ValueType(lvt->data.bval - rvt->data.bval);
-            case TypeDecl::t_int32:
+            case t_int32:
                 return new ValueType(lvt->data.ival - rvt->data.ival);
-            case TypeDecl::t_fp32:
+            case t_fp32:
                 return new ValueType(lvt->data.fval - rvt->data.fval);
-            case TypeDecl::t_fp64:
+            case t_fp64:
                 return new ValueType(lvt->data.dval - rvt->data.dval);
             default:
                 throw std::runtime_error("- cannot operate on this type");
         }
     }
     if (this->op == "MUL") {
-        switch (lvt->type->baseType) {
-            case TypeDecl::t_uint8:
+        switch (lvt->type.baseType) {
+            case t_uint8:
                 return new ValueType(lvt->data.bval * rvt->data.bval);
-            case TypeDecl::t_int32:
+            case t_int32:
                 return new ValueType(lvt->data.ival * rvt->data.ival);
-            case TypeDecl::t_fp32:
+            case t_fp32:
                 return new ValueType(lvt->data.fval * rvt->data.fval);
-            case TypeDecl::t_fp64:
+            case t_fp64:
                 return new ValueType(lvt->data.dval * rvt->data.dval);
             default:
                 throw std::runtime_error("* cannot operate on this type");
         }
     }
     if (this->op == "LT") {
-        switch (lvt->type->baseType) {
-            case TypeDecl::t_uint8:
+        switch (lvt->type.baseType) {
+            case t_uint8:
                 return new ValueType((bool)(lvt->data.bval < rvt->data.bval));
-            case TypeDecl::t_int32:
+            case t_int32:
                 return new ValueType((bool)(lvt->data.ival < rvt->data.ival));
-            case TypeDecl::t_fp32:
+            case t_fp32:
                 return new ValueType((bool)(lvt->data.fval < rvt->data.fval));
-            case TypeDecl::t_fp64:
+            case t_fp64:
                 return new ValueType((bool)(lvt->data.dval < rvt->data.dval));
             default:
                 throw std::runtime_error("< cannot operate on this type");
         }
     }
     if (this->op == "GT") {
-        switch (lvt->type->baseType) {
-            case TypeDecl::t_uint8:
+        switch (lvt->type.baseType) {
+            case t_uint8:
                 return new ValueType((bool)(lvt->data.bval > rvt->data.bval));
-            case TypeDecl::t_int32:
+            case t_int32:
                 return new ValueType((bool)(lvt->data.ival > rvt->data.ival));
-            case TypeDecl::t_fp32:
+            case t_fp32:
                 return new ValueType((bool)(lvt->data.fval > rvt->data.fval));
-            case TypeDecl::t_fp64:
+            case t_fp64:
                 return new ValueType((bool)(lvt->data.dval > rvt->data.dval));
             default:
                 throw std::runtime_error("> cannot operate on this type");
