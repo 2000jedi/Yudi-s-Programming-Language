@@ -6,6 +6,7 @@
 #include "ast.hpp"
 
 #include <memory>
+#include <utility>
 
 #include "ast_gen.hpp"
 #include "util.hpp"
@@ -24,8 +25,8 @@ using namespace AST;
 
 void Program::print(void) {
     std::cout << "Program AST:" << std::endl;
-    for (auto p : this->stmts) {
-        p->print(1);
+    for (auto p = this->stmts.begin(); p != this->stmts.end(); p++) {
+        (*p)->print(1);
     }
 }
 
@@ -342,7 +343,7 @@ ValueType* SymTable::lookup(ExprVal *name) {
 void ValueType::Free(void) {
         return;  // TODO: determine free method for each type
         if (this->type.arrayT != 0) {
-            auto arr = (ValueType*) this->data.ptr;
+            // auto arr = (ValueType*) this->data.ptr;
             for (int i = 0; i < this->type.arrayT; ++i);
                 // TODO: remove arr[i]
         }
@@ -435,8 +436,8 @@ int AST::interpret(Program prog) {
 
 INTERPRET(Program) {
     st->addLayer();
-    for (auto stmt : stmts) {
-        stmt->declare(st);
+    for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
+        (*stmt)->declare(st);
     }
     auto fs = (FuncStore *)(st->lookup(Name("main"))->data.ptr);
     st->addLayer();

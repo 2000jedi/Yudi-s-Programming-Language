@@ -6,6 +6,8 @@
 
 #include <vector>
 #include <string>
+#include <memory>
+#include <utility>
 
 #include "lexical.hpp"
 #include "tree.hpp"
@@ -22,12 +24,14 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
     if (curr->t.name == "<STATEMENTS>") {
         Program* prog = new AST::Program();
-        prog->insert(dynamic_cast<GlobalStatement *>(
-            build_ast(&curr->child[0], nullptr)));
+        auto ptr = std::unique_ptr<GlobalStatement>(
+            dynamic_cast<GlobalStatement*>(build_ast(&curr->child[0], nullptr)));
+        prog->insert(std::move(ptr));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            prog->insert(dynamic_cast<GlobalStatement *>(
-                build_ast(&curr->child[0], nullptr)));
+            ptr = std::unique_ptr<GlobalStatement>(
+                dynamic_cast<GlobalStatement*>(build_ast(&curr->child[0], nullptr)));
+            prog->insert(std::move(ptr));
         }
         return prog;
     }
@@ -685,5 +689,5 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 }
 
 Program AST::build_ast(Node<Lexical> *root) {
-    return *dynamic_cast<Program *>(build_ast(root, nullptr));
+    return {std::move(*dynamic_cast<Program *>(build_ast(root, nullptr)))};
 }

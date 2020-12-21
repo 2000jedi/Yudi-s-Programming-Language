@@ -11,6 +11,8 @@
 #include <iostream>
 #include <sstream>
 #include <memory>
+#include <utility>
+#include <algorithm>
 
 #include "tree.hpp"
 #include "lexical.hpp"
@@ -290,16 +292,20 @@ class Expr : virtual public BaseAST  {
 
 class Program : public BaseAST {
  public:
-    std::vector<GlobalStatement*> stmts;
+    std::vector<std::unique_ptr<GlobalStatement>> stmts;
     Program() {stmts.clear();}
 
-    void insert(GlobalStatement *s) {
+    void insert(std::unique_ptr<GlobalStatement> s) {
         if (s)
-            this->stmts.push_back(s);
+            this->stmts.push_back(std::move(s));
     }
 
     void print(void);
     virtual ValueType *interpret(SymTable *st);
+    Program(const Program & other) = delete;
+    Program& operator= (const Program & other) = delete;
+    Program(Program&&) = default;
+    Program& operator=(Program&&) = default;
 };
 
 class EvalExpr : public Expr {
