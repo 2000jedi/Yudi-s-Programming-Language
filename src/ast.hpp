@@ -260,12 +260,11 @@ class ASTs : public BaseAST  {
     }
 };
 
+enum globalStmtTypes {
+    gs_error, gs_var, gs_func, gs_class, gs_union
+};
 class GlobalStatement : virtual public BaseAST  {
  public:
-    enum globalStmtTypes {
-        gs_error, gs_var, gs_func, gs_class, gs_union
-    };
-
     globalStmtTypes stmtType = gs_error;
 
     virtual void print(int indent) {
@@ -275,12 +274,11 @@ class GlobalStatement : virtual public BaseAST  {
     virtual void declare(SymTable *st) = 0;
 };
 
+enum exprTypes {
+    e_empty, e_var, e_if, e_while, e_for, e_match, e_ret, e_eval
+};
 class Expr : virtual public BaseAST  {
  public:
-    enum exprTypes {
-        e_empty, e_var, e_if, e_while, e_for, e_match, e_ret, e_eval
-    };
-
     exprTypes exprType = e_empty;
 
     virtual void print(int indent) {

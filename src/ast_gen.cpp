@@ -169,7 +169,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<RETURN_DEF>") {
         if (curr->child[0].t.name == "<EPS>") {
-            return new TypeDecl(TypeDecl::t_void, "0");
+            return new TypeDecl(t_void, "0");
         } else {
             return build_ast(&curr->child[1], nullptr);
         }
@@ -618,17 +618,17 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
         if (curr->child[0].t.name == "FLOAT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::t_fp32)));
+                curr->child[0].t.data, new TypeDecl(t_fp32)));
         if (curr->child[0].t.name == "INT")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::t_int32)));
+                curr->child[0].t.data, new TypeDecl(t_int32)));
         if (curr->child[0].t.name == "CHAR")
             return new EvalExpr(new ExprVal(
-                curr->child[0].t.data, new TypeDecl(TypeDecl::t_char)));
+                curr->child[0].t.data, new TypeDecl(t_char)));
         if (curr->child[0].t.name == "STRING") {
             std::string str = unescape(curr->child[0].t.data);
             return new EvalExpr(new ExprVal(str,
-                new TypeDecl(TypeDecl::t_str)));
+                new TypeDecl(t_str)));
         }
         if (curr->child[0].t.name == "<NAMESPACE>") {
             FuncCall *fc = dynamic_cast<FuncCall *>(

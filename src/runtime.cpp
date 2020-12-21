@@ -58,11 +58,11 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     auto cl = (AST::ClassDecl *)(st->lookup(fn)->data.ptr);
     for (auto stmt : cl->stmts) {
         switch (stmt->stmtType) {
-            case AST::GlobalStatement::gs_var: {
+            case AST::gs_var: {
                 stmt->declare(fnst);
                 break;
             }
-            case AST::GlobalStatement::gs_func: {
+            case AST::gs_func: {
                 break;
             }
             default:

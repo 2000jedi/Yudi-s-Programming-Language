@@ -551,14 +551,14 @@ INTERPRET(IfExpr) {
     if (vt_is_true(cond_vt)) {
         for (auto expr : this->iftrue) {
             auto ret = expr->interpret(st);
-            if (expr->exprType == expr->e_ret) {
+            if (expr->exprType == e_ret) {
                 return ret;
             }
         }
     } else {
         for (auto expr : this->iffalse) {
             auto ret = expr->interpret(st);
-            if (expr->exprType == expr->e_ret) {
+            if (expr->exprType == e_ret) {
                 return ret;
             }
         }
@@ -574,7 +574,7 @@ INTERPRET(ForExpr) {
     while (vt_is_true(cond_vt)) {
         for (auto expr : this->exprs) {
             auto ret = expr->interpret(st);
-            if (expr->exprType == expr->e_ret) {
+            if (expr->exprType == e_ret) {
                 return ret;
             }
         }
@@ -591,7 +591,7 @@ INTERPRET(WhileExpr) {
     while (vt_is_true(cond_vt)) {
         for (auto expr : this->exprs) {
             auto ret = expr->interpret(st);
-            if (expr->exprType == expr->e_ret) {
+            if (expr->exprType == e_ret) {
                 return ret;
             }
         }
