@@ -9,18 +9,21 @@ union Optional {
 class Bag {
     var ival : int32;
     var fval : fp32;
-}
 
-function Bag.new(a : int32, b : fp32){
-    this.ival = a;
-    this.fval = b;
-}
+    function new(a : int32, b : fp32){
+        this.ival = a;
+        this.fval = b;
+    }
 
-function Bag.add() {
-    this.ival = this.ival + 1;
+    function add() {
+        this.ival = this.ival + 1;
+    }
 }
 
 function main() {
-    var bag : Bag = alloc(Bag(1, 2.0));
+    var bag : Bag = Bag(1, 2.0);
+    bag.add();
+    print(bag);
+    print(bag.ival, bag.fval);
 }
 

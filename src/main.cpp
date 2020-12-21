@@ -16,7 +16,12 @@
 #include "err.hpp"
 
 int main(int argc, char** argv) {
-    std::ifstream file("input.yc");
+    std::ifstream file;
+    if (argc > 0) {
+        file = std::ifstream(argv[1]);
+    } else {
+        file = std::ifstream("input.yc");
+    }
     std::stringstream ss;
     std::string buf;
 
