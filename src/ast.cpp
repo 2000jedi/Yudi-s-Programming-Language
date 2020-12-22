@@ -288,10 +288,10 @@ void SymTable::addLayer(void) {
 }
 
 void SymTable::removeLayer(void) {
-    for (auto vt : d.back()) {
+    /*for (auto vt : d.back()) {
         vt.second->Free();
         delete vt.second;
-    }
+    }*/
     // TODO: need to find a method to auto-deallocate
     d.pop_back();
 }
@@ -300,15 +300,18 @@ void SymTable::insert(Name name, ValueType *vt) {
     d.back()[name] = vt;
 }
 
-void SymTable::insert(Name name, void *v, TypeDecl *t, bool is_const = false) {
-    if (is_const) {
-        d.back()[name] = new ValueType(v, t, true);
-    } else {
-        d.back()[name] = new ValueType(v, t);
-    }
-}
-
 ValueType* SymTable::lookup(Name name) {
+    if (name.ClassName.size() > 0) {
+        auto owner = this->lookup(name.owner());
+        if (!((owner->type.baseType) == t_rtfn && (name.BaseName == "new"))) {
+            if (owner->type.baseType != t_class) {
+                throw std::runtime_error(name.owner().str() + " is not a compound type");
+            }
+            auto clst = owner->data.st;
+            return clst->lookup(Name(name.BaseName));
+        }
+    }
+
     for (int i = d.size() - 1; i >= 0; i--) {
         if (d[i].find(name) != d[i].end()) {
             return d[i][name];
@@ -333,7 +336,7 @@ ValueType* SymTable::lookup(ExprVal *name) {
             throw std::runtime_error("array index out of bound");
         }
 
-        auto vts = (ValueType *)arr->data.ptr;
+        auto vts = arr->data.vt;
         return &(vts[arr_index]);
     } else {
         return this->lookup(name->refName);
@@ -350,13 +353,11 @@ void ValueType::Free(void) {
 
         switch (this->type.baseType) {
             case t_str:
-                delete (std::string*) data.ptr;
-            case t_class:
-                delete (AST::ClassDecl*) data.ptr;
+                delete data.str;
             case t_fn:
-                delete (AST::FuncDecl*) data.ptr;
-            case t_other:
-                delete (AST::SymTable*) data.ptr;
+                delete data.fd;
+            case t_class:
+                delete data.st;
             default:
                 return;
         }
@@ -384,7 +385,7 @@ ValueType *ConstEval(ExprVal *e) {
         }
         case t_str: {
             std::string *s = new std::string(e->constVal);
-            return new ValueType(s, e->type, true);
+            return new ValueType(s, true);
         }
         default: {
             LogError("TypeDecl index " << e->type->baseType << " not handled");
@@ -417,7 +418,7 @@ ValueType *TypeDecl::newVal(void) {
         for (int i = 0; i < this->arrayT; ++i) {
             arr[i] = ValueType(& AST::None, new TypeDecl(this->baseType), false);
         }
-        return new ValueType((void*)arr, this, false);
+        return new ValueType(arr, this, false);
     }
 }
 
@@ -439,9 +440,9 @@ INTERPRET(Program) {
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
         (*stmt)->declare(st);
     }
-    auto fs = (FuncStore *)(st->lookup(Name("main"))->data.ptr);
+    auto fd = st->lookup(Name("main"))->data.fd;
     st->addLayer();
-    (*fs)->interpret(st);
+    fd->interpret(st);
     st->removeLayer();
     st->removeLayer();
     return & AST::None;
@@ -483,8 +484,7 @@ INTERPRET(VarDecl) {
 }
 
 void FuncDecl::declare(SymTable *st) {
-    FuncStore *fs = new FuncStore(this);
-    st->insert(this->name, fs, new TypeDecl(t_fn, 0), true);
+    st->insert(this->name, new ValueType(this, true));
 }
 
 INTERPRET(FuncDecl) {
@@ -510,7 +510,7 @@ INTERPRET(FuncCall) {
     if (fn_->type.baseType != t_fn)
         throw std::runtime_error("type cannot be called");
 
-    auto fn = *((FuncStore *)(fn_->data.ptr));
+    auto fn = fn_->data.fd;
 
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
@@ -529,7 +529,20 @@ INTERPRET(FuncCall) {
 
 // runtime helper function to create initializer
 void ClassDecl::declare(SymTable *st) {
-    st->insert(this->name, new AST::ValueType((void*)this, &AST::RuntimeType, true));
+    st->insert(this->name, new ValueType(this, true));
+    for (auto stmt : this->stmts) {
+        switch (stmt->stmtType) {
+            case gs_func: {
+                FuncDecl *fd = dynamic_cast<FuncDecl*>(stmt);
+                if (fd->name.BaseName == "new") {
+                    st->insert(Name(& this->name, "new"), new ValueType(fd, true));
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
 }
 
 void UnionDecl::declare(SymTable *st) {

@@ -27,6 +27,8 @@ namespace AST {
 class ValueType;
 class Name;
 class TypeDecl;
+class FuncDecl;
+class ClassDecl;
 class ExprVal;
 class SymTable {
  private:
@@ -69,6 +71,15 @@ class Name {
         return ss.str();
     }
 
+    Name owner(void) {
+        Name parent(this->ClassName.back());
+        for (int i = 0; i < (int)this->ClassName.size() - 1; ++i) {
+            parent.ClassName.push_back(this->ClassName[i]);
+        }
+
+        return parent;
+    }
+
     friend bool operator<(const Name& l, const Name& r){
         return l.BaseName < r.BaseName;
     }
@@ -88,8 +99,7 @@ class BaseAST {
 
 enum Types {
     t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-    t_other, t_bool,
-    t_rtfn /* runtime function */
+    t_bool, t_rtfn /* runtime function */
 };
 
 class TypeDecl : public BaseAST  {
@@ -100,7 +110,7 @@ class TypeDecl : public BaseAST  {
     std::string other;
 
     inline bool eq(TypeDecl *other) {
-        if (this->baseType == t_other) {
+        if (this->baseType == t_class) {
             return (this->baseType == other->baseType) && (this->other == other->other);
         }
         return (this->baseType == other->baseType) &&
@@ -141,7 +151,7 @@ class TypeDecl : public BaseAST  {
             return;
         }
 
-        this->baseType = t_other;
+        this->baseType = t_class;
         this->other = t;
     }
 
@@ -173,6 +183,9 @@ static TypeDecl IntType  = TypeDecl(t_int32);
 static TypeDecl FloatType = TypeDecl(t_fp32);
 static TypeDecl DoubleType = TypeDecl(t_fp64);
 static TypeDecl RuntimeType = TypeDecl(t_rtfn);
+static TypeDecl FuncType = TypeDecl(t_fn);
+static TypeDecl ClassType = TypeDecl(t_class);
+static TypeDecl StrType = TypeDecl(t_str);
 
 class ValueType {
  public:
@@ -183,19 +196,41 @@ class ValueType {
         char cval;
         uint8_t bval;
         bool one_bit;
-        void *ptr;
+        ValueType *vt;
+        SymTable *st;
+        FuncDecl* fd;
+        ClassDecl* cd;
+        std::string* str;
+        // void *ptr;
     } data;
 
     TypeDecl type;
     bool isConst;
 
     ValueType() : type(VoidType) {
-        data.ptr = nullptr;
+        data.ival = 0;
     }
 
-    ValueType(void *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
-        data.ptr = v;
+    explicit ValueType(SymTable *v, bool c = false) : type(ClassType), isConst(c) {
+        data.st = v;
     }
+
+    ValueType(ValueType *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
+        data.vt = v;
+    }
+
+    explicit ValueType(FuncDecl *v, bool c = false) : type(FuncType), isConst(c) {
+        data.fd = v;
+    }
+
+    explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), isConst(c) {
+        data.cd = v;
+    }
+
+    explicit ValueType(std::string *v, bool c = false) : type(StrType), isConst(c) {
+        data.str = v;
+    }
+
     explicit ValueType(bool b, bool c = true) : type(BoolType), isConst(c) {
         data.one_bit = b;
     }
@@ -225,12 +260,10 @@ static ValueType None = ValueType(nullptr, &VoidType, true);
 
 // Abstract Syntax Tree
 class ASTs;
-class ClassDecl;
 class UnionDecl;
 class EvalExpr;
 class Expr;
 class ForExpr;
-class FuncDecl;
 class FuncCall;
 class GenericDecl;
 class GlobalStatement;
@@ -242,9 +275,6 @@ class Program;
 class RetExpr;
 class WhileExpr;
 class VarDecl;
-
-typedef FuncDecl *FuncStore;
-typedef UnionDecl *UnionStore;
 
 class ASTs : public BaseAST  {
  public:

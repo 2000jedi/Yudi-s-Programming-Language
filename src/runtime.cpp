@@ -28,7 +28,7 @@ void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
                 std::cout << pst->data.cval << " ";
                 break;
             case AST::t_str:
-                std::cout << *(std::string *)(pst->data.ptr) << " ";
+                std::cout << *pst->data.str << " ";
                 break;
             default:
                 std::cout << "(Unsupported Type: " << pst->type.baseType << ") ";
@@ -48,21 +48,19 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     // class constructors
     st->addLayer();
     AST::Name constructor_name = AST::Name(new AST::Name(fn), "new");
-    auto constructor = *(AST::FuncStore*)st->lookup(constructor_name)->data.ptr;
+    auto constructor = st->lookup(constructor_name)->data.fd;
 
-    auto clty = new AST::TypeDecl(AST::t_other);
+    auto clty = new AST::TypeDecl(AST::t_class);
     clty->other = fn.str();
     auto fnst = new AST::SymTable();
     fnst->addLayer();
 
-    auto cl = (AST::ClassDecl *)(st->lookup(fn)->data.ptr);
+    auto cl = st->lookup(fn)->data.cd;
     for (auto stmt : cl->stmts) {
         switch (stmt->stmtType) {
-            case AST::gs_var: {
-                stmt->declare(fnst);
-                break;
-            }
+            case AST::gs_var:
             case AST::gs_func: {
+                stmt->declare(fnst);
                 break;
             }
             default:
@@ -82,6 +80,8 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
     constructor->interpret(st);
     auto ret = st->lookup(AST::Name("this"));
+    std::cout << "this: " << ret->type.other << "; end;\n";
+    throw std::runtime_error("debug");
     st->removeLayer();
     return ret;
 }
