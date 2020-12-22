@@ -33,7 +33,7 @@ class UnionDecl;
 class ExprVal;
 class SymTable {
  private:
-    std::vector<std::map<AST::Name, AST::ValueType*>> d;
+    std::vector<std::map<Name, ValueType*>> d;
 
  public:
     void reset(void);
@@ -211,7 +211,6 @@ class ValueType {
         UnionDecl* ud;
         ClassDecl* cd;
         std::string* str;
-        // void *ptr;
     } data;
 
     TypeDecl type;

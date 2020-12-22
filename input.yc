@@ -6,6 +6,11 @@ union Optional {
     }
 }
 
+class Pair <K,V> {
+    var first : K;
+    var second : V;
+}
+
 class Bag {
     var ival : int32;
     var fval : fp32;
@@ -23,8 +28,8 @@ class Bag {
 
 function main() {
     var bag : Bag = Bag(1, 2.0);
+    var bag2 : Bag = bag;
     bag.add();
-    print(bag);
-    print(bag.ival, bag.fval);
+    print(bag2.ival, bag2.fval);
 }
 

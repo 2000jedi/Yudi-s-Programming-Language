@@ -416,7 +416,7 @@ ValueType *TypeDecl::newVal(void) {
     } else {
         ValueType* arr = new ValueType[this->arrayT];
         for (int i = 0; i < this->arrayT; ++i) {
-            arr[i] = ValueType(& AST::None, new TypeDecl(this->baseType), false);
+            arr[i] = ValueType(& None, new TypeDecl(this->baseType), false);
         }
         return new ValueType(arr, this, false);
     }
@@ -445,7 +445,7 @@ INTERPRET(Program) {
     fs->fd->interpret(st);
     st->removeLayer();
     st->removeLayer();
-    return & AST::None;
+    return & None;
 }
 
 INTERPRET(VarDecl) {
@@ -456,7 +456,7 @@ INTERPRET(VarDecl) {
                 "variable " + this->name.str() + " has unknown type");
         } else {
             t = this->init->interpret(st);
-            if (t == & AST::None) {
+            if (t == & None) {
                 throw std::runtime_error(
                     "variable " + this->name.str() + " has void type");
             }
@@ -498,7 +498,7 @@ INTERPRET(FuncDecl) {
             return vt;
         }
     }
-    return & AST::None;
+    return & None;
 }
 
 INTERPRET(FuncCall) {
@@ -582,7 +582,7 @@ INTERPRET(IfExpr) {
         }
     }
     st->removeLayer();
-    return & AST::None;
+    return & None;
 }
 
 INTERPRET(ForExpr) {
@@ -600,7 +600,7 @@ INTERPRET(ForExpr) {
         cond_vt = this->cond->interpret(st);
     }
     st->removeLayer();
-    return & AST::None;
+    return & None;
 }
 
 INTERPRET(WhileExpr) {
@@ -616,7 +616,7 @@ INTERPRET(WhileExpr) {
         cond_vt = this->cond->interpret(st);
     }
     st->removeLayer();
-    return & AST::None;
+    return & None;
 }
 
 INTERPRET(ExprVal) {
@@ -635,16 +635,16 @@ INTERPRET(ExprVal) {
 INTERPRET(RetExpr) {
     return_flag++;
     if (this->stmt == nullptr)
-        return & AST::None;
+        return & None;
     return this->stmt->interpret(st);
 }
 
 INTERPRET(MatchExpr) {  // TODO: implementation
-    return & AST::None;
+    return & None;
 }
 
 INTERPRET(MatchLine) {  // TODO : implementation
-    return & AST::None;
+    return & None;
 }
 
 void ValueType::assign(ValueType *that) {
@@ -666,7 +666,7 @@ INTERPRET(EvalExpr) {
             throw std::runtime_error("constant cannot be assigned");
         auto rvt = this->r->interpret(st);
         lvt->assign(rvt);
-        return & AST::None;
+        return & None;
     }
 
     auto lvt = this->l->interpret(st);
@@ -746,5 +746,5 @@ INTERPRET(EvalExpr) {
                 throw std::runtime_error("> cannot operate on this type");
         }
     }
-    return & AST::None;
+    return & None;
 }
