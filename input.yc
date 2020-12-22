@@ -17,6 +17,7 @@ class Bag {
 
     function add() {
         this.ival = this.ival + 1;
+        this.fval = this.fval + 1.0;
     }
 }
 

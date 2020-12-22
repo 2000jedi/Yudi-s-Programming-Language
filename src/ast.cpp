@@ -355,7 +355,7 @@ void ValueType::Free(void) {
             case t_str:
                 delete data.str;
             case t_fn:
-                delete data.fd;
+                delete data.fs;
             case t_class:
                 delete data.st;
             default:
@@ -438,11 +438,11 @@ int AST::interpret(Program prog) {
 INTERPRET(Program) {
     st->addLayer();
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
-        (*stmt)->declare(st);
+        (*stmt)->declare(st, nullptr);
     }
-    auto fd = st->lookup(Name("main"))->data.fd;
+    auto fs = st->lookup(Name("main"))->data.fs;
     st->addLayer();
-    fd->interpret(st);
+    fs->fd->interpret(st);
     st->removeLayer();
     st->removeLayer();
     return & AST::None;
@@ -483,13 +483,14 @@ INTERPRET(VarDecl) {
     return t;
 }
 
-void FuncDecl::declare(SymTable *st) {
-    st->insert(this->name, new ValueType(this, true));
+void FuncDecl::declare(SymTable *st, ValueType *context) {
+    FuncStore *cur = new FuncStore(this, context);
+    st->insert(this->name, new ValueType(cur, true));
 }
 
 INTERPRET(FuncDecl) {
-    // parameters already passed in st
-    // st layer handled in FuncCall
+    // handle "this"
+
     for (auto e : this->exprs) {
         ValueType *vt = e->interpret(st);
         if (return_flag) {
@@ -510,32 +511,35 @@ INTERPRET(FuncCall) {
     if (fn_->type.baseType != t_fn)
         throw std::runtime_error("type cannot be called");
 
-    auto fn = fn_->data.fd;
+    auto fn = fn_->data.fs;
 
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
-        auto prm = fn->pars[i];
+        auto prm = fn->fd->pars[i];
         if (!vt->type.eq(prm->type)) {
             throw std::runtime_error("type mismatch for argument " + prm->name);
         }
         st->insert(Name(prm->name), vt);
     }
 
-    auto ret = fn->interpret(st);
+    if (fn->context != nullptr)
+        st->insert(Name("this"), fn->context);
+
+    auto ret = fn->fd->interpret(st);
     st->removeLayer();
 
     return ret;
 }
 
 // runtime helper function to create initializer
-void ClassDecl::declare(SymTable *st) {
+void ClassDecl::declare(SymTable *st, ValueType *context) {
     st->insert(this->name, new ValueType(this, true));
     for (auto stmt : this->stmts) {
         switch (stmt->stmtType) {
             case gs_func: {
                 FuncDecl *fd = dynamic_cast<FuncDecl*>(stmt);
                 if (fd->name.BaseName == "new") {
-                    st->insert(Name(& this->name, "new"), new ValueType(fd, true));
+                    st->insert(Name(& this->name, "new"), new ValueType(new FuncStore(fd, nullptr), true));
                 }
                 break;
             }
@@ -545,7 +549,7 @@ void ClassDecl::declare(SymTable *st) {
     }
 }
 
-void UnionDecl::declare(SymTable *st) {
+void UnionDecl::declare(SymTable *st, ValueType *context) {
     // TODO: union declaration
 }
 

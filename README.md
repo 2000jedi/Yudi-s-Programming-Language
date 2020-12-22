@@ -9,7 +9,7 @@ This project is still under development and not all function modules defined in 
 - [x] Global Variables.
 - [x] Control-Flow definition including loops and functions.
 - [x] Basic `print` function for debugging.
-- [ ] Class definition. `TODO(yyang): debug`
+- [x] Class definition. `TODO(yyang): debug`
 - [ ] Union defintion (support for pattern-matching with tagged union).
 - [ ] Support for Standard Library.
 - [x] Rework `NameSpace`.
@@ -29,12 +29,7 @@ This project is still under development and not all function modules defined in 
 
 ## Installation
 
-The interpreter requires any form of a C++ compiler, including `gcc` and `llvm`. It has been tested under several OS.
-
-- [x] Arch Linux
-- [x] Mac OS (under development)
-- [x] Ubuntu
-- [ ] Windows (it will never be supported)
+The interpreter requires any form of a C++ compiler, including `gcc` and `llvm`. It has been tested under Linux and Mac OS.
 
 To compile the project
 

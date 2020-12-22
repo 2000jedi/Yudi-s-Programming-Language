@@ -48,19 +48,23 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     // class constructors
     st->addLayer();
     AST::Name constructor_name = AST::Name(new AST::Name(fn), "new");
-    auto constructor = st->lookup(constructor_name)->data.fd;
+    auto constructor = st->lookup(constructor_name)->data.fs;
 
     auto clty = new AST::TypeDecl(AST::t_class);
     clty->other = fn.str();
     auto fnst = new AST::SymTable();
     fnst->addLayer();
 
+    AST::ValueType *context = new AST::ValueType(fnst, clty);
+
+    st->insert(AST::Name("this"), context);
+
     auto cl = st->lookup(fn)->data.cd;
     for (auto stmt : cl->stmts) {
         switch (stmt->stmtType) {
             case AST::gs_var:
             case AST::gs_func: {
-                stmt->declare(fnst);
+                stmt->declare(fnst, context);
                 break;
             }
             default:
@@ -68,21 +72,19 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
         }
     }
 
-    st->insert(AST::Name("this"), new AST::ValueType(fnst, clty));
     for (unsigned int i = 0; i < call->pars.size(); ++i) {
         auto vt = call->pars[i]->interpret(st);
-        auto prm = constructor->pars[i];
+        auto prm = constructor->fd->pars[i];
         if (!vt->type.eq(prm->type)) {
             throw std::runtime_error("type mismatch for argument " + prm->name);
         }
         st->insert(AST::Name(prm->name), vt);
     }
 
-    constructor->interpret(st);
+    constructor->fd->interpret(st);
     auto ret = st->lookup(AST::Name("this"));
-    std::cout << "this: " << ret->type.other << "; end;\n";
-    throw std::runtime_error("debug");
     st->removeLayer();
+
     return ret;
 }
 

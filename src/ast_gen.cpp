@@ -18,19 +18,19 @@ using namespace AST;
 
 extern std::vector<std::string> *strings;
 
-BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
+BaseAST* build_ast(Node<Lexical> *curr) {
     if (curr->t.name == "<EPS>") {
       return nullptr;
     }
     if (curr->t.name == "<STATEMENTS>") {
         Program* prog = new AST::Program();
         auto ptr = std::unique_ptr<GlobalStatement>(
-            dynamic_cast<GlobalStatement*>(build_ast(&curr->child[0], nullptr)));
+            dynamic_cast<GlobalStatement*>(build_ast(&curr->child[0])));
         prog->insert(std::move(ptr));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
             ptr = std::unique_ptr<GlobalStatement>(
-                dynamic_cast<GlobalStatement*>(build_ast(&curr->child[0], nullptr)));
+                dynamic_cast<GlobalStatement*>(build_ast(&curr->child[0])));
             prog->insert(std::move(ptr));
         }
         return prog;
@@ -38,23 +38,23 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<CLASS_DOMAIN>") {
         ASTs *parent = new ASTs();
-        parent->insert(build_ast(&curr->child[0], ParentClass));
+        parent->insert(build_ast(&curr->child[0]));
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            parent->insert(build_ast(&curr->child[0], ParentClass));
+            parent->insert(build_ast(&curr->child[0]));
         }
         return parent;
     }
 
     if (curr->t.name == "<STATEMENT>") {
-        return build_ast(&curr->child[0], ParentClass);
+        return build_ast(&curr->child[0]);
     }
 
     if (curr->t.name == "<CONSTDEF>") {
         EvalExpr *init = dynamic_cast<EvalExpr *>(
-            build_ast(&curr->child[3], nullptr));
+            build_ast(&curr->child[3]));
         VarDecl* parent = new VarDecl(
-            curr->child[1].t.data, nullptr, init, ParentClass);
+            curr->child[1].t.data, nullptr, init);
         parent->is_const = true;
 
         return parent;
@@ -62,7 +62,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<GLOBAL_VARDEF>") {
         auto res = dynamic_cast<VarDecl *>(
-            build_ast(&curr->child[0], nullptr));
+            build_ast(&curr->child[0]));
         if (!res) {
             return nullptr;
         } else {
@@ -73,16 +73,16 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<VARDEF>") {
         TypeDecl *type = dynamic_cast<TypeDecl *>(
-            build_ast(&curr->child[3], nullptr));
+            build_ast(&curr->child[3]));
         Expr *init = dynamic_cast<Expr *>(
-            build_ast(&curr->child[4], nullptr));
+            build_ast(&curr->child[4]));
         if (!init) {
             return new VarDecl(
-                curr->child[1].t.data, type, nullptr, ParentClass);
+                curr->child[1].t.data, type, nullptr);
         } else {
             return new VarDecl(
                 curr->child[1].t.data, type,
-                dynamic_cast<EvalExpr *>(init), ParentClass);
+                dynamic_cast<EvalExpr *>(init));
         }
     }
 
@@ -105,22 +105,22 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return new Expr();  // empty statement
         } else {
-            return build_ast(&curr->child[1], nullptr);
+            return build_ast(&curr->child[1]);
         }
     }
 
     if (curr->t.name == "<FUNCDEF>") {
         GenericDecl *gen = dynamic_cast<GenericDecl *>(
-            build_ast(&curr->child[2], nullptr));
+            build_ast(&curr->child[2]));
         TypeDecl *ret = dynamic_cast<TypeDecl *>(
-            build_ast(&curr->child[6], nullptr));
+            build_ast(&curr->child[6]));
         FuncDecl *parent = new FuncDecl(
-            curr->child[1].t.data, gen, ret, ParentClass);
+            curr->child[1].t.data, gen, ret);
 
         ASTs *params = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[4], nullptr));
+            build_ast(&curr->child[4]));
         ASTs *exprs  = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[8], nullptr));
+            build_ast(&curr->child[8]));
 
         for (auto p : params->stmts) {
             parent->pars.push_back(dynamic_cast<Param *>(p));
@@ -145,7 +145,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return new ASTs();
         } else {
-            return build_ast(&curr->child[1], nullptr);
+            return build_ast(&curr->child[1]);
         }
     }
 
@@ -155,10 +155,10 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
           return params;
         }
 
-        params->stmts.push_back(build_ast(&curr->child[0], nullptr));
+        params->stmts.push_back(build_ast(&curr->child[0]));
         curr = &curr->child[1];
         while (curr->child[0].t.name != "<EPS>") {
-            params->stmts.push_back(build_ast(&curr->child[1], nullptr));
+            params->stmts.push_back(build_ast(&curr->child[1]));
             curr = &curr->child[2];
         }
         return params;
@@ -166,7 +166,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<PARAM>") {
         TypeDecl *type = dynamic_cast<TypeDecl *>(
-            build_ast(&curr->child[2], nullptr));
+            build_ast(&curr->child[2]));
         Param *param = new Param(curr->child[0].t.data, type);
         return param;
     }
@@ -175,13 +175,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return new TypeDecl(t_void, "0");
         } else {
-            return build_ast(&curr->child[1], nullptr);
+            return build_ast(&curr->child[1]);
         }
     }
 
     if (curr->t.name == "<UNIONDEF>") {  // TODO: modified
         ASTs *options = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[3], nullptr));
+            build_ast(&curr->child[3]));
         UnionDecl *parent = new UnionDecl(curr->child[1].t.data, options);
 
         return parent;
@@ -192,7 +192,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
         while (curr->child[0].t.name != "<EPS>") {
             ClassDecl *cd = dynamic_cast<ClassDecl *>(
-                build_ast(&curr->child[0], nullptr));
+                build_ast(&curr->child[0]));
             classes->stmts.push_back(cd);
             curr = &curr->child[1];
         }
@@ -218,10 +218,10 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<CLASSDEF>") {
         GenericDecl *g = dynamic_cast<GenericDecl *>(
-            build_ast(&curr->child[2], nullptr));
+            build_ast(&curr->child[2]));
         ClassDecl *parent = new ClassDecl(curr->child[1].t.data, g);
         ASTs *exprs = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[4], parent));
+            build_ast(&curr->child[4]));
 
         for (auto p : exprs->stmts) {
             parent->stmts.push_back(dynamic_cast<GlobalStatement *>(p));
@@ -232,12 +232,12 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<EXPRS>") {
         ASTs *exprs = new ASTs();
-        BaseAST *expr = build_ast(&curr->child[0], nullptr);
+        BaseAST *expr = build_ast(&curr->child[0]);
         if (expr)
             exprs->stmts.push_back(expr);
         while (curr->child.size() > 1) {
             curr = &curr->child[1];
-            expr = build_ast(&curr->child[0], nullptr);
+            expr = build_ast(&curr->child[0]);
             if (expr)
                 exprs->stmts.push_back(expr);
         }
@@ -245,24 +245,24 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<EXPR>")
-        return build_ast(&curr->child[0], nullptr);
+        return build_ast(&curr->child[0]);
 
     if (curr->t.name == "<EMPTY_EXPR>")
         return new Expr();
 
     if (curr->t.name == "<RET_EXPR>") {
         return new RetExpr(dynamic_cast<EvalExpr *>(
-            build_ast(&curr->child[1], nullptr)));
+            build_ast(&curr->child[1])));
     }
 
     if (curr->t.name == "<IF_EXPR>") {
         IfExpr *parent = new IfExpr(dynamic_cast<EvalExpr *>(
-            build_ast(&curr->child[2], nullptr)));
+            build_ast(&curr->child[2])));
 
         ASTs *iftrue = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[5], nullptr));
+            build_ast(&curr->child[5]));
         ASTs *iffalse = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[7], nullptr));
+            build_ast(&curr->child[7]));
 
         for (auto p : iftrue->stmts) {
             parent->iftrue.push_back(dynamic_cast<Expr *>(p));
@@ -279,15 +279,15 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return new ASTs();
         } else {
-            return build_ast(&curr->child[2], nullptr);
+            return build_ast(&curr->child[2]);
         }
     }
 
     if (curr->t.name == "<WHILE_EXPR>") {
         WhileExpr *parent = new WhileExpr(dynamic_cast<EvalExpr *>(
-            build_ast(&curr->child[2], nullptr)));
+            build_ast(&curr->child[2])));
         ASTs *exprs = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[5], nullptr));
+            build_ast(&curr->child[5]));
 
         for (auto p : exprs->stmts) {
             parent->exprs.push_back(dynamic_cast<Expr *>(p));
@@ -297,12 +297,12 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<FOR_EXPR>") {
         ForExpr *parent = new ForExpr(
-            dynamic_cast<EvalExpr *>(build_ast(&curr->child[2], nullptr)),
-            dynamic_cast<EvalExpr *>(build_ast(&curr->child[4], nullptr)),
-            dynamic_cast<EvalExpr *>(build_ast(&curr->child[6], nullptr)));
+            dynamic_cast<EvalExpr *>(build_ast(&curr->child[2])),
+            dynamic_cast<EvalExpr *>(build_ast(&curr->child[4])),
+            dynamic_cast<EvalExpr *>(build_ast(&curr->child[6])));
 
         ASTs *exprs = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[9], nullptr));
+            build_ast(&curr->child[9]));
         for (auto p : exprs->stmts) {
             parent->exprs.push_back(dynamic_cast<Expr *>(p));
         }
@@ -312,10 +312,10 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
 
     if (curr->t.name == "<MATCH_EXPR>") {
         MatchExpr *match = new MatchExpr(dynamic_cast<EvalExpr *>(
-            build_ast(&curr->child[2], nullptr)));
+            build_ast(&curr->child[2])));
 
         ASTs *exprs = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[5], nullptr));
+            build_ast(&curr->child[5]));
         for (auto p : exprs->stmts) {
             match->lines.push_back(dynamic_cast<MatchLine *>(p));
         }
@@ -328,9 +328,9 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         while (curr->child.size() > 1) {
             MatchLine *line = new MatchLine(curr->child[0].t.data);
             ASTs *pars = dynamic_cast<ASTs *>(
-                build_ast(&curr->child[1], nullptr));
+                build_ast(&curr->child[1]));
             ASTs *expr = dynamic_cast<ASTs *>(
-                build_ast(&curr->child[4], nullptr));
+                build_ast(&curr->child[4]));
 
             for (auto p : pars->stmts) {
                 line->pars.push_back(dynamic_cast<Param *>(p));
@@ -346,13 +346,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<EVAL_EXPR>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -367,8 +367,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            BaseAST *opr1 = build_ast(&curr->child[1], nullptr);
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+            BaseAST *opr1 = build_ast(&curr->child[1]);
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return opr1;
             } else {
@@ -381,13 +381,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<LOGICAL_OR>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -402,8 +402,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            BaseAST *opr1 = build_ast(&curr->child[1], nullptr);
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+            BaseAST *opr1 = build_ast(&curr->child[1]);
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return opr1;
             } else {
@@ -416,13 +416,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<LOGICAL_AND>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -437,8 +437,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            BaseAST *opr1 = build_ast(&curr->child[1], nullptr);
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+            BaseAST *opr1 = build_ast(&curr->child[1]);
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return opr1;
             } else {
@@ -451,13 +451,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<BITWISE_OR>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -472,8 +472,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            BaseAST *opr1 = build_ast(&curr->child[1], nullptr);
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+            BaseAST *opr1 = build_ast(&curr->child[1]);
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return opr1;
             } else {
@@ -486,13 +486,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<BITWISE_XOR>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -507,8 +507,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            BaseAST *opr1 = build_ast(&curr->child[1], nullptr);
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+            BaseAST *opr1 = build_ast(&curr->child[1]);
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return opr1;
             } else {
@@ -521,13 +521,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     }
 
     if (curr->t.name == "<BITWISE_AND>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -542,8 +542,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            BaseAST *opr1 = build_ast(&curr->child[1], nullptr);
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+            BaseAST *opr1 = build_ast(&curr->child[1]);
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return opr1;
             } else {
@@ -559,13 +559,13 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         curr->t.name == "<LGTE>" ||
         curr->t.name == "<ADD_SUB>" ||
         curr->t.name == "<MUL_DIV>") {
-        BaseAST *opr1 = build_ast(&curr->child[0], nullptr);
+        BaseAST *opr1 = build_ast(&curr->child[0]);
         if (!opr1) {
             std::cerr << "ast.cpp: missing left operation, terminating"
                 << std::endl;
             exit(-1);
         }
-        BaseAST *opr2 = build_ast(&curr->child[1], nullptr);
+        BaseAST *opr2 = build_ast(&curr->child[1]);
         if (!opr2) {
             return opr1;
         } else {
@@ -585,8 +585,8 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
             return nullptr;
         } else {
             EvalExpr *opr1 = dynamic_cast<EvalExpr *>(
-                build_ast(&curr->child[1], nullptr));
-            BaseAST *opr2 = build_ast(&curr->child[2], nullptr);
+                build_ast(&curr->child[1]));
+            BaseAST *opr2 = build_ast(&curr->child[2]);
             if (!opr2) {
                 return new EvalExpr(
                     curr->child[0].t.name,
@@ -610,14 +610,14 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     if (curr->t.name == "<PARS>") {
         if (curr->child[0].t.name == "NAME") {
             FuncCall *fc = dynamic_cast<FuncCall *>(
-                build_ast(&curr->child[1], nullptr));
+                build_ast(&curr->child[1]));
             EvalExpr *arr = dynamic_cast<EvalExpr *>(
-                build_ast(&curr->child[2], nullptr));
+                build_ast(&curr->child[2]));
             return new EvalExpr(new ExprVal(
                 Name(curr->child[0].t.data), fc, arr));
         }
         if (curr->child[0].t.name == "LPAR") {
-            return build_ast(&curr->child[1], nullptr);
+            return build_ast(&curr->child[1]);
         }
 
         if (curr->child[0].t.name == "FLOAT")
@@ -636,9 +636,9 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         }
         if (curr->child[0].t.name == "<NAMESPACE>") {
             FuncCall *fc = dynamic_cast<FuncCall *>(
-                build_ast(&curr->child[1], nullptr));
+                build_ast(&curr->child[1]));
             EvalExpr *arr = dynamic_cast<EvalExpr *>(
-                build_ast(&curr->child[2], nullptr));
+                build_ast(&curr->child[2]));
 
             Name *name;
             if (curr->child[0].child[1].child[0].t.name == "<EPS>") {
@@ -656,7 +656,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            return build_ast(&curr->child[0], nullptr);
+            return build_ast(&curr->child[0]);
         }
     }
 
@@ -668,7 +668,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         FuncCall *fc = new FuncCall();
         while (curr->child.size() > 1) {
             EvalExpr *expr = dynamic_cast<EvalExpr *>(
-                build_ast(&curr->child[1], nullptr));
+                build_ast(&curr->child[1]));
             if (expr != nullptr)
                 fc->pars.push_back(expr);
             curr = &curr->child[2];
@@ -680,7 +680,7 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
         if (curr->child[0].t.name == "<EPS>") {
             return nullptr;
         } else {
-            return build_ast(&curr->child[1], nullptr);
+            return build_ast(&curr->child[1]);
         }
     }
 
@@ -688,6 +688,6 @@ BaseAST* build_ast(Node<Lexical> *curr, ClassDecl *ParentClass) {
     return nullptr;
 }
 
-Program AST::build_ast(Node<Lexical> *root) {
-    return {std::move(*dynamic_cast<Program *>(build_ast(root, nullptr)))};
+Program AST::build(Node<Lexical> *root) {
+    return {std::move(*dynamic_cast<Program *>(build_ast(root)))};
 }

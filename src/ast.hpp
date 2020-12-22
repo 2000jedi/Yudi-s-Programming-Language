@@ -29,6 +29,7 @@ class Name;
 class TypeDecl;
 class FuncDecl;
 class ClassDecl;
+class UnionDecl;
 class ExprVal;
 class SymTable {
  private:
@@ -187,6 +188,14 @@ static TypeDecl FuncType = TypeDecl(t_fn);
 static TypeDecl ClassType = TypeDecl(t_class);
 static TypeDecl StrType = TypeDecl(t_str);
 
+class FuncStore {
+ public:
+    FuncDecl *fd;
+    ValueType *context;
+
+    FuncStore(FuncDecl *a, ValueType *b) : fd(a), context(b) {}
+};
+
 class ValueType {
  public:
     union {
@@ -198,7 +207,8 @@ class ValueType {
         bool one_bit;
         ValueType *vt;
         SymTable *st;
-        FuncDecl* fd;
+        FuncStore* fs;
+        UnionDecl* ud;
         ClassDecl* cd;
         std::string* str;
         // void *ptr;
@@ -211,7 +221,7 @@ class ValueType {
         data.ival = 0;
     }
 
-    explicit ValueType(SymTable *v, bool c = false) : type(ClassType), isConst(c) {
+    ValueType(SymTable *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
         data.st = v;
     }
 
@@ -219,8 +229,8 @@ class ValueType {
         data.vt = v;
     }
 
-    explicit ValueType(FuncDecl *v, bool c = false) : type(FuncType), isConst(c) {
-        data.fd = v;
+    explicit ValueType(FuncStore *v, bool c = false) : type(FuncType), isConst(c) {
+        data.fs = v;
     }
 
     explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), isConst(c) {
@@ -256,7 +266,7 @@ class ValueType {
     void Free(void);
 };
 
-static ValueType None = ValueType(nullptr, &VoidType, true);
+static ValueType None = ValueType();
 
 // Abstract Syntax Tree
 class ASTs;
@@ -303,7 +313,7 @@ class GlobalStatement : virtual public BaseAST  {
         std::cout << "NOT COMPLETED" << std::endl;
     }
     virtual ValueType *interpret(SymTable *st) = 0;
-    virtual void declare(SymTable *st) = 0;
+    virtual void declare(SymTable *st, ValueType *context) = 0;
 };
 
 enum exprTypes {
@@ -451,7 +461,7 @@ class ClassDecl : public GlobalStatement {
         throw std::runtime_error("ClassDecl cannot be evaluated");
     }
 
-    virtual void declare(SymTable *st);
+    virtual void declare(SymTable *st, ValueType *context);
 };
 
 class VarDecl : public GlobalStatement, public Expr {
@@ -462,20 +472,15 @@ class VarDecl : public GlobalStatement, public Expr {
     bool is_global = false;
     bool is_const = false;
 
-    VarDecl(std::string n, TypeDecl* t, EvalExpr* i, ClassDecl *cl) :
-        type(t), init(i) {
+    VarDecl(std::string n, TypeDecl* t, EvalExpr* i) :
+        name(Name(n)), type(t), init(i) {
         this->stmtType = gs_var;
         this->exprType = e_var;
-
-        if (cl)
-            this->name = Name(& (cl->name), n);
-        else
-            this->name = Name(n);
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
-    virtual void declare(SymTable *st) {
+    virtual void declare(SymTable *st, ValueType *context) {
         this->interpret(st);
     }
 };
@@ -488,14 +493,9 @@ class FuncDecl : public GlobalStatement {
     TypeDecl *ret;
     std::vector<Expr*> exprs;
 
-    FuncDecl(std::string n, GenericDecl* g, TypeDecl* r, ClassDecl* cl) :
-        genType(g), ret(r) {
+    FuncDecl(std::string n, GenericDecl* g, TypeDecl* r) :
+        name(Name(n)), genType(g), ret(r) {
         this->stmtType = gs_func;
-
-        if (cl)
-            this->name = Name(& (cl->name), n);
-        else
-            this->name = Name(n);
 
         pars.clear();
         exprs.clear();
@@ -503,7 +503,7 @@ class FuncDecl : public GlobalStatement {
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
-    virtual void declare(SymTable *st);
+    virtual void declare(SymTable *st, ValueType *context);
 };
 
 class UnionDecl : public GlobalStatement {
@@ -523,7 +523,7 @@ class UnionDecl : public GlobalStatement {
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("UnionDecl cannot be interpreted");
     }
-    virtual void declare(SymTable *st);
+    virtual void declare(SymTable *st, ValueType *context);
 };
 
 class IfExpr : public Expr {
@@ -604,5 +604,5 @@ class MatchExpr : public Expr {
 };
 
 extern int interpret(Program prog);
-extern Program build_ast(Node<Lexical> *root);
+extern Program build(Node<Lexical> *root);
 }  // namespace AST
