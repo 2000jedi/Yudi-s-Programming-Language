@@ -190,7 +190,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     auto constructor = st->lookup(constructor_name)->data.fs;
 
     auto clty = new AST::TypeDecl(AST::t_class);
-    clty->other = fn.str();
+    clty->other = fn;
     auto fnst = new AST::SymTable();
     fnst->addLayer();
 

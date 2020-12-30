@@ -24,6 +24,23 @@
 #define DEBUG
 
 namespace AST {
+// Abstract Syntax Tree
+class ASTs;
+class UnionDecl;
+class EvalExpr;
+class Expr;
+class ForExpr;
+class FuncCall;
+class GenericDecl;
+class GlobalStatement;
+class IfExpr;
+class MatchExpr;
+class MatchLine;
+class Param;
+class Program;
+class RetExpr;
+class WhileExpr;
+class VarDecl;
 class ValueType;
 class Name;
 class TypeDecl;
@@ -259,24 +276,6 @@ class ValueType {
 };
 
 static ValueType None = ValueType();
-
-// Abstract Syntax Tree
-class ASTs;
-class UnionDecl;
-class EvalExpr;
-class Expr;
-class ForExpr;
-class FuncCall;
-class GenericDecl;
-class GlobalStatement;
-class IfExpr;
-class MatchExpr;
-class MatchLine;
-class Param;
-class Program;
-class RetExpr;
-class WhileExpr;
-class VarDecl;
 
 class ASTs : public BaseAST  {
  public:
