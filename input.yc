@@ -1,14 +1,8 @@
-union Optional {
+union Optional <T> {
     class None {}
     class Some {
-        var first : int32;
-        var second : char;
+        var val : T;
     }
-}
-
-class Pair <K,V> {
-    var first : K;
-    var second : V;
 }
 
 class Bag {
@@ -27,6 +21,7 @@ class Bag {
 }
 
 function main() {
+    var bag_opt : Optional<Bag>;
     var bag : Bag = Bag(1, 2.0);
     var bag2 : Bag = bag;
     bag.add();

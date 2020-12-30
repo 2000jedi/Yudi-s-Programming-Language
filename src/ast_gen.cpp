@@ -141,14 +141,6 @@ BaseAST* build_ast(Node<Lexical> *curr) {
         }
     }
 
-    if (curr->t.name == "<OPTIONAL_PARAMS_DEF>") {
-        if (curr->child[0].t.name == "<EPS>") {
-            return new ASTs();
-        } else {
-            return build_ast(&curr->child[1]);
-        }
-    }
-
     if (curr->t.name == "<PARAMS_DEF>") {
         ASTs *params = new ASTs();
         if (curr->child[0].t.name == "<EPS>") {
@@ -180,9 +172,11 @@ BaseAST* build_ast(Node<Lexical> *curr) {
     }
 
     if (curr->t.name == "<UNIONDEF>") {  // TODO: modified
+        GenericDecl *gen = dynamic_cast<GenericDecl *>(
+            build_ast(&curr->child[2]));
         ASTs *options = dynamic_cast<ASTs *>(
-            build_ast(&curr->child[3]));
-        UnionDecl *parent = new UnionDecl(curr->child[1].t.data, options);
+            build_ast(&curr->child[4]));
+        UnionDecl *parent = new UnionDecl(curr->child[1].t.data, gen, options);
 
         return parent;
     }

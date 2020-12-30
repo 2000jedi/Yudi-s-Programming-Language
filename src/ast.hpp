@@ -108,11 +108,12 @@ class TypeDecl : public BaseAST  {
     Types baseType;
 
     int arrayT;
-    std::string other;
+    Name other;
+    GenericDecl *gen;
 
     inline bool eq(TypeDecl *other) {
         if (this->baseType == t_class) {
-            return (this->baseType == other->baseType) && (this->other == other->other);
+            return (this->baseType == other->baseType) && (this->other.str() == other->other.str());
         }
         return (this->baseType == other->baseType) &&
                 (this->arrayT == other->arrayT);
@@ -121,6 +122,10 @@ class TypeDecl : public BaseAST  {
     explicit TypeDecl(Types t, int i = 0) : baseType(t), arrayT(i) {}
 
     TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)) {}
+
+    TypeDecl(Name t, int i) : arrayT(i), other(t) {
+        this->baseType = t_class;
+    }
 
     TypeDecl(std::string t, int i) : arrayT(i) {
         if (t == "VOIDT") {
@@ -153,22 +158,10 @@ class TypeDecl : public BaseAST  {
         }
 
         this->baseType = t_class;
-        this->other = t;
+        this->other = Name(t);
     }
 
     TypeDecl(std::string t, std::string i) : TypeDecl(t, std::stoi(i)) {}
-
-    int size(void) {
-        switch (this->baseType) {
-            case t_int32: return 4;
-            case t_uint8: return 1;
-            case t_char:  return 1;
-            case t_bool:  return 1;
-            case t_fp32:  return 4;
-            case t_fp64:  return 8;
-            default:      throw std::runtime_error("size of unsupported type");
-        }
-    }
 
     ValueType *newVal(void);
 
@@ -509,9 +502,15 @@ class UnionDecl : public GlobalStatement {
  public:
     Name name;
     std::vector<ClassDecl *> classes;
+    GenericDecl gen;
 
-    explicit UnionDecl(std::string n, ASTs *cls = nullptr) : name(Name(n)) {
+    explicit UnionDecl(std::string n, GenericDecl *gen, ASTs *cls = nullptr) : name(Name(n)) {
+        if (gen == nullptr) {
+            LogError("generic_decl is empty");
+        }
         this->stmtType = gs_union;
+        this->gen = *gen;
+        delete gen;
 
         for (auto p : cls->stmts) {
             classes.push_back(dynamic_cast<ClassDecl *>(p));

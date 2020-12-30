@@ -11,3 +11,6 @@ auto: src/main.cpp $(OBJS)
 clean:
 	${RM} ${TARGET} ${OBJS}
 	-rm -r *.dSYM
+
+test: auto
+	./auto sample/factorial.yc
