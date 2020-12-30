@@ -14,3 +14,4 @@ clean:
 
 test: auto
 	./auto sample/factorial.yc
+	./auto sample/cast.yc

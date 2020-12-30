@@ -375,7 +375,7 @@ ValueType *ConstEval(ExprVal *e) {
             return new ValueType(std::stoi(e->constVal));
         }
         case t_char: {
-            return new ValueType((char)std::stoi(e->constVal));
+            return new ValueType(e->constVal[1]);
         }
         case t_fp32: {
             return new ValueType(std::stof(e->constVal));

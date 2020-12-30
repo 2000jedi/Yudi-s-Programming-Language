@@ -180,9 +180,16 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
         runtime_print(call, st);
         return & AST::None;
     }
-    if (fn.str() == "char") {
+    if (fn.str() == "to_char")
         return runtime_typeconv(AST::t_char, call, st);
-    }
+    if (fn.str() == "to_uint8")
+        return runtime_typeconv(AST::t_uint8, call, st);
+    if (fn.str() == "to_int32")
+        return runtime_typeconv(AST::t_int32, call, st);
+    if (fn.str() == "to_fp32")
+        return runtime_typeconv(AST::t_fp32, call, st);
+    if (fn.str() == "to_fp64")
+        return runtime_typeconv(AST::t_fp64, call, st);
 
     // class constructors
     st->addLayer();
@@ -229,8 +236,9 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
 void runtime_bind(AST::SymTable *st) {
     st->insert(AST::Name("print"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("char"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("int32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("fp32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("fp64"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("to_char"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("to_uint8"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("to_int32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("to_fp32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("to_fp64"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
 }

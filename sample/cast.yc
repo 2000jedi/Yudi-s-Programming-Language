@@ -1,0 +1,9 @@
+function main() {
+    var i : int32;
+    i = to_int32(2.0);
+    print("i =", i);
+    var f : fp64 = to_fp64(2.0);
+    print("f =", f);
+    const c = to_char(i + to_int32('0'));
+    print("c =", c);
+}
