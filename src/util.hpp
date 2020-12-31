@@ -18,15 +18,16 @@ class InterpreterException : public std::exception {
     std::string message;
     AST::BaseAST ast;
  public:
-    InterpreterException(const std::string &msg, AST::BaseAST info) :
+    InterpreterException(std::string msg, AST::BaseAST info) :
         message(msg), ast(info) {}
     virtual ~InterpreterException() throw() {}
 
     virtual const char* what() const throw() {
-        std::ostringstream ss;
+        std::stringstream ss;
         ss << "At line (" << ast.row << ',' << ast.col << "): " << ast.line << std::endl;
         ss << '\t' << message << std::endl;
-        return ss.str().c_str();
+        std::cout << ss.str();
+        return "";
     }
 
     /** Returns error number.

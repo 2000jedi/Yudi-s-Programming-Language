@@ -115,7 +115,25 @@ class BaseAST {
         std::cout << "BaseAST()" << std::endl;
     }
 
-    virtual ValueType *interpret(SymTable *st) {}
+    virtual ValueType *interpret(SymTable *st) {
+        LogError("BaseAST cannot be interpreted");
+        return nullptr;
+    }
+};
+
+class GenericDecl : public BaseAST  {
+ public:
+    bool valid;
+    std::string name;
+
+    GenericDecl() : valid(false) {}
+
+    explicit GenericDecl(std::string n) : valid(true), name(n) {}
+
+    void print(int);
+    virtual ValueType *interpret(SymTable *st) {
+        throw std::runtime_error("GenericDecl cannot be interpreted");
+    }
 };
 
 enum Types {
@@ -129,7 +147,7 @@ class TypeDecl : public BaseAST  {
 
     int arrayT;
     Name other;
-    GenericDecl *gen;
+    GenericDecl gen;
 
     inline bool eq(TypeDecl *other) {
         if (this->baseType == t_class) {
@@ -139,49 +157,68 @@ class TypeDecl : public BaseAST  {
                 (this->arrayT == other->arrayT);
     }
 
-    explicit TypeDecl(Types t, int i = 0) : baseType(t), arrayT(i) {}
+    explicit TypeDecl(Types t, int i = 0) : baseType(t), arrayT(i), gen(GenericDecl()) {}
 
-    TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)) {}
+    TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)), gen(GenericDecl()) {}
 
-    TypeDecl(Name t, int i) : arrayT(i), other(t) {
+    TypeDecl(Name t, int i) : arrayT(i), other(t), gen(GenericDecl()) {
         this->baseType = t_class;
     }
 
-    TypeDecl(std::string t, int i) : arrayT(i) {
+    TypeDecl(std::string t, GenericDecl *generic, int i) : arrayT(i), gen(*generic) {
         if (t == "VOIDT") {
             this->baseType = t_void;
+            if (gen.valid) {
+                throw std::runtime_error("void has no generic");
+            }
             return;
         }
         if (t == "INT32") {
             this->baseType = t_int32;
+            if (gen.valid) {
+                throw std::runtime_error("int32 has no generic");
+            }
             return;
         }
         if (t == "UINT8") {
             this->baseType = t_uint8;
+            if (gen.valid) {
+                throw std::runtime_error("uint8 has no generic");
+            }
             return;
         }
         if (t == "FP32") {
             this->baseType = t_fp32;
+            if (gen.valid) {
+                throw std::runtime_error("fp32 has no generic");
+            }
             return;
         }
         if (t == "FP64") {
             this->baseType = t_fp64;
+            if (gen.valid) {
+                throw std::runtime_error("fp64 has no generic");
+            }
             return;
         }
         if (t == "CHART") {
             this->baseType = t_char;
+            if (gen.valid) {
+                throw std::runtime_error("char type has no generic");
+            }
             return;
         }
         if (t == "STR") {
             this->baseType = t_str;
+            if (gen.valid) {
+                throw std::runtime_error("str type has no generic");
+            }
             return;
         }
 
         this->baseType = t_class;
         this->other = Name(t);
     }
-
-    TypeDecl(std::string t, std::string i) : TypeDecl(t, std::stoi(i)) {}
 
     ValueType *newVal(void);
 
@@ -272,8 +309,6 @@ class ValueType {
     explicit ValueType(double b, bool c = true) : type(DoubleType), isConst(c) {
         data.dval = b;
     }
-
-    void assign(ValueType *r);
 
     void Free(void);
 };
@@ -396,21 +431,6 @@ class ExprVal : public BaseAST {
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
-};
-
-class GenericDecl : public BaseAST  {
- public:
-    bool valid;
-    std::string name;
-
-    GenericDecl() : valid(false) {}
-
-    explicit GenericDecl(std::string n) : valid(true), name(n) {}
-
-    void print(int);
-    virtual ValueType *interpret(SymTable *st) {
-        throw std::runtime_error("GenericDecl cannot be interpreted");
-    }
 };
 
 class Param : public BaseAST  {
@@ -577,11 +597,10 @@ class ForExpr : public Expr {
 class MatchLine : public BaseAST  {
  public:
     std::string name;
-    std::vector<Param*> pars;
+    std::string cl_name;
     std::vector<Expr*> exprs;
 
-    explicit MatchLine(std::string n) : name(n) {
-        this->pars.clear();
+    explicit MatchLine(std::string n, std::string cl) : name(n), cl_name(cl) {
         this->exprs.clear();
     }
 

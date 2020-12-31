@@ -42,6 +42,7 @@ void TypeDecl::print(int indent) {
         std::cout << "  ";
     std::cout << "TypeDecl(" << this->baseType << ','
         << this->arrayT << ')' << std::endl;
+    this->gen.print(indent + 1);
 }
 
 void EvalExpr::print(int indent) {
@@ -235,17 +236,7 @@ void ForExpr::print(int indent) {
 void MatchLine::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
-    std::cout << "MatchExpr(" << this->name << ")" << std::endl;
-
-    for (int i = 0; i < indent + 1; ++i)
-            std::cout << "  ";
-        std::cout << "Params(" << std::endl;
-    for (auto p : this->pars) {
-        p->print(indent + 2);
-    }
-    for (int i = 0; i < indent + 1; ++i)
-            std::cout << "  ";
-    std::cout << ")" << std::endl;
+    std::cout << "MatchExpr(" << this->name << ": " << this->cl_name << ")" << std::endl;
 
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
@@ -410,7 +401,7 @@ ValueType *TypeDecl::newVal(void) {
             case t_fp64:
                 return new ValueType(0.0, false);
             default:
-                throw InterpreterException("cannot initialize this type", *this);
+                return &None;
         }
     } else {
         ValueType* arr = new ValueType[this->arrayT];
@@ -472,7 +463,7 @@ INTERPRET(VarDecl) {
                     "type mismatch for \"" + this->name.str() + '\"', *this);
             }
         } else {
-            t = this->type->newVal();  // TODO: construct arrays & new ValueTypes
+            t = this->type->newVal();
         }
     }
     if (this->is_const) {

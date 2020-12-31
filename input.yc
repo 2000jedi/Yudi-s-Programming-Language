@@ -5,6 +5,13 @@ union Optional <T> {
     }
 }
 
+class Temp <T> {
+    var v : T;
+    function new(v : T) {
+        this.v = v;
+    }
+}
+
 class Bag {
     var ival : int32;
     var fval : fp32;
@@ -21,7 +28,13 @@ class Bag {
 }
 
 function main() {
-    var bag_opt : Optional<Bag>;
+    var bag_opt : Optional<Bag> = Optional.Some(Bag(0, 0));
+    match (bag_opt) {
+        None {}
+        Some(b) {
+            print(b.ival, b.fval);
+        }
+    }
     var bag : Bag = Bag(1, 2.0);
     var bag2 : Bag = bag;
     bag.add();

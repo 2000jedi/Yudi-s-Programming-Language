@@ -94,10 +94,12 @@ BaseAST* build_ast(Node<Lexical> *curr) {
             name = curr->child[0].t.name;
         }
 
-        if (curr->child[1].child[0].t.name == "<EPS>") {
-            return new TypeDecl(name, "0");
+        GenericDecl *gen = dynamic_cast<GenericDecl *>(build_ast(& curr->child[1]));
+
+        if (curr->child[2].child[0].t.name == "<EPS>") {
+            return new TypeDecl(name, gen, 0);
         } else {
-            return new TypeDecl(name, curr->child[1].child[1].t.data);
+            return new TypeDecl(name, gen, std::stoi(curr->child[2].child[1].t.data));
         }
     }
 
@@ -191,23 +193,6 @@ BaseAST* build_ast(Node<Lexical> *curr) {
             curr = &curr->child[1];
         }
         return classes;
-    }
-
-    if (curr->t.name == "<MATCH_OPTION>") {
-        ASTs *options = new ASTs();
-        if (curr->child[0].t.name == "<EPS>") {
-            return options;
-        }
-        curr = &curr->child[1];
-        options->insert(new Param(curr->child[0].t.data, nullptr));
-
-        curr = &curr->child[1];
-        while (curr->child[0].t.name != "<EPS>") {
-            options->insert(new Param(curr->child[1].t.data, nullptr));
-            curr = &curr->child[2];
-        }
-
-        return options;
     }
 
     if (curr->t.name == "<CLASSDEF>") {
@@ -320,20 +305,20 @@ BaseAST* build_ast(Node<Lexical> *curr) {
     if (curr->t.name == "<MATCH_LINES>") {
         ASTs *exprs = new ASTs();
         while (curr->child.size() > 1) {
-            MatchLine *line = new MatchLine(curr->child[0].t.data);
-            ASTs *pars = dynamic_cast<ASTs *>(
-                build_ast(&curr->child[1]));
-            ASTs *expr = dynamic_cast<ASTs *>(
-                build_ast(&curr->child[4]));
-
-            for (auto p : pars->stmts) {
-                line->pars.push_back(dynamic_cast<Param *>(p));
+            MatchLine *line;
+            if (curr->child[1].child[0].t.name == "<EPS>") {
+                line = new MatchLine(curr->child[0].t.data, "");
+            } else {
+                line = new MatchLine(curr->child[0].t.data, curr->child[1].child[1].t.data);
             }
+            ASTs *expr = dynamic_cast<ASTs *>(
+                build_ast(&curr->child[3]));
+
             for (auto p : expr->stmts) {
                 line->exprs.push_back(dynamic_cast<Expr *>(p));
             }
 
-            curr = &curr->child[6];
+            curr = &curr->child[5];
             exprs->insert(line);
         }
         return exprs;
