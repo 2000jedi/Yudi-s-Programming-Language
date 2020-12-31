@@ -300,15 +300,15 @@ void SymTable::insert(Name name, ValueType *vt) {
     d.back()[name] = vt;
 }
 
-ValueType* SymTable::lookup(Name name) {
+ValueType* SymTable::lookup(Name name, BaseAST* ast) {
     if (name.ClassName.size() > 0) {
-        auto owner = this->lookup(name.owner());
+        auto owner = this->lookup(name.owner(), ast);
         if (!((owner->type.baseType) == t_rtfn && (name.BaseName == "new"))) {
             if (owner->type.baseType != t_class) {
-                throw std::runtime_error(name.owner().str() + " is not a compound type");
+                throw InterpreterException(name.owner().str() + " is not a compound type", *ast);
             }
             auto clst = owner->data.st;
-            return clst->lookup(Name(name.BaseName));
+            return clst->lookup(Name(name.BaseName), ast);
         }
     }
 
@@ -317,29 +317,29 @@ ValueType* SymTable::lookup(Name name) {
             return d[i][name];
         }
     }
-    throw std::runtime_error("variable " + name.str() + " is not declared");
+    throw InterpreterException("variable " + name.str() + " is not declared", *ast);
 }
 
 ValueType* SymTable::lookup(ExprVal *name) {
     if (name->call != nullptr)
-        throw std::runtime_error("cannot lookup a function call");
+        throw InterpreterException("cannot lookup a function call", *name);
 
     if (name->array != nullptr) {
-        auto arr = this->lookup(name->refName);
+        auto arr = this->lookup(name->refName, name);
         auto arr_index_vt = name->array->interpret(this);
         if (!arr_index_vt->type.eq(& IntType)) {
-            throw std::runtime_error("array index must be an int");
+            throw InterpreterException("array index must be an int", *name);
         }
         int  arr_index = arr_index_vt->data.ival;
 
         if (arr->type.arrayT <= arr_index) {
-            throw std::runtime_error("array index out of bound");
+            throw InterpreterException("array index out of bound", *name);
         }
 
         auto vts = arr->data.vt;
         return &(vts[arr_index]);
     } else {
-        return this->lookup(name->refName);
+        return this->lookup(name->refName, name);
     }
 }
 
@@ -369,7 +369,7 @@ void ValueType::Free(void) {
 ValueType *ConstEval(ExprVal *e) {
     switch (e->type->baseType) {
         case t_void: {
-            throw std::runtime_error("no constant type \"void\"");
+            throw InterpreterException("no constant type \"void\"", *e);
         }
         case t_int32: {
             return new ValueType(std::stoi(e->constVal));
@@ -388,8 +388,7 @@ ValueType *ConstEval(ExprVal *e) {
             return new ValueType(s, true);
         }
         default: {
-            LogError("TypeDecl index " << e->type->baseType << " not handled");
-            return nullptr;
+            throw InterpreterException("TypeDecl index not handled", *e);
         }
     }
 }
@@ -411,7 +410,7 @@ ValueType *TypeDecl::newVal(void) {
             case t_fp64:
                 return new ValueType(0.0, false);
             default:
-                throw std::runtime_error("cannot initialize this type");
+                throw InterpreterException("cannot initialize this type", *this);
         }
     } else {
         ValueType* arr = new ValueType[this->arrayT];
@@ -440,7 +439,7 @@ INTERPRET(Program) {
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
         (*stmt)->declare(st, nullptr);
     }
-    auto fs = st->lookup(Name("main"))->data.fs;
+    auto fs = st->lookup(Name("main"), this)->data.fs;
     st->addLayer();
     fs->fd->interpret(st);
     st->removeLayer();
@@ -452,25 +451,25 @@ INTERPRET(VarDecl) {
     ValueType *t;
     if (this->type == nullptr) {
         if (this->init == nullptr) {
-            throw std::runtime_error(
-                "variable " + this->name.str() + " has unknown type");
+            throw InterpreterException(
+                "variable " + this->name.str() + " has unknown type", *this);
         } else {
             t = this->init->interpret(st);
             if (t == & None) {
-                throw std::runtime_error(
-                    "variable " + this->name.str() + " has void type");
+                throw InterpreterException(
+                    "variable " + this->name.str() + " has void type", *this);
             }
         }
     } else {
         if (this->init != nullptr) {
             t = this->init->interpret(st);
             if (t == nullptr) {
-                throw std::runtime_error(
-                    "variable \"" + this->name.str() + "\" has void type");
+                throw InterpreterException(
+                    "variable \"" + this->name.str() + "\" has void type", *this);
             }
             if (!t->type.eq(this->type)) {
-                throw std::runtime_error(
-                    "type mismatch for \"" + this->name.str() + '\"');
+                throw InterpreterException(
+                    "type mismatch for \"" + this->name.str() + '\"', *this);
             }
         } else {
             t = this->type->newVal();  // TODO: construct arrays & new ValueTypes
@@ -504,12 +503,12 @@ INTERPRET(FuncDecl) {
 INTERPRET(FuncCall) {
     st->addLayer();
 
-    auto fn_ = st->lookup(this->function);
+    auto fn_ = st->lookup(this->function, this);
     if (fn_->type.baseType == t_rtfn) {
         return runtime_handler(this->function, this, st);
     }
     if (fn_->type.baseType != t_fn)
-        throw std::runtime_error("type cannot be called");
+        throw InterpreterException("type cannot be called", *this);
 
     auto fn = fn_->data.fs;
 
@@ -517,7 +516,7 @@ INTERPRET(FuncCall) {
         auto vt = this->pars[i]->interpret(st);
         auto prm = fn->fd->pars[i];
         if (!vt->type.eq(prm->type)) {
-            throw std::runtime_error("type mismatch for argument " + prm->name);
+            throw InterpreterException("type mismatch for argument " + prm->name, *this);
         }
         st->insert(Name(prm->name), vt);
     }
@@ -553,12 +552,12 @@ void UnionDecl::declare(SymTable *st, ValueType *context) {
     // TODO: union declaration
 }
 
-bool vt_is_true(ValueType *vt) {
+bool vt_is_true(ValueType *vt, BaseAST *ast) {
     if (vt == nullptr) {
-        throw std::runtime_error("expression is nullptr");
+        throw InterpreterException("expression is nullptr", *ast);
     }
     if ((vt->type.baseType != t_bool) && (vt->type.arrayT == 0)) {
-        throw std::runtime_error("expression is not boolean");
+        throw InterpreterException("expression is not boolean", *ast);
     }
     return vt->data.one_bit;
 }
@@ -566,7 +565,7 @@ bool vt_is_true(ValueType *vt) {
 INTERPRET(IfExpr) {
     st->addLayer();
     auto cond_vt = this->cond->interpret(st);
-    if (vt_is_true(cond_vt)) {
+    if (vt_is_true(cond_vt, this)) {
         for (auto expr : this->iftrue) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
@@ -589,7 +588,7 @@ INTERPRET(ForExpr) {
     st->addLayer();
     this->init->interpret(st);
     auto cond_vt = this->cond->interpret(st);
-    while (vt_is_true(cond_vt)) {
+    while (vt_is_true(cond_vt, this)) {
         for (auto expr : this->exprs) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
@@ -606,7 +605,7 @@ INTERPRET(ForExpr) {
 INTERPRET(WhileExpr) {
     st->addLayer();
     auto cond_vt = this->cond->interpret(st);
-    while (vt_is_true(cond_vt)) {
+    while (vt_is_true(cond_vt, this)) {
         for (auto expr : this->exprs) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
@@ -647,12 +646,6 @@ INTERPRET(MatchLine) {  // TODO : implementation
     return & None;
 }
 
-void ValueType::assign(ValueType *that) {
-    if (!this->type.eq(& that->type))
-        throw std::runtime_error("type mismatch");
-    this->data = that->data;
-}
-
 INTERPRET(EvalExpr) {
     if (this->isVal) {
         return this->val->interpret(st);
@@ -660,21 +653,24 @@ INTERPRET(EvalExpr) {
     // std::cout << this->op << std::endl;  // TODO: print remove
     if (this->op == "=") {
         if (!this->l->isVal)
-            throw std::runtime_error("lvalue is unassignable");
+            throw InterpreterException("lvalue is unassignable", *this);
         auto lvt = st->lookup(this->l->val);
         if (lvt->isConst)
-            throw std::runtime_error("constant cannot be assigned");
+            throw InterpreterException("constant cannot be assigned", *this);
         auto rvt = this->r->interpret(st);
-        lvt->assign(rvt);
+
+        if (!lvt->type.eq(& rvt->type))
+            throw InterpreterException("type mismatch", *this);
+        lvt->data = rvt->data;
         return & None;
     }
 
     auto lvt = this->l->interpret(st);
         auto rvt = this->r->interpret(st);
         if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
-            throw std::runtime_error(this->op + " cannot operate on array");
+            throw InterpreterException(this->op + " cannot operate on array", *this);
         if (!lvt->type.eq(& rvt->type))
-            throw std::runtime_error("type mismatch");
+            throw InterpreterException("type mismatch", *this);
 
     if (this->op == "ADD") {
         switch (lvt->type.baseType) {
@@ -687,7 +683,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval + rvt->data.dval);
             default:
-                throw std::runtime_error("+ cannot operate on this type");
+                throw InterpreterException("+ cannot operate on this type", *this);
         }
     }
     if (this->op == "SUB") {
@@ -701,7 +697,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval - rvt->data.dval);
             default:
-                throw std::runtime_error("- cannot operate on this type");
+                throw InterpreterException("- cannot operate on this type", *this);
         }
     }
     if (this->op == "MUL") {
@@ -715,7 +711,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval * rvt->data.dval);
             default:
-                throw std::runtime_error("* cannot operate on this type");
+                throw InterpreterException("* cannot operate on this type", *this);
         }
     }
     if (this->op == "LT") {
@@ -729,7 +725,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval < rvt->data.dval));
             default:
-                throw std::runtime_error("< cannot operate on this type");
+                throw InterpreterException("< cannot operate on this type", *this);
         }
     }
     if (this->op == "GT") {
@@ -743,8 +739,8 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval > rvt->data.dval));
             default:
-                throw std::runtime_error("> cannot operate on this type");
+                throw InterpreterException("> cannot operate on this type", *this);
         }
     }
-    return & None;
+    throw InterpreterException("unhandled operator " + this->op, *this);
 }

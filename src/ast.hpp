@@ -25,6 +25,7 @@
 
 namespace AST {
 // Abstract Syntax Tree
+class BaseAST;
 class ASTs;
 class UnionDecl;
 class EvalExpr;
@@ -58,11 +59,10 @@ class SymTable {
     void removeLayer(void);
     void insert(Name name, ValueType *vt);
     void insert(Name name, void *v, TypeDecl *t, bool is_const);
-    ValueType* lookup(Name name);
+    ValueType* lookup(Name name, BaseAST *ast);
     ValueType* lookup(ExprVal *name);
 };
 
-class BaseAST;
 // Runtime Information
 class Name {
  public:
@@ -105,6 +105,9 @@ class Name {
 
 class BaseAST {
  public:
+    std::string line;
+    int row;
+    int col;
     virtual ~BaseAST() {}
     virtual void print(int indent) {
         for (int i = 0; i < indent; ++i)
@@ -112,7 +115,7 @@ class BaseAST {
         std::cout << "BaseAST()" << std::endl;
     }
 
-    virtual ValueType *interpret(SymTable *st) = 0;
+    virtual ValueType *interpret(SymTable *st) {}
 };
 
 enum Types {

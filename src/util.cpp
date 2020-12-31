@@ -7,6 +7,8 @@
 #include <iostream>
 #include <vector>
 
+#include "util.hpp"
+
 std::string unescape(std::string raw) {
     raw = raw.substr(1, raw.size() - 2);
 

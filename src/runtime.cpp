@@ -194,7 +194,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     // class constructors
     st->addLayer();
     AST::Name constructor_name = AST::Name(new AST::Name(fn), "new");
-    auto constructor = st->lookup(constructor_name)->data.fs;
+    auto constructor = st->lookup(constructor_name, call)->data.fs;
 
     auto clty = new AST::TypeDecl(AST::t_class);
     clty->other = fn;
@@ -205,7 +205,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
     st->insert(AST::Name("this"), context);
 
-    auto cl = st->lookup(fn)->data.cd;
+    auto cl = st->lookup(fn, call)->data.cd;
     for (auto stmt : cl->stmts) {
         switch (stmt->stmtType) {
             case AST::gs_var:
@@ -214,7 +214,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
                 break;
             }
             default:
-                break;
+                throw std::runtime_error("unsupported behavior");
         }
     }
 
@@ -228,7 +228,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     }
 
     constructor->fd->interpret(st);
-    auto ret = st->lookup(AST::Name("this"));
+    auto ret = st->lookup(AST::Name("this"), call);
     st->removeLayer();
 
     return ret;
