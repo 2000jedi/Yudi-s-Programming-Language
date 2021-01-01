@@ -165,59 +165,9 @@ class TypeDecl : public BaseAST  {
         this->baseType = t_class;
     }
 
-    TypeDecl(std::string t, GenericDecl *generic, int i) : arrayT(i), gen(*generic) {
-        if (t == "VOIDT") {
-            this->baseType = t_void;
-            if (gen.valid) {
-                throw std::runtime_error("void has no generic");
-            }
-            return;
-        }
-        if (t == "INT32") {
-            this->baseType = t_int32;
-            if (gen.valid) {
-                throw std::runtime_error("int32 has no generic");
-            }
-            return;
-        }
-        if (t == "UINT8") {
-            this->baseType = t_uint8;
-            if (gen.valid) {
-                throw std::runtime_error("uint8 has no generic");
-            }
-            return;
-        }
-        if (t == "FP32") {
-            this->baseType = t_fp32;
-            if (gen.valid) {
-                throw std::runtime_error("fp32 has no generic");
-            }
-            return;
-        }
-        if (t == "FP64") {
-            this->baseType = t_fp64;
-            if (gen.valid) {
-                throw std::runtime_error("fp64 has no generic");
-            }
-            return;
-        }
-        if (t == "CHART") {
-            this->baseType = t_char;
-            if (gen.valid) {
-                throw std::runtime_error("char type has no generic");
-            }
-            return;
-        }
-        if (t == "STR") {
-            this->baseType = t_str;
-            if (gen.valid) {
-                throw std::runtime_error("str type has no generic");
-            }
-            return;
-        }
-
-        this->baseType = t_class;
-        this->other = Name(t);
+    TypeDecl(Types t, std::string o, GenericDecl g, int i) : baseType(t), arrayT(i), other(Name(o)), gen(g) {
+        if ((t != t_class) && (g.valid))
+            throw std::runtime_error("no generic is possible");
     }
 
     ValueType *newVal(void);
@@ -436,9 +386,9 @@ class ExprVal : public BaseAST {
 class Param : public BaseAST  {
  public:
     std::string name;
-    TypeDecl *type;
+    TypeDecl type;
 
-    Param(std::string n, TypeDecl *t) : name(n), type(t) {}
+    Param(std::string n, TypeDecl t) : name(n), type(t) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
@@ -461,11 +411,11 @@ class RetExpr : public Expr {
 class ClassDecl : public GlobalStatement {
  public:
     Name name;
-    GenericDecl *genType;
+    GenericDecl genType;
     std::vector<GlobalStatement*> stmts;
     std::vector<VarDecl *> var_members;
 
-    ClassDecl(std::string n, GenericDecl* g) : name(Name(n)), genType(g) {
+    ClassDecl(std::string n, GenericDecl g) : name(Name(n)), genType(g) {
         this->stmtType = gs_class;
         this->stmts.clear();
     }
@@ -502,12 +452,12 @@ class VarDecl : public GlobalStatement, public Expr {
 class FuncDecl : public GlobalStatement {
  public:
     Name name;
-    GenericDecl *genType;
-    std::vector<Param*> pars;
-    TypeDecl *ret;
+    GenericDecl genType;
+    std::vector<Param> pars;
+    TypeDecl ret;
     std::vector<Expr*> exprs;
 
-    FuncDecl(std::string n, GenericDecl* g, TypeDecl* r) :
+    FuncDecl(std::string n, GenericDecl g, TypeDecl r) :
         name(Name(n)), genType(g), ret(r) {
         this->stmtType = gs_func;
 
@@ -526,13 +476,8 @@ class UnionDecl : public GlobalStatement {
     std::vector<ClassDecl *> classes;
     GenericDecl gen;
 
-    explicit UnionDecl(std::string n, GenericDecl *gen, ASTs *cls = nullptr) : name(Name(n)) {
-        if (gen == nullptr) {
-            LogError("generic_decl is empty");
-        }
+    explicit UnionDecl(std::string n, GenericDecl gen, ASTs *cls = nullptr) : name(Name(n)), gen(gen) {
         this->stmtType = gs_union;
-        this->gen = *gen;
-        delete gen;
 
         for (auto p : cls->stmts) {
             classes.push_back(dynamic_cast<ClassDecl *>(p));

@@ -70,7 +70,7 @@ std::string unescape(std::string raw) {
                     break;
                 }
                 default: {
-                    std::cerr << "Parser: undefined escape string: \\" 
+                    std::cerr << "Parser: undefined escape string: \\"
                         << raw[i+1] << std::endl;
                 }
             }

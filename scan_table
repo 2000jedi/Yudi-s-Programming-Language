@@ -1,6 +1,6 @@
 STRING="(\\"|[^"\n\r])*"
 CHAR='(\\n|.)'
-EPS=\/\/[^\r\n]*|[\s\n\r]
+EPS=#[^\r\n]*|[\s\n\r]
 _VARDEF=var
 _CONSTDEF=const
 _FUNCDEF=function

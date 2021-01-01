@@ -6,12 +6,9 @@
 #pragma once
 
 #include <string>
-#include <vector>
+#include <memory>
 
-#include "tree.hpp"
-#include "lexical.hpp"
+#include "scanner.hpp"
+#include "ast.hpp"
 
-namespace parser {
-  extern void initialize(std::string file);
-  extern Node<Lexical> parse(std::vector<Lexical> input);
-}
+extern std::unique_ptr<AST::Program> parse(scanner);

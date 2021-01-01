@@ -16,36 +16,19 @@
 #include "err.hpp"
 
 int main(int argc, char** argv) {
-    std::ifstream file;
+    std::filebuf file;
     if (argc > 1) {
-        file = std::ifstream(argv[1]);
+        if (!file.open(argv[1], std::ios::in))
+            std::runtime_error("open() error: " + std::string(argv[1]));
     } else {
-        file = std::ifstream("input.yc");
+        if (!file.open("input.yc", std::ios::in))
+            std::runtime_error("open() error: input.yc");
     }
-    std::stringstream ss;
-    std::string buf;
+    auto result_scanner = scanner(&file);
+    auto result_ast = parse(result_scanner);
+    result_ast->print();
 
-    while (std::getline(file, buf)) {
-        ss << buf << '\n';
-    }
-
-    std::string input = ss.str();
-
-    scanner::initialize("scan_table");
-    parser::initialize("parse_table");
-
-    auto result_scanner = scanner::scan(input);
-
-    if (result_scanner.size() == 0)
-        exit(ERR_SCANNER);
-
-    auto result_parser  = parser::parse(result_scanner);
-    // result_parser.print();
-
-    auto result_ast     = AST::build(&result_parser);
-    result_ast.print();
-
-    AST::interpret(std::move(result_ast));
+    AST::interpret(std::move(*result_ast));
 
     return 0;
 }
