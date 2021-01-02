@@ -80,7 +80,7 @@ std::unique_ptr<AST::GlobalStatement> statement(scanner *Scanner) {
         }
         case t_class: {
             match(Scanner, t_class);
-            auto cn = match(Scanner, name);
+            auto cn = match(Scanner, t_name);
             auto gen = generic(Scanner);
             match(Scanner, lbra);
             auto cl = std::make_unique<AST::ClassDecl>(cn, gen);
@@ -98,7 +98,7 @@ std::unique_ptr<AST::GlobalStatement> statement(scanner *Scanner) {
         }
         case t_union: {
             match(Scanner, t_union);
-            auto un = match(Scanner, name);
+            auto un = match(Scanner, t_name);
             auto gen = generic(Scanner);
             match(Scanner, lbra);
             auto u = std::make_unique<AST::UnionDecl>(AST::Name(un), gen);
@@ -118,7 +118,7 @@ std::unique_ptr<AST::GlobalStatement> statement(scanner *Scanner) {
 
 std::unique_ptr<AST::FuncDecl> func_decl(scanner *Scanner) {
     match(Scanner, t_fn);
-    auto n = match(Scanner, name);
+    auto n = match(Scanner, t_name);
     auto gen = generic(Scanner);
     match(Scanner, lpar);
     auto prms = params_decl(Scanner);
@@ -136,7 +136,7 @@ std::unique_ptr<AST::FuncDecl> func_decl(scanner *Scanner) {
 AST::GenericDecl generic(scanner *Scanner) {
     if (input_token == lt) {
         match(Scanner, lt);
-        auto gen_name = match(Scanner, name);
+        auto gen_name = match(Scanner, t_name);
         match(Scanner, gt);
         return AST::GenericDecl(gen_name);
     } else {
@@ -157,14 +157,14 @@ int array(scanner *Scanner) {
 
 std::vector<AST::Param> params_decl(scanner *Scanner) {
     std::vector<AST::Param> prms;
-    if (input_token == name) {
-        auto par_name = match(Scanner, name);
+    if (input_token == t_name) {
+        auto par_name = match(Scanner, t_name);
         match(Scanner, colon);
         auto tn = type_name(Scanner);
         prms.push_back(AST::Param(par_name, tn));
         while (input_token == comma) {
             match(Scanner, comma);
-            auto par_name = match(Scanner, name);
+            auto par_name = match(Scanner, t_name);
             match(Scanner, colon);
             auto tn = type_name(Scanner);
             prms.push_back(AST::Param(par_name, tn));
@@ -219,7 +219,7 @@ AST::TypeDecl type_name(scanner *Scanner) {
             base = AST::t_str;
             match(Scanner, input_token);
             break;
-        case name: {
+        case t_name: {
             base = AST::t_class;
             auto other = match(Scanner, input_token);
             break;
@@ -244,7 +244,7 @@ std::unique_ptr<AST::EvalExpr> init_def(scanner *Scanner) {
 
 std::unique_ptr<AST::VarDecl> var_def(scanner *Scanner) {
     match(Scanner, t_var);
-    auto vn = match(Scanner, name);
+    auto vn = match(Scanner, t_name);
     match(Scanner, colon);
     auto tn = type_name(Scanner);
     auto init = init_def(Scanner);
@@ -254,7 +254,7 @@ std::unique_ptr<AST::VarDecl> var_def(scanner *Scanner) {
 
 std::unique_ptr<AST::VarDecl> const_def(scanner *Scanner) {
     match(Scanner, t_const);
-    auto cn = match(Scanner, name);
+    auto cn = match(Scanner, t_name);
     match(Scanner, assign);
     auto init = eval_expr(Scanner);
     match(Scanner, eol);
@@ -332,12 +332,12 @@ std::unique_ptr<AST::WhileExpr> while_expr(scanner *Scanner) {
 
 std::vector<AST::MatchLine> match_line(scanner *Scanner) {
     std::vector<AST::MatchLine> lines;
-    while (input_token == name) {
-        match(Scanner, name);
+    while (input_token == t_name) {
+        match(Scanner, t_name);
         std::string opt_name = "";
         if (input_token == lpar) {
             match(Scanner, lpar);
-            auto opt_name = match(Scanner, name);
+            auto opt_name = match(Scanner, t_name);
             match(Scanner, rpar);
         }
         match(Scanner, lbra);
@@ -395,13 +395,13 @@ std::unique_ptr<AST::Expr> expr(scanner *Scanner) {
                 return std::make_unique<AST::BreakExpr>();
             case eol:
                 // empty expression
-                match(Scanner, eol); 
+                match(Scanner, eol);
                 return std::make_unique<AST::Expr>();
             case t_int:
             case t_float:
             case t_str:
             case t_char:
-            case name:
+            case t_name:
             case lpar: {
                 auto ee = eval_expr(Scanner);
                 match(Scanner, eol);
@@ -420,6 +420,7 @@ std::vector<std::unique_ptr<AST::Expr>> expr_list(scanner *Scanner) {
             case t_var:
             case t_const:
             case t_if:
+            case t_for:
             case t_while:
             case t_match:
             case t_return:
@@ -430,9 +431,10 @@ std::vector<std::unique_ptr<AST::Expr>> expr_list(scanner *Scanner) {
             case t_float:
             case t_str:
             case t_char:
-            case name:
+            case t_name:
             case lpar:
                 result.push_back(expr(Scanner));
+                break;
             default:
                 // epsilon
                 return result;
@@ -442,12 +444,13 @@ std::vector<std::unique_ptr<AST::Expr>> expr_list(scanner *Scanner) {
 
 AST::Name name_space(scanner *Scanner) {
     std::vector<std::string> names;
-    names.push_back(match(Scanner, name));
+    names.push_back(match(Scanner, t_name));
     while (input_token == dot) {
         match(Scanner, dot);
-        names.push_back(match(Scanner, name));
+        names.push_back(match(Scanner, t_name));
     }
     AST::Name n = AST::Name(names.back());
+    names.pop_back();
     for (auto&& i : names)
         n.ClassName.push_back(i);
     return n;
@@ -483,17 +486,19 @@ DEF_EL(e_pars) {
             return std::make_unique<AST::EvalExpr>(std::move(val));
         }
         case t_str: {
-            auto val_str = match(Scanner, t_str);
+            auto raw = match(Scanner, t_str);
+            raw = raw.substr(1, raw.size() - 2);
             auto val = std::make_unique<AST::ExprVal>(
-                val_str, AST::TypeDecl(AST::t_str));
+                raw, AST::TypeDecl(AST::t_str));
             return std::make_unique<AST::EvalExpr>(std::move(val));
         }
-        case name: {
+        case t_name: {
             auto n = name_space(Scanner);
             std::unique_ptr<AST::FuncCall> fc = nullptr;
             if (input_token == lpar) {
                 // optional function call
                 fc = std::make_unique<AST::FuncCall>();
+                fc->function = n;
                 match(Scanner, lpar);
                 if (input_token == rpar) {
                     match(Scanner, rpar);
@@ -532,12 +537,13 @@ DEF_EL(e_pars) {
 }
 
 DEF_ER(e_mul_div_) {
-    if ((input_token == mul) || 
-        (input_token == token::div) || (input_token == rem)) {
+    if ((input_token == mul) ||
+        (input_token == t_div) || (input_token == rem)) {
+        auto op = input_token;
         match(Scanner, input_token);
         auto r = e_pars(Scanner);
         auto ex = std::make_unique<AST::EvalExpr>(
-            input_token, std::move(l), std::move(r));
+            op, std::move(l), std::move(r));
         return e_mul_div_(Scanner, std::move(ex));
     } else {
         // epsilon
@@ -552,10 +558,11 @@ DEF_EL(e_mul_div) {
 
 DEF_ER(e_add_sub_) {
     if ((input_token == add) || (input_token == sub)) {
+        auto op = input_token;
         match(Scanner, input_token);
         auto r = e_mul_div(Scanner);
         auto ex = std::make_unique<AST::EvalExpr>(
-            input_token, std::move(l), std::move(r));
+            op, std::move(l), std::move(r));
         return e_add_sub_(Scanner, std::move(ex));
     } else {
         // epsilon
@@ -571,10 +578,11 @@ DEF_EL(e_add_sub) {
 DEF_ER(e_lgte_) {
     if ((input_token == le) || (input_token == lt) ||
         (input_token == ge) || (input_token == gt) ) {
+        auto op = input_token;
         match(Scanner, input_token);
         auto r = e_add_sub(Scanner);
         auto ex = std::make_unique<AST::EvalExpr>(
-            input_token, std::move(l), std::move(r));
+            op, std::move(l), std::move(r));
         return e_lgte_(Scanner, std::move(ex));
     } else {
         // epsilon
@@ -589,10 +597,11 @@ DEF_EL(e_lgte) {
 
 DEF_ER(e_eq_neq_) {
     if ((input_token == equ) || (input_token == neq)) {
+        auto op = input_token;
         match(Scanner, input_token);
         auto r = e_lgte(Scanner);
         auto ex = std::make_unique<AST::EvalExpr>(
-            input_token, std::move(l), std::move(r));
+            op, std::move(l), std::move(r));
         return e_eq_neq_(Scanner, std::move(ex));
     } else {
         // epsilon

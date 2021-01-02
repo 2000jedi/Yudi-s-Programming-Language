@@ -11,11 +11,10 @@
 #include "util.hpp"
 
 void scanner::next(void) {
-    if (this->input->eof()) {
+    if (!this->input->get(this->c)) {
         this->c = '\0';
         return;
     }
-    (*this->input) >> this->c;
     if ((c == '\n') || (c == '\r')) {
         this->line = "";
         row++;
@@ -169,11 +168,15 @@ token scanner::scan(void) {
         }
         case '/': {
             next();
-            return token::div;
+            return t_div;
         }
         case '%': {
             next();
             return rem;
+        }
+        case '.': {
+            next();
+            return dot;
         }
         case ',': {
             next();
@@ -205,7 +208,7 @@ token scanner::scan(void) {
             if (isalpha(c)) {
                 data += c;
                 next();
-                while (isalpha(c)) {
+                while (isalpha(c) || isdigit(c) || (c == '_')) {
                     data += c;
                     next();
                 }
@@ -230,9 +233,10 @@ token scanner::scan(void) {
                 if (data == "fp32") return type_fp32;
                 if (data == "fp64") return type_fp64;
                 if (data == "str") return type_str;
-                throw std::runtime_error("unknown name: " + data);
+                return t_name;
             }
-            throw std::runtime_error("unknown character: " + std::string(1, c));
+            LogError("unknown character: " << c << '(' << (int)c << ')');
+            return t_eof;
         }
     }
 }

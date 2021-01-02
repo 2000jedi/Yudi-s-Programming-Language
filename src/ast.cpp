@@ -50,7 +50,7 @@ void EvalExpr::print(int indent) {
     } else {
         for (int i = 0; i < indent; ++i)
             std::cout << "  ";
-        std::cout << "BinaryOp(" << this->op << ')' << std::endl;
+        std::cout << "BinaryOp(" << terms[this->op] << ')' << std::endl;
         this->l->print(indent + 1);
         this->r->print(indent + 1);
     }
@@ -374,7 +374,7 @@ ValueType *ConstEval(ExprVal *e) {
             return new ValueType(std::stoi(e->constVal));
         }
         case AST::t_char: {
-            return new ValueType(e->constVal[1]);
+            return new ValueType(e->constVal[0]);
         }
         case t_fp32: {
             return new ValueType(std::stof(e->constVal));
@@ -661,8 +661,8 @@ INTERPRET(EvalExpr) {
     if (this->isVal) {
         return this->val->interpret(st);
     }
-    // std::cout << this->op << std::endl;  // TODO: print remove
-    if (this->op == equ) {
+    //TODO: complete all operations
+    if (this->op == assign) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is unassignable", *this);
         auto lvt = st->lookup(this->l->val.get());

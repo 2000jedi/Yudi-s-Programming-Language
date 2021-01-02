@@ -5,7 +5,7 @@ Yudi's Programming Language (YCPL) is a new programming language that enforces m
 This project is still under development and not all function modules defined in specification coherce with the implementation. Below is the list of things undergoing construction.
 
 - [x] Rework Scanner.
-- [ ] Rework Parser. (IP)
+- [x] Rework Parser.
 - [x] Implementation for basic arithmetics and variable definition.
 - [x] Global Variables.
 - [x] Control-Flow definition including loops and functions.
@@ -15,7 +15,7 @@ This project is still under development and not all function modules defined in 
 - [ ] Support for Standard Library.
 - [x] Rework `NameSpace`.
 - [ ] Generics.
-- [ ] Better error messages.
+- [ ] Better error messages. (IP)
 
 ## File and Directory Layout
 
