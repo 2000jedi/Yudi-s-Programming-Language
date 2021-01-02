@@ -9,7 +9,7 @@
 #include "ast.hpp"
 
 void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
-    for (auto par : call->pars) {
+    for (auto&& par : call->pars) {
         auto pst = par->interpret(st);
         if (pst != nullptr) {
             if (pst->type.arrayT != 0)
@@ -206,7 +206,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     st->insert(AST::Name("this"), context);
 
     auto cl = st->lookup(fn, call)->data.cd;
-    for (auto stmt : cl->stmts) {
+    for (auto&& stmt : cl->stmts) {
         switch (stmt->stmtType) {
             case AST::gs_var:
             case AST::gs_func: {
@@ -221,10 +221,10 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     for (unsigned int i = 0; i < call->pars.size(); ++i) {
         auto vt = call->pars[i]->interpret(st);
         auto prm = constructor->fd->pars[i];
-        if (!vt->type.eq(prm->type)) {
-            throw std::runtime_error("type mismatch for argument " + prm->name);
+        if (!vt->type.eq(& prm.type)) {
+            throw std::runtime_error("type mismatch for argument " + prm.name);
         }
-        st->insert(AST::Name(prm->name), vt);
+        st->insert(AST::Name(prm.name), vt);
     }
 
     constructor->fd->interpret(st);

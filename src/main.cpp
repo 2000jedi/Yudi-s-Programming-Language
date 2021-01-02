@@ -9,7 +9,6 @@
 #include <vector>
 #include <string>
 
-#include "lexical.hpp"
 #include "scanner.hpp"
 #include "parser.hpp"
 #include "ast.hpp"

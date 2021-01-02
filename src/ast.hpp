@@ -14,14 +14,17 @@
 #include <utility>
 #include <algorithm>
 
-#include "tree.hpp"
-#include "lexical.hpp"
-
 #include "err.hpp"
+#include "scanner.hpp"
 
 // Error Logging
 #define LogError(e) std::cerr << "AST Error: " << e << std::endl
 #define DEBUG
+#define D_MOVE_COPY(x)\
+    x(const x & other) = delete;\
+    x& operator= (const x & other) = delete;\
+    x(x&&) = default;\
+    x& operator=(x&&) = default;\
 
 namespace AST {
 // Abstract Syntax Tree
@@ -58,7 +61,7 @@ class SymTable {
     void addLayer(void);
     void removeLayer(void);
     void insert(Name name, ValueType *vt);
-    void insert(Name name, void *v, TypeDecl *t, bool is_const);
+    void insert(Name name, void *v, TypeDecl t, bool is_const);
     ValueType* lookup(Name name, BaseAST *ast);
     ValueType* lookup(ExprVal *name);
 };
@@ -72,9 +75,7 @@ class Name {
     Name() {
     }
 
-    explicit Name(std::string b) : BaseName(b) {
-        this->ClassName.clear();
-    }
+    explicit Name(std::string b) : BaseName(b) {}
     Name(Name *p, std::string b) : BaseName(b) {
         for (auto n : p->ClassName)
             this->ClassName.push_back(n);
@@ -141,7 +142,7 @@ enum Types {
     t_bool, t_rtfn /* runtime function */
 };
 
-class TypeDecl : public BaseAST  {
+class TypeDecl : public BaseAST {
  public:
     Types baseType;
 
@@ -284,7 +285,7 @@ class ASTs : public BaseAST  {
 enum globalStmtTypes {
     gs_error, gs_var, gs_func, gs_class, gs_union
 };
-class GlobalStatement : virtual public BaseAST  {
+class GlobalStatement {
  public:
     globalStmtTypes stmtType = gs_error;
 
@@ -293,12 +294,15 @@ class GlobalStatement : virtual public BaseAST  {
     }
     virtual ValueType *interpret(SymTable *st) = 0;
     virtual void declare(SymTable *st, ValueType *context) = 0;
+    GlobalStatement() {}
+    virtual ~GlobalStatement() {}
 };
 
 enum exprTypes {
-    e_empty, e_var, e_if, e_while, e_for, e_match, e_ret, e_eval
+    e_empty, e_var, e_if, e_while, e_for, e_match, e_ret, e_eval,
+    e_cont, e_break
 };
-class Expr : virtual public BaseAST  {
+class Expr {
  public:
     exprTypes exprType = e_empty;
 
@@ -307,12 +311,14 @@ class Expr : virtual public BaseAST  {
     }
 
     virtual ValueType *interpret(SymTable *st) {return nullptr;}
+    Expr() {}
+    virtual ~Expr() {}
 };
 
 class Program : public BaseAST {
  public:
     std::vector<std::unique_ptr<GlobalStatement>> stmts;
-    Program() {stmts.clear();}
+    Program() {}
 
     void insert(std::unique_ptr<GlobalStatement> s) {
         if (s)
@@ -321,25 +327,27 @@ class Program : public BaseAST {
 
     void print(void);
     virtual ValueType *interpret(SymTable *st);
-    Program(const Program & other) = delete;
-    Program& operator= (const Program & other) = delete;
-    Program(Program&&) = default;
-    Program& operator=(Program&&) = default;
+
+    D_MOVE_COPY(Program)
 };
 
-class EvalExpr : public Expr {
+class EvalExpr : public BaseAST, public Expr {
  public:
     bool isVal;
-    ExprVal* val;
-    std::string op;
-    EvalExpr *l, *r;
+    std::unique_ptr<ExprVal> val;
+    token op;
+    std::unique_ptr<EvalExpr> l, r;
 
-    explicit EvalExpr(ExprVal *v) : isVal(true), val(v) {
+    explicit EvalExpr(std::unique_ptr<ExprVal> v) :
+        isVal(true), val(std::move(v)) {
         this->exprType = e_eval;
     }
 
-    EvalExpr(std::string o, EvalExpr *l, EvalExpr *r) :
-    isVal(false), op(o), l(l), r(r) {
+    EvalExpr(
+        token o,
+        std::unique_ptr<EvalExpr> l,
+        std::unique_ptr<EvalExpr> r) :
+        isVal(false), op(o), l(std::move(l)), r(std::move(r)) {
         this->exprType = e_eval;
     }
 
@@ -349,15 +357,15 @@ class EvalExpr : public Expr {
 
 class FuncCall : public BaseAST {
  public:
-    std::vector<EvalExpr*> pars;
+    std::vector<std::unique_ptr<EvalExpr>> pars;
     Name function;
 
-    FuncCall() {
-        pars.clear();
-    }
+    FuncCall() {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(FuncCall)
 };
 
 class ExprVal : public BaseAST {
@@ -365,22 +373,25 @@ class ExprVal : public BaseAST {
     bool isConst;
 
     std::string constVal;
-    TypeDecl *type;
+    TypeDecl type;
 
     Name refName;
-    FuncCall *call;
-    EvalExpr *array;
+    std::unique_ptr<FuncCall> call;
+    std::unique_ptr<EvalExpr> array;
 
-    ExprVal(std::string v, TypeDecl *t) : isConst(true), constVal(v), type(t) {}
+    ExprVal(std::string v, TypeDecl t) : isConst(true), constVal(v), type(t) {}
 
-    ExprVal(Name n, FuncCall *c, EvalExpr *a) :
-        isConst(false), refName(n), call(c), array(a) {
+    ExprVal(Name n, std::unique_ptr<FuncCall> c, std::unique_ptr<EvalExpr> a) :
+        isConst(false), type(TypeDecl(t_void)), refName(n), call(std::move(c)),
+        array(std::move(a)) {
         if (c != nullptr)
             c->function = n;
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(ExprVal)
 };
 
 class Param : public BaseAST  {
@@ -396,28 +407,49 @@ class Param : public BaseAST  {
     }
 };
 
-class RetExpr : public Expr {
+class RetExpr : public BaseAST, public Expr {
  public:
-    EvalExpr *stmt;
+    std::unique_ptr<EvalExpr> stmt;
 
-    explicit RetExpr(EvalExpr* s) : stmt(s) {
+    explicit RetExpr(std::unique_ptr<EvalExpr> s) : stmt(std::move(s)) {
         this->exprType = e_ret;
+    }
+
+    void print(int);
+    virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(RetExpr)
+};
+
+class ContExpr : public BaseAST, public Expr {
+ public:
+    ContExpr(void) {
+        this->exprType = e_cont;
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
 };
 
-class ClassDecl : public GlobalStatement {
+class BreakExpr : public BaseAST, public Expr {
+ public:
+    BreakExpr(void) {
+        this->exprType = e_break;
+    }
+
+    void print(int);
+    virtual ValueType *interpret(SymTable *st);
+};
+
+class ClassDecl : public BaseAST, public GlobalStatement {
  public:
     Name name;
     GenericDecl genType;
-    std::vector<GlobalStatement*> stmts;
-    std::vector<VarDecl *> var_members;
+    std::vector<std::unique_ptr<GlobalStatement>> stmts;
+    // std::vector<std::VarDecl *> var_members;
 
     ClassDecl(std::string n, GenericDecl g) : name(Name(n)), genType(g) {
         this->stmtType = gs_class;
-        this->stmts.clear();
     }
 
     void print(int);
@@ -426,18 +458,23 @@ class ClassDecl : public GlobalStatement {
     }
 
     virtual void declare(SymTable *st, ValueType *context);
+
+    D_MOVE_COPY(ClassDecl)
 };
 
-class VarDecl : public GlobalStatement, public Expr {
+class VarDecl : public BaseAST, public GlobalStatement, public Expr {
  public:
     Name name;
-    TypeDecl *type;
-    EvalExpr *init;
+    TypeDecl type;
+    std::unique_ptr<EvalExpr> init;
     bool is_global = false;
     bool is_const = false;
 
-    VarDecl(std::string n, TypeDecl* t, EvalExpr* i) :
-        name(Name(n)), type(t), init(i) {
+    VarDecl(
+        std::string n,
+        TypeDecl t,
+        std::unique_ptr<EvalExpr> i) :
+        name(Name(n)), type(t), init(std::move(i)) {
         this->stmtType = gs_var;
         this->exprType = e_var;
     }
@@ -447,41 +484,39 @@ class VarDecl : public GlobalStatement, public Expr {
     virtual void declare(SymTable *st, ValueType *context) {
         this->interpret(st);
     }
+
+    D_MOVE_COPY(VarDecl)
 };
 
-class FuncDecl : public GlobalStatement {
+class FuncDecl : public BaseAST, public GlobalStatement {
  public:
     Name name;
     GenericDecl genType;
     std::vector<Param> pars;
     TypeDecl ret;
-    std::vector<Expr*> exprs;
+    std::vector<std::unique_ptr<Expr>> exprs;
 
-    FuncDecl(std::string n, GenericDecl g, TypeDecl r) :
-        name(Name(n)), genType(g), ret(r) {
+    FuncDecl(Name n, GenericDecl g, std::vector<Param> prms, TypeDecl r) :
+        name(n), genType(g), pars(prms), ret(r) {
         this->stmtType = gs_func;
-
-        pars.clear();
-        exprs.clear();
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
     virtual void declare(SymTable *st, ValueType *context);
+
+    D_MOVE_COPY(FuncDecl)
 };
 
-class UnionDecl : public GlobalStatement {
+class UnionDecl : public BaseAST, public GlobalStatement {
  public:
     Name name;
-    std::vector<ClassDecl *> classes;
+    std::vector<std::unique_ptr<ClassDecl>> classes;
     GenericDecl gen;
 
-    explicit UnionDecl(std::string n, GenericDecl gen, ASTs *cls = nullptr) : name(Name(n)), gen(gen) {
+    explicit UnionDecl(Name n, GenericDecl gen) :
+        name(n), gen(gen) {
         this->stmtType = gs_union;
-
-        for (auto p : cls->stmts) {
-            classes.push_back(dynamic_cast<ClassDecl *>(p));
-        }
     }
 
     void print(int);
@@ -489,84 +524,88 @@ class UnionDecl : public GlobalStatement {
         throw std::runtime_error("UnionDecl cannot be interpreted");
     }
     virtual void declare(SymTable *st, ValueType *context);
+
+    D_MOVE_COPY(UnionDecl)
 };
 
-class IfExpr : public Expr {
+class IfExpr : public BaseAST, public Expr {
  public:
-    EvalExpr *cond;
-    std::vector<Expr*> iftrue;
-    std::vector<Expr*> iffalse;
+    std::unique_ptr<EvalExpr> cond;
+    std::vector<std::unique_ptr<Expr>> iftrue;
+    std::vector<std::unique_ptr<Expr>> iffalse;
 
-    explicit IfExpr(EvalExpr *c) : cond(c) {
+    explicit IfExpr(std::unique_ptr<EvalExpr> c) : cond(std::move(c)) {
         this->exprType = e_if;
-
-        this->iftrue.clear();
-        this->iffalse.clear();
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(IfExpr)
 };
 
-class WhileExpr : public Expr {
+class WhileExpr : public BaseAST, public Expr {
  public:
-    EvalExpr *cond;
-    std::vector<Expr*> exprs;
+    std::unique_ptr<EvalExpr> cond;
+    std::vector<std::unique_ptr<Expr>> exprs;
 
-    explicit WhileExpr(EvalExpr* c) : cond(c) {
+    explicit WhileExpr(std::unique_ptr<EvalExpr> c) : cond(std::move(c)) {
         this->exprType = e_while;
-
-        this->exprs.clear();
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(WhileExpr)
 };
 
-class ForExpr : public Expr {
+class ForExpr : public BaseAST, public Expr {
  public:
-    EvalExpr *init;
-    EvalExpr *cond;
-    EvalExpr *step;
-    std::vector<Expr*> exprs;
+    std::unique_ptr<EvalExpr> init, cond, step;
+    std::vector<std::unique_ptr<Expr>> exprs;
 
-    ForExpr(EvalExpr* i, EvalExpr* c, EvalExpr* s) : init(i), cond(c), step(s) {
+    ForExpr(
+        std::unique_ptr<EvalExpr> i,
+        std::unique_ptr<EvalExpr> c,
+        std::unique_ptr<EvalExpr> s) :
+        init(std::move(i)), cond(std::move(c)), step(std::move(s)) {
         this->exprType = e_for;
-        this->exprs.clear();
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(ForExpr)
 };
 
 class MatchLine : public BaseAST  {
  public:
     std::string name;
     std::string cl_name;
-    std::vector<Expr*> exprs;
+    std::vector<std::unique_ptr<Expr>> exprs;
 
-    explicit MatchLine(std::string n, std::string cl) : name(n), cl_name(cl) {
-        this->exprs.clear();
-    }
+    explicit MatchLine(std::string n, std::string cl) : name(n), cl_name(cl) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(MatchLine)
 };
 
-class MatchExpr : public Expr {
+class MatchExpr : public BaseAST, public Expr {
  public:
-    EvalExpr *var;
-    std::vector<MatchLine*> lines;
+    std::unique_ptr<EvalExpr> var;
+    std::vector<MatchLine> lines;
 
-    explicit MatchExpr(EvalExpr* v) : var(v) {
+    explicit MatchExpr(std::unique_ptr<EvalExpr> v) : var(std::move(v)) {
         this->exprType = e_match;
-        this->lines.clear();
     }
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
+
+    D_MOVE_COPY(MatchExpr)
 };
 
 extern int interpret(Program prog);
-extern Program build(Node<Lexical> *root);
 }  // namespace AST

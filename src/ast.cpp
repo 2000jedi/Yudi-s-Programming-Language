@@ -8,7 +8,6 @@
 #include <memory>
 #include <utility>
 
-#include "ast_gen.hpp"
 #include "util.hpp"
 #include "runtime.hpp"
 
@@ -61,7 +60,7 @@ void FuncCall::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "FuncCall()" << std::endl;
-    for (auto p : this->pars) p->print(indent + 1);
+    for (auto&& p : this->pars) p->print(indent + 1);
 }
 
 void ExprVal::print(int indent) {
@@ -92,8 +91,7 @@ void Param::print(int indent) {
         std::cout << "  ";
     std::cout << "Param(" << this->name << ')' << std::endl;
 
-    if (this->type)
-        this->type->print(indent + 1);
+    this->type.print(indent + 1);
 }
 
 void RetExpr::print(int indent) {
@@ -103,12 +101,23 @@ void RetExpr::print(int indent) {
     this->stmt->print(indent + 1);
 }
 
+void ContExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "Continue()" << std::endl;
+}
+
+void BreakExpr::print(int indent) {
+    for (int i = 0; i < indent; ++i)
+        std::cout << "  ";
+    std::cout << "Break()" << std::endl;
+}
+
 void VarDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "VarDecl(" << this->name.str() << ')' << std::endl;
-    if (this->type)
-        this->type->print(indent + 1);
+    this->type.print(indent + 1);
     if (this->init)
         this->init->print(indent + 1);
 }
@@ -117,26 +126,25 @@ void FuncDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "FuncDecl(" << this->name.str() << ')' << std::endl;
-    if (this->genType)
-        this->genType->print(indent + 1);
+    if (this->genType.valid)
+        this->genType.print(indent + 1);
 
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Params(" << std::endl;
     for (auto p : this->pars) {
-        p->print(indent + 2);
+        p.print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
     std::cout << ")" << std::endl;
 
-    if (this->ret)
-        this->ret->print(indent + 1);
+    this->ret.print(indent + 1);
 
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Expressions(" << std::endl;
-    for (auto p : this->exprs) {
+    for (auto&& p : this->exprs) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
@@ -148,13 +156,13 @@ void ClassDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
     std::cout << "ClassDecl(" << this->name.str() << ')' << std::endl;
-    if (this->genType)
-        this->genType->print(indent + 1);
+    if (this->genType.valid)
+        this->genType.print(indent + 1);
 
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Statements(" << std::endl;
-    for (auto p : this->stmts) {
+    for (auto&& p : this->stmts) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
@@ -169,7 +177,7 @@ void UnionDecl::print(int indent) {
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Options(" << std::endl;
-    for (auto p : this->classes) {
+    for (auto&& p : this->classes) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
@@ -186,13 +194,13 @@ void IfExpr::print(int indent) {
     for (int i = 0; i < indent + 1; ++i)
         std::cout << "  ";
     std::cout << "True()" << std::endl;
-    for (auto p : this->iftrue) {
+    for (auto&& p : this->iftrue) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
         std::cout << "  ";
     std::cout << "False()" << std::endl;
-    for (auto p : this->iffalse) {
+    for (auto&& p : this->iffalse) {
         p->print(indent + 2);
     }
 }
@@ -206,7 +214,7 @@ void WhileExpr::print(int indent) {
     for (int i = 0; i < indent + 1; ++i)
         std::cout << "  ";
     std::cout << "Expressions(" << std::endl;
-    for (auto p : this->exprs) {
+    for (auto&& p : this->exprs) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
@@ -225,7 +233,7 @@ void ForExpr::print(int indent) {
     for (int i = 0; i < indent + 1; ++i)
         std::cout << "  ";
     std::cout << "Expressions(" << std::endl;
-    for (auto p : this->exprs) {
+    for (auto&& p : this->exprs) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
@@ -241,7 +249,7 @@ void MatchLine::print(int indent) {
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "Expessions(" << std::endl;
-    for (auto p : this->exprs) {
+    for (auto&& p : this->exprs) {
         p->print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
@@ -258,8 +266,8 @@ void MatchExpr::print(int indent) {
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
         std::cout << "MatchLines(" << std::endl;
-    for (auto p : this->lines) {
-        p->print(indent + 2);
+    for (auto&& p : this->lines) {
+        p.print(indent + 2);
     }
     for (int i = 0; i < indent + 1; ++i)
             std::cout << "  ";
@@ -358,14 +366,14 @@ void ValueType::Free(void) {
  * Interpreter Interface - interpret() methods
  */
 ValueType *ConstEval(ExprVal *e) {
-    switch (e->type->baseType) {
+    switch (e->type.baseType) {
         case t_void: {
             throw InterpreterException("no constant type \"void\"", *e);
         }
         case t_int32: {
             return new ValueType(std::stoi(e->constVal));
         }
-        case t_char: {
+        case AST::t_char: {
             return new ValueType(e->constVal[1]);
         }
         case t_fp32: {
@@ -374,7 +382,7 @@ ValueType *ConstEval(ExprVal *e) {
         case t_fp64: {
             return new ValueType(std::stod(e->constVal));
         }
-        case t_str: {
+        case AST::t_str: {
             std::string *s = new std::string(e->constVal);
             return new ValueType(s, true);
         }
@@ -440,7 +448,7 @@ INTERPRET(Program) {
 
 INTERPRET(VarDecl) {
     ValueType *t;
-    if (this->type == nullptr) {
+    if (this->type.baseType == AST::t_void) {
         if (this->init == nullptr) {
             throw InterpreterException(
                 "variable " + this->name.str() + " has unknown type", *this);
@@ -458,12 +466,12 @@ INTERPRET(VarDecl) {
                 throw InterpreterException(
                     "variable \"" + this->name.str() + "\" has void type", *this);
             }
-            if (!t->type.eq(this->type)) {
+            if (!t->type.eq(& this->type)) {
                 throw InterpreterException(
                     "type mismatch for \"" + this->name.str() + '\"', *this);
             }
         } else {
-            t = this->type->newVal();
+            t = this->type.newVal();
         }
     }
     if (this->is_const) {
@@ -481,7 +489,7 @@ void FuncDecl::declare(SymTable *st, ValueType *context) {
 INTERPRET(FuncDecl) {
     // handle "this"
 
-    for (auto e : this->exprs) {
+    for (auto&& e : this->exprs) {
         ValueType *vt = e->interpret(st);
         if (return_flag) {
             return_flag--;
@@ -506,10 +514,10 @@ INTERPRET(FuncCall) {
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
         auto prm = fn->fd->pars[i];
-        if (!vt->type.eq(prm->type)) {
-            throw InterpreterException("type mismatch for argument " + prm->name, *this);
+        if (!vt->type.eq(& prm.type)) {
+            throw InterpreterException("type mismatch for argument " + prm.name, *this);
         }
-        st->insert(Name(prm->name), vt);
+        st->insert(Name(prm.name), vt);
     }
 
     if (fn->context != nullptr)
@@ -524,10 +532,10 @@ INTERPRET(FuncCall) {
 // runtime helper function to create initializer
 void ClassDecl::declare(SymTable *st, ValueType *context) {
     st->insert(this->name, new ValueType(this, true));
-    for (auto stmt : this->stmts) {
+    for (auto&& stmt : this->stmts) {
         switch (stmt->stmtType) {
             case gs_func: {
-                FuncDecl *fd = dynamic_cast<FuncDecl*>(stmt);
+                auto fd = (FuncDecl *)stmt.get();
                 if (fd->name.BaseName == "new") {
                     st->insert(Name(& this->name, "new"), new ValueType(new FuncStore(fd, nullptr), true));
                 }
@@ -557,14 +565,14 @@ INTERPRET(IfExpr) {
     st->addLayer();
     auto cond_vt = this->cond->interpret(st);
     if (vt_is_true(cond_vt, this)) {
-        for (auto expr : this->iftrue) {
+        for (auto&& expr : this->iftrue) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
                 return ret;
             }
         }
     } else {
-        for (auto expr : this->iffalse) {
+        for (auto&& expr : this->iffalse) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
                 return ret;
@@ -580,7 +588,7 @@ INTERPRET(ForExpr) {
     this->init->interpret(st);
     auto cond_vt = this->cond->interpret(st);
     while (vt_is_true(cond_vt, this)) {
-        for (auto expr : this->exprs) {
+        for (auto&& expr : this->exprs) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
                 return ret;
@@ -597,7 +605,7 @@ INTERPRET(WhileExpr) {
     st->addLayer();
     auto cond_vt = this->cond->interpret(st);
     while (vt_is_true(cond_vt, this)) {
-        for (auto expr : this->exprs) {
+        for (auto&& expr : this->exprs) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
                 return ret;
@@ -629,6 +637,18 @@ INTERPRET(RetExpr) {
     return this->stmt->interpret(st);
 }
 
+INTERPRET(ContExpr) {
+    // todo
+    return_flag++;
+    return nullptr;
+}
+
+INTERPRET(BreakExpr) {
+    // todo
+    return_flag++;
+    return nullptr;
+}
+
 INTERPRET(MatchExpr) {  // TODO: implementation
     return & None;
 }
@@ -642,10 +662,10 @@ INTERPRET(EvalExpr) {
         return this->val->interpret(st);
     }
     // std::cout << this->op << std::endl;  // TODO: print remove
-    if (this->op == "=") {
+    if (this->op == equ) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is unassignable", *this);
-        auto lvt = st->lookup(this->l->val);
+        auto lvt = st->lookup(this->l->val.get());
         if (lvt->isConst)
             throw InterpreterException("constant cannot be assigned", *this);
         auto rvt = this->r->interpret(st);
@@ -659,11 +679,11 @@ INTERPRET(EvalExpr) {
     auto lvt = this->l->interpret(st);
         auto rvt = this->r->interpret(st);
         if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
-            throw InterpreterException(this->op + " cannot operate on array", *this);
+            throw InterpreterException(terms[this->op] + " cannot operate on array", *this);
         if (!lvt->type.eq(& rvt->type))
             throw InterpreterException("type mismatch", *this);
 
-    if (this->op == "ADD") {
+    if (this->op == add) {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType(lvt->data.bval + rvt->data.bval);
@@ -677,7 +697,7 @@ INTERPRET(EvalExpr) {
                 throw InterpreterException("+ cannot operate on this type", *this);
         }
     }
-    if (this->op == "SUB") {
+    if (this->op == sub) {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType(lvt->data.bval - rvt->data.bval);
@@ -691,7 +711,7 @@ INTERPRET(EvalExpr) {
                 throw InterpreterException("- cannot operate on this type", *this);
         }
     }
-    if (this->op == "MUL") {
+    if (this->op == mul) {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType(lvt->data.bval * rvt->data.bval);
@@ -705,7 +725,7 @@ INTERPRET(EvalExpr) {
                 throw InterpreterException("* cannot operate on this type", *this);
         }
     }
-    if (this->op == "LT") {
+    if (this->op == lt) {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType((bool)(lvt->data.bval < rvt->data.bval));
@@ -719,7 +739,7 @@ INTERPRET(EvalExpr) {
                 throw InterpreterException("< cannot operate on this type", *this);
         }
     }
-    if (this->op == "GT") {
+    if (this->op == gt) {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType((bool)(lvt->data.bval > rvt->data.bval));
@@ -733,5 +753,5 @@ INTERPRET(EvalExpr) {
                 throw InterpreterException("> cannot operate on this type", *this);
         }
     }
-    throw InterpreterException("unhandled operator " + this->op, *this);
+    throw InterpreterException("unhandled operator " + terms[this->op], *this);
 }

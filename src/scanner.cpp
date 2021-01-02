@@ -60,7 +60,8 @@ token scanner::scan(void) {
             data += c;
             next();
             if (c != '\'') {
-                throw std::runtime_error("scanner: unknown token " + c);
+                throw std::runtime_error(
+                    "scanner: unknown token " + std::string(1, c));
             }
             next();
             return t_char;
@@ -168,7 +169,7 @@ token scanner::scan(void) {
         }
         case '/': {
             next();
-            return div;
+            return token::div;
         }
         case '%': {
             next();
@@ -231,7 +232,7 @@ token scanner::scan(void) {
                 if (data == "str") return type_str;
                 throw std::runtime_error("unknown name: " + data);
             }
-            throw std::runtime_error("unknown character: " + c);
+            throw std::runtime_error("unknown character: " + std::string(1, c));
         }
     }
 }

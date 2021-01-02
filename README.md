@@ -4,7 +4,8 @@ Yudi's Programming Language (YCPL) is a new programming language that enforces m
 
 This project is still under development and not all function modules defined in specification coherce with the implementation. Below is the list of things undergoing construction.
 
-- [x] Scanner, Parser, and AST constructor.
+- [x] Rework Scanner.
+- [ ] Rework Parser. (IP)
 - [x] Implementation for basic arithmetics and variable definition.
 - [x] Global Variables.
 - [x] Control-Flow definition including loops and functions.
@@ -21,16 +22,23 @@ This project is still under development and not all function modules defined in 
 - `spec/`: Directory that includes specification.
     - `specs.tex`: Source LaTeX code for specification.
     - `specs.pdf`: Compiled readable speicification file.
-- `src/`: Directory that includes source code for interpreter.
-- `input.yc`: Sample ycpl program.
+- `src/`: Directory that includes source code.
+- `sample/`: Directory that includes sample programs.
+    - `factorial.yc`: factorial from 1 to 10.
+    - `cast.yc`: conversion between basic types.
+- `input.yc`: Sample ycpl program used for debugging.
 - `Makefile`
 - `LICENSE`
 - `README.md`: Documentation.
 
 ## Installation
 
-The interpreter requires any form of a C++ compiler, including `gcc` and `llvm`. It has been tested under Linux and Mac OS.
+The interpreter requires any form of a C++ compiler. It has been tested under Linux and Mac OS.
 
 To compile the project
 
 > make
+
+To test all sample programs under `sample/`
+
+> make test
