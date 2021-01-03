@@ -1,5 +1,5 @@
 CXX = c++
-CXXFLAGS = -g -Wall -Wno-overloaded-virtual $(FLAGS) -fexceptions -std=c++1y
+CXXFLAGS = -g -Wall -Wno-overloaded-virtual $(FLAGS) -fexceptions -O3 -std=c++1y
 
 TARGET = auto
 SRCS = src/err.cpp src/util.cpp src/ast.cpp src/scanner.cpp src/parser.cpp src/runtime.cpp

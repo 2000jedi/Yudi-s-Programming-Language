@@ -10,6 +10,7 @@
 
 #include "util.hpp"
 #include "runtime.hpp"
+#include "err.hpp"
 
 using namespace AST;
 
@@ -292,12 +293,12 @@ void SymTable::insert(Name name, ValueType *vt) {
     d.back()[name] = vt;
 }
 
-ValueType* SymTable::lookup(Name name, BaseAST* ast) {
+ValueType* SymTable::lookup(Name name, ErrInfo* ast) {
     if (name.ClassName.size() > 0) {
         auto owner = this->lookup(name.owner(), ast);
         if (!((owner->type.baseType) == t_rtfn && (name.BaseName == "new"))) {
             if (owner->type.baseType != t_class) {
-                throw InterpreterException(name.owner().str() + " is not a compound type", *ast);
+                throw InterpreterException(name.owner().str() + " is not a compound type", ast);
             }
             auto clst = owner->data.st;
             return clst->lookup(Name(name.BaseName), ast);
@@ -309,23 +310,23 @@ ValueType* SymTable::lookup(Name name, BaseAST* ast) {
             return d[i][name];
         }
     }
-    throw InterpreterException("variable " + name.str() + " is not declared", *ast);
+    throw InterpreterException("variable " + name.str() + " is not declared", ast);
 }
 
 ValueType* SymTable::lookup(ExprVal *name) {
     if (name->call != nullptr)
-        throw InterpreterException("cannot lookup a function call", *name);
+        throw InterpreterException("cannot lookup a function call", name);
 
     if (name->array != nullptr) {
         auto arr = this->lookup(name->refName, name);
         auto arr_index_vt = name->array->interpret(this);
         if (!arr_index_vt->type.eq(& IntType)) {
-            throw InterpreterException("array index must be an int", *name);
+            throw InterpreterException("array index must be an int", name);
         }
         int  arr_index = arr_index_vt->data.ival;
 
         if (arr->type.arrayT <= arr_index) {
-            throw InterpreterException("array index out of bound", *name);
+            throw InterpreterException("array index out of bound", name);
         }
 
         auto vts = arr->data.vt;
@@ -361,7 +362,7 @@ void ValueType::Free(void) {
 ValueType *ConstEval(ExprVal *e) {
     switch (e->type.baseType) {
         case t_void: {
-            throw InterpreterException("no constant type \"void\"", *e);
+            throw InterpreterException("no constant type \"void\"", e);
         }
         case t_int32: {
             return new ValueType(std::stoi(e->constVal));
@@ -380,7 +381,7 @@ ValueType *ConstEval(ExprVal *e) {
             return new ValueType(s, true);
         }
         default: {
-            throw InterpreterException("TypeDecl index not handled", *e);
+            throw InterpreterException("TypeDecl index not handled", e);
         }
     }
 }
@@ -444,12 +445,12 @@ INTERPRET(VarDecl) {
     if (this->type.baseType == AST::t_void) {
         if (this->init == nullptr) {
             throw InterpreterException(
-                "variable " + this->name.str() + " has unknown type", *this);
+                "variable " + this->name.str() + " has unknown type", this);
         } else {
             t = this->init->interpret(st);
             if (t == & None) {
                 throw InterpreterException(
-                    "variable " + this->name.str() + " has void type", *this);
+                    "variable " + this->name.str() + " has void type", this);
             }
         }
     } else {
@@ -457,11 +458,11 @@ INTERPRET(VarDecl) {
             t = this->init->interpret(st);
             if (t == nullptr) {
                 throw InterpreterException(
-                    "variable \"" + this->name.str() + "\" has void type", *this);
+                    "variable \"" + this->name.str() + "\" has void type", this);
             }
             if (!t->type.eq(& this->type)) {
                 throw InterpreterException(
-                    "type mismatch for \"" + this->name.str() + '\"', *this);
+                    "type mismatch for \"" + this->name.str() + '\"', this);
             }
         } else {
             t = this->type.newVal();
@@ -500,7 +501,7 @@ INTERPRET(FuncCall) {
         return runtime_handler(this->function, this, st);
     }
     if (fn_->type.baseType != t_fn)
-        throw InterpreterException("type cannot be called", *this);
+        throw InterpreterException("type cannot be called", this);
 
     auto fn = fn_->data.fs;
 
@@ -508,7 +509,7 @@ INTERPRET(FuncCall) {
         auto vt = this->pars[i]->interpret(st);
         auto prm = fn->fd->pars[i];
         if (!vt->type.eq(& prm.type)) {
-            throw InterpreterException("type mismatch for argument " + prm.name, *this);
+            throw InterpreterException("type mismatch for argument " + prm.name, this);
         }
         st->insert(Name(prm.name), vt);
     }
@@ -544,12 +545,12 @@ void UnionDecl::declare(SymTable *st, ValueType *context) {
     // TODO: union declaration
 }
 
-bool vt_is_true(ValueType *vt, BaseAST *ast) {
+bool vt_is_true(ValueType *vt, ErrInfo *ast) {
     if (vt == nullptr) {
-        throw InterpreterException("expression is nullptr", *ast);
+        throw InterpreterException("expression is nullptr", ast);
     }
     if ((vt->type.baseType != t_bool) && (vt->type.arrayT == 0)) {
-        throw InterpreterException("expression is not boolean", *ast);
+        throw InterpreterException("expression is not boolean", ast);
     }
     return vt->data.one_bit;
 }
@@ -658,14 +659,14 @@ INTERPRET(EvalExpr) {
 
     if (this->op == assign) {
         if (!this->l->isVal)
-            throw InterpreterException("lvalue is not a variable", *this);
+            throw InterpreterException("lvalue is not a variable", this);
         auto lvt = st->lookup(this->l->val.get());
         if (lvt->isConst)
-            throw InterpreterException("constant cannot be assigned", *this);
+            throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
 
         if (!lvt->type.eq(& rvt->type))
-            throw InterpreterException("type mismatch", *this);
+            throw InterpreterException("type mismatch", this);
         lvt->data = rvt->data;
         return & None;
     }
@@ -673,9 +674,9 @@ INTERPRET(EvalExpr) {
     auto lvt = this->l->interpret(st);
         auto rvt = this->r->interpret(st);
         if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
-            throw InterpreterException(terms[this->op] + " cannot operate on array", *this);
+            throw InterpreterException(terms[this->op] + " cannot operate on array", this);
         if (!lvt->type.eq(& rvt->type))
-            throw InterpreterException("type mismatch", *this);
+            throw InterpreterException("type mismatch", this);
 
     switch (this->op) {
     case add: {
@@ -689,7 +690,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval + rvt->data.dval);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case sub: {
@@ -703,7 +704,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval - rvt->data.dval);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case mul: {
@@ -717,7 +718,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval * rvt->data.dval);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case t_div: {
@@ -731,7 +732,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval / rvt->data.dval);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case rem: {
@@ -741,7 +742,7 @@ INTERPRET(EvalExpr) {
             case t_int32:
                 return new ValueType(lvt->data.ival % rvt->data.ival);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case band: {
@@ -751,7 +752,7 @@ INTERPRET(EvalExpr) {
             case t_int32:
                 return new ValueType(lvt->data.ival & rvt->data.ival);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case bor: {
@@ -761,7 +762,7 @@ INTERPRET(EvalExpr) {
             case t_int32:
                 return new ValueType(lvt->data.ival | rvt->data.ival);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case bxor: {
@@ -771,7 +772,7 @@ INTERPRET(EvalExpr) {
             case t_int32:
                 return new ValueType(lvt->data.ival ^ rvt->data.ival);
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case equ: {
@@ -785,7 +786,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval == rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case neq: {
@@ -799,7 +800,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval != rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case lt: {
@@ -813,7 +814,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval < rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case le: {
@@ -827,7 +828,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval <= rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case gt: {
@@ -841,7 +842,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval > rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case ge: {
@@ -855,7 +856,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval >= rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case land: {
@@ -869,7 +870,7 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval && rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     case lor: {
@@ -883,10 +884,10 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval || rvt->data.dval));
             default:
-                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], this);
         }
     }
     default:
-        throw InterpreterException("unhandled operator " + terms[this->op], *this);
+        throw InterpreterException("unhandled operator " + terms[this->op], this);
     }
 }

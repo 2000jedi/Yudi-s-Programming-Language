@@ -4,10 +4,7 @@
  */
 
 #include <iostream>
-#include <sstream>
 #include <fstream>
-#include <vector>
-#include <string>
 
 #include "scanner.hpp"
 #include "parser.hpp"
@@ -25,7 +22,7 @@ int main(int argc, char** argv) {
     }
     auto result_scanner = scanner(&file);
     auto result_ast = parse(result_scanner);
-    result_ast->print();
+    // result_ast->print();
 
     AST::interpret(std::move(*result_ast));
 

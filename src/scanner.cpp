@@ -20,7 +20,8 @@ void scanner::next(void) {
         row++;
         col = 0;
     } else {
-        this->line += c;
+        if ((this->line.size() != 0) || ((c != '\t') && (c != ' ')))
+            this->line += c;
         col++;
     }
 }

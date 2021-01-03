@@ -3,7 +3,30 @@
  * All rights reserved.
  */
 
-#define ERR_CODEGEN 1
-#define ERR_PARSER  2
-#define ERR_SCANNER 3
-#define ERR_OBJCODE 4
+#pragma once
+
+#include <string>
+#include <exception>
+
+#include "scanner.hpp"
+
+class ErrInfo {
+ public:
+    int row;
+    int col;
+    std::string line;
+    ErrInfo() {}
+    explicit ErrInfo(scanner *Scanner) : row(Scanner->row), col(Scanner->col), line(Scanner->line) {}
+};
+
+class InterpreterException : public std::exception {
+ public:
+    std::string message;
+    ErrInfo *ast;
+
+    InterpreterException(std::string msg, ErrInfo *info) :
+        message(msg), ast(info) {}
+    virtual ~InterpreterException() throw() {}
+
+    virtual const char* what() const throw();
+};
