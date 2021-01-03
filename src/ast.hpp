@@ -197,6 +197,7 @@ class ValueType {
     }
 
     ~ValueType() {
+        return;
         // if (this->temp) return;
         // TODO: determine garbage collection method
         if (this->type.arrayT != 0) {
