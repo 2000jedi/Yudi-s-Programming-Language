@@ -2,20 +2,19 @@
 
 Yudi's Programming Language (YCPL) is a new programming language that enforces memory safety and type safety. The specification of the language is defined under `spec/specs.pdf`. This branch builds an interpreter that interprets the program.
 
-This project is still under development and not all function modules defined in specification coherce with the implementation. Below is the list of things undergoing construction.
+## TODO-List
 
-- [x] Rework Scanner.
-- [x] Rework Parser.
-- [x] Implementation for basic arithmetics and variable definition.
-- [x] Global Variables.
-- [x] Control-Flow definition including loops and functions.
-- [x] Basic `print` function for debugging.
-- [x] Class definition. `TODO(yyang): debug`
-- [ ] Union defintion (support for pattern-matching with tagged union).
+This project is still under development and not all function modules defined in specification coherce with the implementation. Below is the todo-list of the project.
+
+- [x] Compiler front-end.
+- [x] Implementation for basic arithmetics and control flow.
+- [x] Class definition.
+- [ ] Union defintion (support for pattern-matching with tagged union). (ip)
 - [ ] Support for Standard Library.
-- [x] Rework `NameSpace`.
 - [ ] Generics.
-- [ ] Better error messages. (IP)
+- [x] Simple error message.
+- [ ] Rework error message format (err.cpp / err.hpp)
+- [ ] Memory management.
 
 ## File and Directory Layout
 
@@ -26,14 +25,14 @@ This project is still under development and not all function modules defined in 
 - `sample/`: Directory that includes sample programs.
     - `factorial.yc`: factorial from 1 to 10.
     - `cast.yc`: conversion between basic types.
-- `input.yc`: Sample ycpl program used for debugging.
+- `input.yc`: Sample program used for debugging.
 - `Makefile`
 - `LICENSE`
 - `README.md`: Documentation.
 
 ## Installation
 
-The interpreter requires any form of a C++ compiler. It has been tested under Linux and Mac OS.
+The interpreter requires any form of a C++ compiler. It has been tested under WSL, Arch Linux and Mac OS.
 
 To compile the project
 

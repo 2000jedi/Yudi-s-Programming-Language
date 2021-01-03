@@ -29,7 +29,6 @@
 namespace AST {
 // Abstract Syntax Tree
 class BaseAST;
-class ASTs;
 class UnionDecl;
 class EvalExpr;
 class Expr;
@@ -106,9 +105,11 @@ class Name {
 
 class BaseAST {
  public:
-    std::string line;
     int row;
     int col;
+    std::string line;
+    BaseAST() {}
+    explicit BaseAST(scanner *Scanner) : row(Scanner->row), col(Scanner->col), line(Scanner->line) {}
     virtual ~BaseAST() {}
     virtual void print(int indent) {
         for (int i = 0; i < indent; ++i)
@@ -122,14 +123,13 @@ class BaseAST {
     }
 };
 
-class GenericDecl : public BaseAST  {
+class GenericDecl : public BaseAST {
  public:
     bool valid;
     std::string name;
 
     GenericDecl() : valid(false) {}
-
-    explicit GenericDecl(std::string n) : valid(true), name(n) {}
+    GenericDecl(scanner *Scanner, std::string n) : BaseAST(Scanner), valid(true), name(n) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
@@ -158,7 +158,8 @@ class TypeDecl : public BaseAST {
                 (this->arrayT == other->arrayT);
     }
 
-    explicit TypeDecl(Types t, int i = 0) : baseType(t), arrayT(i), gen(GenericDecl()) {}
+    explicit TypeDecl(Types t, int i = 0) :
+        baseType(t), arrayT(i), gen(GenericDecl()) {}
 
     TypeDecl(Types t, std::string i) : baseType(t), arrayT(std::stoi(i)), gen(GenericDecl()) {}
 
@@ -166,7 +167,8 @@ class TypeDecl : public BaseAST {
         this->baseType = t_class;
     }
 
-    TypeDecl(Types t, std::string o, GenericDecl g, int i) : baseType(t), arrayT(i), other(Name(o)), gen(g) {
+    TypeDecl(scanner *Scanner, Types t, std::string o, GenericDecl g, int i) :
+        BaseAST(Scanner), baseType(t), arrayT(i), other(Name(o)), gen(g) {
         if ((t != t_class) && (g.valid))
             throw std::runtime_error("no generic is possible");
     }
@@ -266,22 +268,6 @@ class ValueType {
 
 static ValueType None = ValueType();
 
-class ASTs : public BaseAST  {
- public:
-    std::vector<BaseAST*> stmts;
-    ASTs() {}
-
-    inline void insert(BaseAST* p) {
-        if (p)
-            this->stmts.push_back(p);
-    }
-
-    void print(int);
-    virtual ValueType *interpret(SymTable *st) {
-        throw std::runtime_error("ASTs cannot be interpreted");
-    }
-};
-
 enum globalStmtTypes {
     gs_error, gs_var, gs_func, gs_class, gs_union
 };
@@ -318,7 +304,7 @@ class Expr {
 class Program : public BaseAST {
  public:
     std::vector<std::unique_ptr<GlobalStatement>> stmts;
-    Program() {}
+    explicit Program(scanner *Scanner) : BaseAST(Scanner) {}
 
     void insert(std::unique_ptr<GlobalStatement> s) {
         if (s)
@@ -338,16 +324,17 @@ class EvalExpr : public BaseAST, public Expr {
     token op;
     std::unique_ptr<EvalExpr> l, r;
 
-    explicit EvalExpr(std::unique_ptr<ExprVal> v) :
-        isVal(true), val(std::move(v)) {
+    EvalExpr(scanner *Scanner, std::unique_ptr<ExprVal> v) :
+        BaseAST(Scanner), isVal(true), val(std::move(v)) {
         this->exprType = e_eval;
     }
 
     EvalExpr(
+        scanner *Scanner,
         token o,
         std::unique_ptr<EvalExpr> l,
         std::unique_ptr<EvalExpr> r) :
-        isVal(false), op(o), l(std::move(l)), r(std::move(r)) {
+        BaseAST(Scanner), isVal(false), op(o), l(std::move(l)), r(std::move(r)) {
         this->exprType = e_eval;
     }
 
@@ -360,7 +347,7 @@ class FuncCall : public BaseAST {
     std::vector<std::unique_ptr<EvalExpr>> pars;
     Name function;
 
-    FuncCall() {}
+    explicit FuncCall(scanner *Scanner) : BaseAST(Scanner) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
@@ -379,10 +366,11 @@ class ExprVal : public BaseAST {
     std::unique_ptr<FuncCall> call;
     std::unique_ptr<EvalExpr> array;
 
-    ExprVal(std::string v, TypeDecl t) : isConst(true), constVal(v), type(t) {}
+    ExprVal(scanner *Scanner, std::string v, TypeDecl t) :
+        BaseAST(Scanner), isConst(true), constVal(v), type(t) {}
 
-    ExprVal(Name n, std::unique_ptr<FuncCall> c, std::unique_ptr<EvalExpr> a) :
-        isConst(false), type(TypeDecl(t_void)), refName(n), call(std::move(c)),
+    ExprVal(scanner *Scanner, Name n, std::unique_ptr<FuncCall> c, std::unique_ptr<EvalExpr> a) :
+        BaseAST(Scanner), isConst(false), type(TypeDecl(t_void)), refName(n), call(std::move(c)),
         array(std::move(a)) {
         if (c != nullptr)
             c->function = n;
@@ -399,7 +387,7 @@ class Param : public BaseAST  {
     std::string name;
     TypeDecl type;
 
-    Param(std::string n, TypeDecl t) : name(n), type(t) {}
+    Param(scanner *Scanner, std::string n, TypeDecl t) : BaseAST(Scanner), name(n), type(t) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st) {
@@ -411,7 +399,7 @@ class RetExpr : public BaseAST, public Expr {
  public:
     std::unique_ptr<EvalExpr> stmt;
 
-    explicit RetExpr(std::unique_ptr<EvalExpr> s) : stmt(std::move(s)) {
+    RetExpr(scanner *Scanner, std::unique_ptr<EvalExpr> s) : BaseAST(Scanner), stmt(std::move(s)) {
         this->exprType = e_ret;
     }
 
@@ -423,7 +411,7 @@ class RetExpr : public BaseAST, public Expr {
 
 class ContExpr : public BaseAST, public Expr {
  public:
-    ContExpr(void) {
+    explicit ContExpr(scanner *Scanner) : BaseAST(Scanner) {
         this->exprType = e_cont;
     }
 
@@ -433,7 +421,7 @@ class ContExpr : public BaseAST, public Expr {
 
 class BreakExpr : public BaseAST, public Expr {
  public:
-    BreakExpr(void) {
+    explicit BreakExpr(scanner *Scanner) : BaseAST(Scanner) {
         this->exprType = e_break;
     }
 
@@ -448,7 +436,8 @@ class ClassDecl : public BaseAST, public GlobalStatement {
     std::vector<std::unique_ptr<GlobalStatement>> stmts;
     // std::vector<std::VarDecl *> var_members;
 
-    ClassDecl(std::string n, GenericDecl g) : name(Name(n)), genType(g) {
+    ClassDecl(scanner *Scanner, std::string n, GenericDecl g) :
+        BaseAST(Scanner), name(Name(n)), genType(g) {
         this->stmtType = gs_class;
     }
 
@@ -471,10 +460,11 @@ class VarDecl : public BaseAST, public GlobalStatement, public Expr {
     bool is_const = false;
 
     VarDecl(
+        scanner *Scanner,
         std::string n,
         TypeDecl t,
         std::unique_ptr<EvalExpr> i) :
-        name(Name(n)), type(t), init(std::move(i)) {
+        BaseAST(Scanner), name(Name(n)), type(t), init(std::move(i)) {
         this->stmtType = gs_var;
         this->exprType = e_var;
     }
@@ -496,8 +486,8 @@ class FuncDecl : public BaseAST, public GlobalStatement {
     TypeDecl ret;
     std::vector<std::unique_ptr<Expr>> exprs;
 
-    FuncDecl(Name n, GenericDecl g, std::vector<Param> prms, TypeDecl r) :
-        name(n), genType(g), pars(prms), ret(r) {
+    FuncDecl(scanner *Scanner, Name n, GenericDecl g, std::vector<Param> prms, TypeDecl r) :
+        BaseAST(Scanner), name(n), genType(g), pars(prms), ret(r) {
         this->stmtType = gs_func;
     }
 
@@ -514,8 +504,8 @@ class UnionDecl : public BaseAST, public GlobalStatement {
     std::vector<std::unique_ptr<ClassDecl>> classes;
     GenericDecl gen;
 
-    explicit UnionDecl(Name n, GenericDecl gen) :
-        name(n), gen(gen) {
+    UnionDecl(scanner *Scanner, Name n, GenericDecl gen) :
+        BaseAST(Scanner), name(n), gen(gen) {
         this->stmtType = gs_union;
     }
 
@@ -534,7 +524,8 @@ class IfExpr : public BaseAST, public Expr {
     std::vector<std::unique_ptr<Expr>> iftrue;
     std::vector<std::unique_ptr<Expr>> iffalse;
 
-    explicit IfExpr(std::unique_ptr<EvalExpr> c) : cond(std::move(c)) {
+    IfExpr(scanner *Scanner, std::unique_ptr<EvalExpr> c) :
+        BaseAST(Scanner), cond(std::move(c)) {
         this->exprType = e_if;
     }
 
@@ -549,7 +540,8 @@ class WhileExpr : public BaseAST, public Expr {
     std::unique_ptr<EvalExpr> cond;
     std::vector<std::unique_ptr<Expr>> exprs;
 
-    explicit WhileExpr(std::unique_ptr<EvalExpr> c) : cond(std::move(c)) {
+    WhileExpr(scanner *Scanner, std::unique_ptr<EvalExpr> c) :
+        BaseAST(Scanner), cond(std::move(c)) {
         this->exprType = e_while;
     }
 
@@ -565,10 +557,11 @@ class ForExpr : public BaseAST, public Expr {
     std::vector<std::unique_ptr<Expr>> exprs;
 
     ForExpr(
+        scanner *Scanner,
         std::unique_ptr<EvalExpr> i,
         std::unique_ptr<EvalExpr> c,
         std::unique_ptr<EvalExpr> s) :
-        init(std::move(i)), cond(std::move(c)), step(std::move(s)) {
+        BaseAST(Scanner), init(std::move(i)), cond(std::move(c)), step(std::move(s)) {
         this->exprType = e_for;
     }
 
@@ -584,7 +577,8 @@ class MatchLine : public BaseAST  {
     std::string cl_name;
     std::vector<std::unique_ptr<Expr>> exprs;
 
-    explicit MatchLine(std::string n, std::string cl) : name(n), cl_name(cl) {}
+    MatchLine(scanner *Scanner, std::string n, std::string cl) :
+        BaseAST(Scanner), name(n), cl_name(cl) {}
 
     void print(int);
     virtual ValueType *interpret(SymTable *st);
@@ -597,7 +591,8 @@ class MatchExpr : public BaseAST, public Expr {
     std::unique_ptr<EvalExpr> var;
     std::vector<MatchLine> lines;
 
-    explicit MatchExpr(std::unique_ptr<EvalExpr> v) : var(std::move(v)) {
+    MatchExpr(scanner *Scanner, std::unique_ptr<EvalExpr> v) :
+        BaseAST(Scanner), var(std::move(v)) {
         this->exprType = e_match;
     }
 

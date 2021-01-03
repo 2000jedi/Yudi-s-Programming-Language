@@ -111,7 +111,7 @@ token scanner::scan(void) {
                 next();
                 return neq;
             } else {
-                return neg;
+                throw "Scanner: unknown character: '!'";
             }
         }
         case '>': {
@@ -235,7 +235,7 @@ token scanner::scan(void) {
                 if (data == "str") return type_str;
                 return t_name;
             }
-            LogError("unknown character: " << c << '(' << (int)c << ')');
+            LogError("unknown character: '" << c << "'" << (int)c << ')');
             return t_eof;
         }
     }

@@ -29,13 +29,6 @@ void Program::print(void) {
     }
 }
 
-void ASTs::print(int indent) {
-    for (int i = 0; i < indent; ++i)
-        std::cout << "  ";
-    std::cout << "ASTs()" << std::endl;
-    for (auto p : this->stmts) p->print(indent + 1);
-}
-
 void TypeDecl::print(int indent) {
     for (int i = 0; i < indent; ++i)
         std::cout << "  ";
@@ -661,10 +654,11 @@ INTERPRET(EvalExpr) {
     if (this->isVal) {
         return this->val->interpret(st);
     }
-    //TODO: complete all operations
+    // TODO: complete all operations
+
     if (this->op == assign) {
         if (!this->l->isVal)
-            throw InterpreterException("lvalue is unassignable", *this);
+            throw InterpreterException("lvalue is not a variable", *this);
         auto lvt = st->lookup(this->l->val.get());
         if (lvt->isConst)
             throw InterpreterException("constant cannot be assigned", *this);
@@ -683,7 +677,8 @@ INTERPRET(EvalExpr) {
         if (!lvt->type.eq(& rvt->type))
             throw InterpreterException("type mismatch", *this);
 
-    if (this->op == add) {
+    switch (this->op) {
+    case add: {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType(lvt->data.bval + rvt->data.bval);
@@ -694,10 +689,10 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval + rvt->data.dval);
             default:
-                throw InterpreterException("+ cannot operate on this type", *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
         }
     }
-    if (this->op == sub) {
+    case sub: {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType(lvt->data.bval - rvt->data.bval);
@@ -708,10 +703,10 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval - rvt->data.dval);
             default:
-                throw InterpreterException("- cannot operate on this type", *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
         }
     }
-    if (this->op == mul) {
+    case mul: {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType(lvt->data.bval * rvt->data.bval);
@@ -722,10 +717,92 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType(lvt->data.dval * rvt->data.dval);
             default:
-                throw InterpreterException("* cannot operate on this type", *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
         }
     }
-    if (this->op == lt) {
+    case t_div: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType(lvt->data.bval / rvt->data.bval);
+            case t_int32:
+                return new ValueType(lvt->data.ival / rvt->data.ival);
+            case t_fp32:
+                return new ValueType(lvt->data.fval / rvt->data.fval);
+            case t_fp64:
+                return new ValueType(lvt->data.dval / rvt->data.dval);
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case rem: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType(lvt->data.bval % rvt->data.bval);
+            case t_int32:
+                return new ValueType(lvt->data.ival % rvt->data.ival);
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case band: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType(lvt->data.bval & rvt->data.bval);
+            case t_int32:
+                return new ValueType(lvt->data.ival & rvt->data.ival);
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case bor: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType(lvt->data.bval | rvt->data.bval);
+            case t_int32:
+                return new ValueType(lvt->data.ival | rvt->data.ival);
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case bxor: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType(lvt->data.bval ^ rvt->data.bval);
+            case t_int32:
+                return new ValueType(lvt->data.ival ^ rvt->data.ival);
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case equ: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType((bool)(lvt->data.bval == rvt->data.bval));
+            case t_int32:
+                return new ValueType((bool)(lvt->data.ival == rvt->data.ival));
+            case t_fp32:
+                return new ValueType((bool)(lvt->data.fval == rvt->data.fval));
+            case t_fp64:
+                return new ValueType((bool)(lvt->data.dval == rvt->data.dval));
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case neq: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType((bool)(lvt->data.bval != rvt->data.bval));
+            case t_int32:
+                return new ValueType((bool)(lvt->data.ival != rvt->data.ival));
+            case t_fp32:
+                return new ValueType((bool)(lvt->data.fval != rvt->data.fval));
+            case t_fp64:
+                return new ValueType((bool)(lvt->data.dval != rvt->data.dval));
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case lt: {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType((bool)(lvt->data.bval < rvt->data.bval));
@@ -736,10 +813,24 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval < rvt->data.dval));
             default:
-                throw InterpreterException("< cannot operate on this type", *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
         }
     }
-    if (this->op == gt) {
+    case le: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType((bool)(lvt->data.bval <= rvt->data.bval));
+            case t_int32:
+                return new ValueType((bool)(lvt->data.ival <= rvt->data.ival));
+            case t_fp32:
+                return new ValueType((bool)(lvt->data.fval <= rvt->data.fval));
+            case t_fp64:
+                return new ValueType((bool)(lvt->data.dval <= rvt->data.dval));
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case gt: {
         switch (lvt->type.baseType) {
             case t_uint8:
                 return new ValueType((bool)(lvt->data.bval > rvt->data.bval));
@@ -750,8 +841,52 @@ INTERPRET(EvalExpr) {
             case t_fp64:
                 return new ValueType((bool)(lvt->data.dval > rvt->data.dval));
             default:
-                throw InterpreterException("> cannot operate on this type", *this);
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
         }
     }
-    throw InterpreterException("unhandled operator " + terms[this->op], *this);
+    case ge: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType((bool)(lvt->data.bval >= rvt->data.bval));
+            case t_int32:
+                return new ValueType((bool)(lvt->data.ival >= rvt->data.ival));
+            case t_fp32:
+                return new ValueType((bool)(lvt->data.fval >= rvt->data.fval));
+            case t_fp64:
+                return new ValueType((bool)(lvt->data.dval >= rvt->data.dval));
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case land: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType((bool)(lvt->data.bval && rvt->data.bval));
+            case t_int32:
+                return new ValueType((bool)(lvt->data.ival && rvt->data.ival));
+            case t_fp32:
+                return new ValueType((bool)(lvt->data.fval && rvt->data.fval));
+            case t_fp64:
+                return new ValueType((bool)(lvt->data.dval && rvt->data.dval));
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    case lor: {
+        switch (lvt->type.baseType) {
+            case t_uint8:
+                return new ValueType((bool)(lvt->data.bval || rvt->data.bval));
+            case t_int32:
+                return new ValueType((bool)(lvt->data.ival || rvt->data.ival));
+            case t_fp32:
+                return new ValueType((bool)(lvt->data.fval || rvt->data.fval));
+            case t_fp64:
+                return new ValueType((bool)(lvt->data.dval || rvt->data.dval));
+            default:
+                throw InterpreterException(terms[this->op] + " cannot operate on " + terms[this->op], *this);
+        }
+    }
+    default:
+        throw InterpreterException("unhandled operator " + terms[this->op], *this);
+    }
 }
