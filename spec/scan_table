@@ -41,7 +41,9 @@ _LOR=\|\|
 _LAND=&&
 _LE=<=
 _GE=>=
-_ASSIGN==
+_MOVE==
+_COPY=:=
+_DEEPCOPY=::=
 _NOT=!
 _BOR=\|
 _BAND=&

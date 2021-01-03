@@ -15,7 +15,7 @@ enum token {
     t_if, t_else, t_while, t_for, t_match,
     t_break, t_continue, t_return,
     type_void, type_bool, type_char, type_int32, type_uint8, type_fp32, type_fp64, type_str,
-    lpar, rpar, lbra, rbra, larr, rarr, equ, neq, lor, land, assign,
+    lpar, rpar, lbra, rbra, larr, rarr, equ, neq, lor, land, move, copy, deepcopy,
     bor, band, bxor, gt, ge, lt, le, add, sub, mul, t_div, rem,
     colon, comma, eol,
     dot, t_name,
@@ -28,7 +28,7 @@ const std::string terms[] = {
     "if", "else", "while", "for", "match",
     "break", "continue", "return",
     "type_void", "type_bool", "type_char", "type_int32", "type_uint8", "type_fp32", "type_fp64", "type_str",
-    "(", ")", "{", "}", "[", "]", "==", "!=", "||", "&&", "=",
+    "(", ")", "{", "}", "[", "]", "==", "!=", "||", "&&", "=", ":=", "::="
     "|", "&", "^", ">", ">=", "<", "<=", "+", "-", "*", "/", "%",
     ":", ",", "EOL",
     ".", "name",

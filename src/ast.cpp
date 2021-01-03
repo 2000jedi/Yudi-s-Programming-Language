@@ -277,7 +277,7 @@ void SymTable::reset(void) {
 }
 
 void SymTable::addLayer(void) {
-    d.push_back(std::map<Name, ValueType *>());
+    d.push_back(std::map<Name, ValueType>());
 }
 
 void SymTable::removeLayer(void) {
@@ -289,8 +289,11 @@ void SymTable::removeLayer(void) {
     d.pop_back();
 }
 
-void SymTable::insert(Name name, ValueType *vt) {
-    d.back()[name] = vt;
+ValueType *SymTable::insert(Name name, ValueType *vt) {
+    d.back()[name] = *vt;
+    d.back()[name].temp = false;
+    if (vt->temp) delete vt;
+    return & d.back()[name];
 }
 
 ValueType* SymTable::lookup(Name name, ErrInfo* ast) {
@@ -307,7 +310,7 @@ ValueType* SymTable::lookup(Name name, ErrInfo* ast) {
 
     for (int i = d.size() - 1; i >= 0; i--) {
         if (d[i].find(name) != d[i].end()) {
-            return d[i][name];
+            return & d[i][name];
         }
     }
     throw InterpreterException("variable " + name.str() + " is not declared", ast);
@@ -335,26 +338,6 @@ ValueType* SymTable::lookup(ExprVal *name) {
         return this->lookup(name->refName, name);
     }
 }
-
-void ValueType::Free(void) {
-        return;  // TODO: determine free method for each type
-        if (this->type.arrayT != 0) {
-            // auto arr = (ValueType*) this->data.ptr;
-            for (int i = 0; i < this->type.arrayT; ++i);
-                // TODO: remove arr[i]
-        }
-
-        switch (this->type.baseType) {
-            case t_str:
-                delete data.str;
-            case t_fn:
-                delete data.fs;
-            case t_class:
-                delete data.st;
-            default:
-                return;
-        }
-    }
 
 /**
  * Interpreter Interface - interpret() methods
@@ -415,6 +398,8 @@ ValueType *TypeDecl::newVal(void) {
 }
 
 static int return_flag = 0;
+static int continue_flag = 0;
+static int break_flag = 0;
 
 int AST::interpret(Program prog) {
     SymTable *st = new SymTable();
@@ -471,7 +456,7 @@ INTERPRET(VarDecl) {
     if (this->is_const) {
             t->isConst = true;
         }
-    st->insert(this->name, t);
+    t = st->insert(this->name, t);
     return t;
 }
 
@@ -584,9 +569,15 @@ INTERPRET(ForExpr) {
     while (vt_is_true(cond_vt, this)) {
         for (auto&& expr : this->exprs) {
             auto ret = expr->interpret(st);
-            if (expr->exprType == e_ret) {
+            if (return_flag) {
                 return ret;
             }
+            if (continue_flag || break_flag) {
+                break;
+            }
+        }
+        if (break_flag) {
+            break;
         }
         this->step->interpret(st);
         cond_vt = this->cond->interpret(st);
@@ -601,9 +592,15 @@ INTERPRET(WhileExpr) {
     while (vt_is_true(cond_vt, this)) {
         for (auto&& expr : this->exprs) {
             auto ret = expr->interpret(st);
-            if (expr->exprType == e_ret) {
+            if (return_flag) {
                 return ret;
             }
+            if (continue_flag || break_flag) {
+                break;
+            }
+        }
+        if (break_flag) {
+            break;
         }
         cond_vt = this->cond->interpret(st);
     }
@@ -632,14 +629,12 @@ INTERPRET(RetExpr) {
 }
 
 INTERPRET(ContExpr) {
-    // todo
-    return_flag++;
+    continue_flag++;
     return nullptr;
 }
 
 INTERPRET(BreakExpr) {
-    // todo
-    return_flag++;
+    break_flag++;
     return nullptr;
 }
 
@@ -655,15 +650,19 @@ INTERPRET(EvalExpr) {
     if (this->isVal) {
         return this->val->interpret(st);
     }
-    // TODO: complete all operations
 
-    if (this->op == assign) {
+    if (this->op == move) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is not a variable", this);
         auto lvt = st->lookup(this->l->val.get());
         if (lvt->isConst)
             throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
+        auto rv = *rvt;
+        if (rvt->temp) {
+            delete rvt;
+            rvt = & rv;
+        }
 
         if (!lvt->type.eq(& rvt->type))
             throw InterpreterException("type mismatch", this);
@@ -672,11 +671,22 @@ INTERPRET(EvalExpr) {
     }
 
     auto lvt = this->l->interpret(st);
-        auto rvt = this->r->interpret(st);
-        if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
-            throw InterpreterException(terms[this->op] + " cannot operate on array", this);
-        if (!lvt->type.eq(& rvt->type))
-            throw InterpreterException("type mismatch", this);
+    auto rvt = this->r->interpret(st);
+    if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
+        throw InterpreterException(terms[this->op] + " cannot operate on array", this);
+    if (!lvt->type.eq(& rvt->type))
+        throw InterpreterException("type mismatch", this);
+
+    auto lv = *lvt;
+    if (lvt->temp) {
+        delete lvt;
+        lvt = & lv;
+    }
+    auto rv = *rvt;
+    if (rvt->temp) {
+        delete rvt;
+        rvt = & rv;
+    }
 
     switch (this->op) {
     case add: {

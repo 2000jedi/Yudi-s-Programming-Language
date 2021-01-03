@@ -203,7 +203,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
     AST::ValueType *context = new AST::ValueType(fnst, clty);
 
-    st->insert(AST::Name("this"), context);
+    context = st->insert(AST::Name("this"), context);
 
     auto cl = st->lookup(fn, call)->data.cd;
     for (auto&& stmt : cl->stmts) {

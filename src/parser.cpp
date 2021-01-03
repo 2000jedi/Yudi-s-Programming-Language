@@ -234,8 +234,8 @@ AST::TypeDecl type_name(scanner *Scanner) {
 }
 
 std::unique_ptr<AST::EvalExpr> init_def(scanner *Scanner) {
-    if (input_token == assign) {
-        match(Scanner, assign);
+    if (input_token == move) {
+        match(Scanner, move);
         return eval_expr(Scanner);
     } else {
         // epsilon
@@ -257,7 +257,7 @@ std::unique_ptr<AST::VarDecl> var_def(scanner *Scanner) {
 std::unique_ptr<AST::VarDecl> const_def(scanner *Scanner) {
     match(Scanner, t_const);
     auto cn = match(Scanner, t_name);
-    match(Scanner, assign);
+    match(Scanner, move);
     auto init = eval_expr(Scanner);
     match(Scanner, eol);
     auto cd = std::make_unique<AST::VarDecl>(
@@ -711,15 +711,31 @@ DEF_EL(e_logical_or) {
 }
 
 DEF_ER(e_assign) {
-    if (input_token == assign) {
-        match(Scanner, assign);
-        auto r = e_logical_or(Scanner);
-        auto ex = std::make_unique<AST::EvalExpr>(
-            Scanner, assign, std::move(l), std::move(r));
-        return e_assign(Scanner, std::move(ex));
-    } else {
-        // epsilon
-        return l;
+    switch (input_token) {
+        case move: {
+            match(Scanner, move);
+            auto r = e_logical_or(Scanner);
+            auto ex = std::make_unique<AST::EvalExpr>(
+                Scanner, move, std::move(l), std::move(r));
+            return e_assign(Scanner, std::move(ex));
+        }
+        case copy: {
+            match(Scanner, copy);
+            auto r = e_logical_or(Scanner);
+            auto ex = std::make_unique<AST::EvalExpr>(
+                Scanner, copy, std::move(l), std::move(r));
+            return e_assign(Scanner, std::move(ex));
+        }
+        case deepcopy: {
+            match(Scanner, deepcopy);
+            auto r = e_logical_or(Scanner);
+            auto ex = std::make_unique<AST::EvalExpr>(
+                Scanner, deepcopy, std::move(l), std::move(r));
+            return e_assign(Scanner, std::move(ex));
+        }
+        default:
+            // epsilon
+            return l;
     }
 }
 

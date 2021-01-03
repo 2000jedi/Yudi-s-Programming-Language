@@ -24,7 +24,7 @@
     x(const x & other) = delete;\
     x& operator= (const x & other) = delete;\
     x(x&&) = default;\
-    x& operator=(x&&) = default;\
+    x& operator=(x&&) = default;
 
 namespace AST {
 // Abstract Syntax Tree
@@ -52,14 +52,13 @@ class UnionDecl;
 class ExprVal;
 class SymTable {
  private:
-    std::vector<std::map<Name, ValueType*>> d;
+    std::vector<std::map<Name, ValueType>> d;
 
  public:
     void reset(void);
     void addLayer(void);
     void removeLayer(void);
-    void insert(Name name, ValueType *vt);
-    void insert(Name name, void *v, TypeDecl t, bool is_const);
+    ValueType *insert(Name name, ValueType *vt);
     ValueType* lookup(Name name, ErrInfo *ast);
     ValueType* lookup(ExprVal *name);
 };
@@ -191,52 +190,74 @@ class ValueType {
 
     TypeDecl type;
     bool isConst;
+    bool temp;
 
-    ValueType() : type(VoidType) {
+    ValueType() : type(VoidType), temp(true) {
         data.ival = 0;
     }
 
-    ValueType(SymTable *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
+    ~ValueType() {
+        // if (this->temp) return;
+        // TODO: determine garbage collection method
+        if (this->type.arrayT != 0) {
+            // auto arr = (ValueType*) this->data.ptr;
+            for (int i = 0; i < this->type.arrayT; ++i) {
+                this->data.vt[i].~ValueType();
+            }
+            return;
+        }
+
+        switch (this->type.baseType) {
+            case t_str:
+                delete data.str;
+            case t_fn:
+                delete data.fs;
+            case t_class:
+                delete data.st;
+            default:
+                return;
+        }
+    }
+
+    ValueType(SymTable *v, TypeDecl *t, bool c = false) : type(*t), isConst(c), temp(true) {
         data.st = v;
     }
 
-    ValueType(ValueType *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
+    ValueType(ValueType *v, TypeDecl *t, bool c = false) : type(*t), isConst(c), temp(true) {
         data.vt = v;
     }
 
-    explicit ValueType(FuncStore *v, bool c = false) : type(FuncType), isConst(c) {
+    explicit ValueType(FuncStore *v, bool c = false) : type(FuncType), isConst(c), temp(true) {
         data.fs = v;
     }
 
-    explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), isConst(c) {
+    explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), isConst(c), temp(true) {
         data.cd = v;
     }
 
-    explicit ValueType(std::string *v, bool c = false) : type(StrType), isConst(c) {
+    explicit ValueType(std::string *v, bool c = false) : type(StrType), isConst(c), temp(true) {
         data.str = v;
     }
 
-    explicit ValueType(bool b, bool c = true) : type(BoolType), isConst(c) {
+    explicit ValueType(bool b, bool c = true) : type(BoolType), isConst(c), temp(true) {
         data.one_bit = b;
     }
 
-    explicit ValueType(char b, bool c = true) : type(CharType), isConst(c) {
+    explicit ValueType(char b, bool c = true) : type(CharType), isConst(c), temp(true) {
         data.cval = b;
     }
 
-    explicit ValueType(int b, bool c = true) : type(IntType), isConst(c) {
+    explicit ValueType(int b, bool c = true) : type(IntType), isConst(c), temp(true) {
         data.ival = b;
     }
 
-    explicit ValueType(float b, bool c = true) : type(FloatType), isConst(c) {
+    explicit ValueType(float b, bool c = true) : type(FloatType), isConst(c), temp(true) {
         data.fval = b;
     }
 
-    explicit ValueType(double b, bool c = true) : type(DoubleType), isConst(c) {
+    explicit ValueType(double b, bool c = true) : type(DoubleType), isConst(c), temp(true) {
         data.dval = b;
     }
-
-    void Free(void);
 };
 
 static ValueType None = ValueType();

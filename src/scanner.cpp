@@ -103,7 +103,7 @@ token scanner::scan(void) {
                 next();
                 return equ;
             } else {
-                return assign;
+                return move;
             }
         }
         case '!': {
@@ -185,7 +185,22 @@ token scanner::scan(void) {
         }
         case ':': {
             next();
-            return colon;
+            if (c == '=') {
+                next();
+                return copy;
+            } else {
+                if (c == ':') {
+                    next();
+                    if (c == '=') {
+                        next();
+                        return deepcopy;
+                    } else {
+                        LogError("Scanner: unknown token: ::" << c);
+                    }
+                } else {
+                    return colon;
+                }
+            }
         }
         case ';': {
             next();
