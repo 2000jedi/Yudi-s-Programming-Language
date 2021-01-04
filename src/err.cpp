@@ -10,7 +10,8 @@
 
 const char *InterpreterException::what() const throw() {
     std::stringstream ss;
-    ss << "line " << ast->row << ':' << ast->col << ": " << ast->line << std::endl;
+    if (ast)
+        ss << "line " << ast->row << ':' << ast->col << ": " << ast->line << std::endl;
     ss << "AST Error: " << message << std::endl;
     std::cout << ss.str();
     return "";

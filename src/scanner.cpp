@@ -213,8 +213,8 @@ token scanner::scan(void) {
                 next();
                 while (isdigit(c) || ((c == '.') && (!is_float))) {
                     data += c;
-                    next();
                     if (c == '.') is_float = true;
+                    next();
                 }
                 if (is_float)
                     return t_float;

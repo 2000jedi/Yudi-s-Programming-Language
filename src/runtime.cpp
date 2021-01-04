@@ -265,7 +265,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
                 break;
             }
             default:
-                throw std::runtime_error("unsupported behavior");
+                throw InterpreterException("unsupported behavior", nullptr);
         }
     }
 
@@ -273,7 +273,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
         auto vt = call->pars[i]->interpret(st);
         auto prm = constructor->fd->pars[i];
         if (!vt->type.eq(& prm.type)) {
-            throw std::runtime_error("type mismatch for argument " + prm.name);
+            throw InterpreterException("type mismatch for argument " + prm.name, call);
         }
         st->insert(AST::Name(prm.name), vt);
     }

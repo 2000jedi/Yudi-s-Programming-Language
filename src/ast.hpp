@@ -197,9 +197,7 @@ class ValueType {
 
     ~ValueType() {
         if (this->ref_cnt != 0) return;
-        // TODO: determine garbage collection method
         if (this->type.arrayT != 0) {
-            // auto arr = (ValueType*) this->data.ptr;
             delete []this->data.vt;
             return;
         }
