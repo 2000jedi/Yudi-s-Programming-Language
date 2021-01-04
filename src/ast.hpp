@@ -97,8 +97,20 @@ class Name {
         return parent;
     }
 
-    friend bool operator<(const Name& l, const Name& r){
+    friend bool operator<(const Name& l, const Name& r) {
         return l.BaseName < r.BaseName;
+    }
+
+    friend bool operator==(const Name& l, const Name& r) {
+        if (l.BaseName != r.BaseName)
+            return false;
+        if (l.ClassName.size() != r.ClassName.size())
+            return false;
+        for (unsigned int i = 0; i < l.ClassName.size(); ++i) {
+            if (l.ClassName[i] != r.ClassName[i])
+                return false;
+        }
+        return true;
     }
 };
 
@@ -124,12 +136,16 @@ class TypeDecl : public ErrInfo {
     Name other;
     GenericDecl gen;
 
-    inline bool eq(TypeDecl *other) {
-        if (this->baseType == t_class) {
-            return (this->baseType == other->baseType) && (this->other.str() == other->other.str());
+    friend bool operator==(const TypeDecl& lhs, const TypeDecl& rhs) {
+        if (lhs.baseType == t_class) {
+            return (lhs.baseType == rhs.baseType) && (lhs.other == rhs.other);
         }
-        return (this->baseType == other->baseType) &&
-                (this->arrayT == other->arrayT);
+        return (lhs.baseType == rhs.baseType) &&
+                (lhs.arrayT == rhs.arrayT);
+    }
+
+    friend bool operator!=(const TypeDecl& lhs, const TypeDecl& rhs) {
+        return !(lhs == rhs);
     }
 
     explicit TypeDecl(Types t, int i = 0) :
@@ -207,8 +223,6 @@ class ValueType {
                 delete data.str;
                 return;
             case t_fn:
-                if (data.fs->context)
-                    delete data.fs->context;
                 delete data.fs;
                 return;
             case t_class:

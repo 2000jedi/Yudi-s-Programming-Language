@@ -72,7 +72,7 @@ ValueType* SymTable::lookup(ExprVal *name) {
     if (name->array != nullptr) {
         auto arr = this->lookup(name->refName, name);
         auto arr_index_vt = name->array->interpret(this);
-        if (!arr_index_vt->type.eq(& IntType)) {
+        if (arr_index_vt->type != IntType) {
             throw InterpreterException("array index must be an int", name);
         }
         int  arr_index = arr_index_vt->data.ival;
@@ -232,7 +232,7 @@ INTERPRET(VarDecl) {
                 throw InterpreterException(
                     "variable \"" + this->name.str() + "\" has void type", this);
             }
-            if (!t->type.eq(& this->type)) {
+            if (t->type != this->type) {
                 throw InterpreterException(
                     "type mismatch for \"" + this->name.str() + '\"', this);
             }
@@ -253,8 +253,6 @@ void FuncDecl::declare(SymTable *st, ValueType *context) {
 }
 
 INTERPRET(FuncDecl) {
-    // handle "this"
-
     for (auto&& e : this->exprs) {
         ValueType *vt = e->interpret(st);
         if (return_flag) {
@@ -280,7 +278,7 @@ INTERPRET(FuncCall) {
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
         auto prm = fn->fd->pars[i];
-        if (!vt->type.eq(& prm.type)) {
+        if (vt->type != prm.type) {
             throw InterpreterException("type mismatch for argument " + prm.name, this);
         }
         st->insert(Name(prm.name), vt);
@@ -453,7 +451,7 @@ INTERPRET(EvalExpr) {
             rvt = & rv;
         }
 
-        if (!lvt->type.eq(& rvt->type))
+        if (lvt->type != rvt->type)
             throw InterpreterException("type mismatch", this);
         lvt->data = rvt->data;
         return & None;
@@ -463,7 +461,7 @@ INTERPRET(EvalExpr) {
     auto rvt = this->r->interpret(st);
     if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
         throw InterpreterException(terms[this->op] + " cannot operate on " + lvt->type.str(), this);
-    if (!lvt->type.eq(& rvt->type))
+    if (lvt->type != rvt->type)
         throw InterpreterException("type mismatch", this);
 
     auto lv = *lvt;

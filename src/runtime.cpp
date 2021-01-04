@@ -272,14 +272,14 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     for (unsigned int i = 0; i < call->pars.size(); ++i) {
         auto vt = call->pars[i]->interpret(st);
         auto prm = constructor->fd->pars[i];
-        if (!vt->type.eq(& prm.type)) {
+        if (vt->type != prm.type) {
             throw InterpreterException("type mismatch for argument " + prm.name, call);
         }
         st->insert(AST::Name(prm.name), vt);
     }
 
     constructor->fd->interpret(st);
-    auto ret = st->lookup(AST::Name("this"), call);
+    auto ret = new AST::ValueType(* st->lookup(AST::Name("this"), call));
     st->removeLayer();
 
     return ret;
