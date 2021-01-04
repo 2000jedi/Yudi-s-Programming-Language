@@ -56,7 +56,6 @@ class SymTable {
 
  public:
     ~SymTable();
-    void reset(void);
     void addLayer(void);
     void removeLayer(void);
     ValueType *insert(Name name, ValueType *vt);
@@ -98,6 +97,16 @@ class Name {
     }
 
     friend bool operator<(const Name& l, const Name& r) {
+        if (l.BaseName == r.BaseName) {
+            if (l.ClassName.size() == r.ClassName.size()) {
+                for (int i = 0; i < (int)l.ClassName.size(); ++i) {
+                    if (l.ClassName[i] != r.ClassName[i]) {
+                        return l.ClassName[i] < r.ClassName[i];
+                    }
+                }
+            }
+            return l.ClassName.size() < r.ClassName.size();
+        }
         return l.BaseName < r.BaseName;
     }
 
@@ -180,9 +189,9 @@ static TypeDecl StrType = TypeDecl(t_str);
 class FuncStore {
  public:
     FuncDecl *fd;
-    ValueType *context;
+    SymTable *context;
 
-    FuncStore(FuncDecl *a, ValueType *b) : fd(a), context(b) {}
+    FuncStore(FuncDecl *a, SymTable *b) : fd(a), context(b) {}
 };
 
 class ValueType {
@@ -209,27 +218,29 @@ class ValueType {
 
     ValueType() : type(VoidType), ref_cnt(0), temp(true) {
         data.ival = 0;
+        temp = false;
     }
 
     ~ValueType() {
-        if (this->ref_cnt != 0) return;
-        if (this->type.arrayT != 0) {
-            delete []this->data.vt;
-            return;
-        }
+        if (this->ref_cnt == 0) {
+            if (this->type.arrayT != 0) {
+                delete []this->data.vt;
+                return;
+            }
 
-        switch (this->type.baseType) {
-            case t_str:
-                delete data.str;
-                return;
-            case t_fn:
-                delete data.fs;
-                return;
-            case t_class:
-                delete data.st;
-                return;
-            default:
-                return;
+            switch (this->type.baseType) {
+                case t_str:
+                    delete data.str;
+                    return;
+                case t_fn:
+                    delete data.fs;
+                    return;
+                case t_class:
+                    delete data.st;
+                    return;
+                default:
+                    return;
+            }
         }
     }
 
@@ -283,7 +294,7 @@ class GlobalStatement {
  public:
     globalStmtTypes stmtType = gs_error;
     virtual ValueType *interpret(SymTable *st) = 0;
-    virtual void declare(SymTable *st, ValueType *context) = 0;
+    virtual void declare(SymTable *st, SymTable *context) = 0;
     GlobalStatement() {}
     virtual ~GlobalStatement() {}
 };
@@ -425,7 +436,7 @@ class ClassDecl : public ErrInfo, public GlobalStatement {
         throw std::runtime_error("ClassDecl cannot be evaluated");
     }
 
-    virtual void declare(SymTable *st, ValueType *context);
+    virtual void declare(SymTable *st, SymTable *context);
 
     D_MOVE_COPY(ClassDecl)
 };
@@ -448,7 +459,7 @@ class VarDecl : public ErrInfo, public GlobalStatement, public Expr {
         this->exprType = e_var;
     }
     virtual ValueType *interpret(SymTable *st);
-    virtual void declare(SymTable *st, ValueType *context) {
+    virtual void declare(SymTable *st, SymTable *context) {
         this->interpret(st);
     }
 
@@ -468,7 +479,7 @@ class FuncDecl : public ErrInfo, public GlobalStatement {
         this->stmtType = gs_func;
     }
     virtual ValueType *interpret(SymTable *st);
-    virtual void declare(SymTable *st, ValueType *context);
+    virtual void declare(SymTable *st, SymTable *context);
 
     D_MOVE_COPY(FuncDecl)
 };
@@ -486,7 +497,7 @@ class UnionDecl : public ErrInfo, public GlobalStatement {
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("UnionDecl cannot be interpreted");
     }
-    virtual void declare(SymTable *st, ValueType *context);
+    virtual void declare(SymTable *st, SymTable *context);
 
     D_MOVE_COPY(UnionDecl)
 };

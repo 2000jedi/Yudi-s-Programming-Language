@@ -222,7 +222,7 @@ AST::TypeDecl type_name(scanner *Scanner) {
             break;
         case t_name: {
             base = AST::t_class;
-            auto other = match(Scanner, input_token);
+            other = match(Scanner, input_token);
             break;
         }
         default:

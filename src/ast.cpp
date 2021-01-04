@@ -17,11 +17,6 @@ using namespace AST;
 #define INTERPRET(x) ValueType *x::interpret(SymTable *st)
 
 // Symble Table - record Variable and Type Information
-
-void SymTable::reset(void) {
-    this->d.clear();
-}
-
 void SymTable::addLayer(void) {
     d.push_back(std::map<Name, ValueType>());
 }
@@ -170,7 +165,7 @@ ValueType *TypeDecl::newVal(void) {
             case t_fp64:
                 return new ValueType(0.0, false);
             default:
-                return &None;
+                return new ValueType((SymTable*)nullptr, this);
         }
     } else {
         ValueType* arr = new ValueType[this->arrayT];
@@ -234,20 +229,20 @@ INTERPRET(VarDecl) {
             }
             if (t->type != this->type) {
                 throw InterpreterException(
-                    "type mismatch for \"" + this->name.str() + '\"', this);
+                    "variable \"" + this->name.str() + "\": type " + this->type.str() + " cannot be assigned to " + t->type.str(), this);
             }
         } else {
             t = this->type.newVal();
         }
     }
     if (this->is_const) {
-            t->isConst = true;
-        }
+        t->isConst = true;
+    }
     t = st->insert(this->name, t);
     return t;
 }
 
-void FuncDecl::declare(SymTable *st, ValueType *context) {
+void FuncDecl::declare(SymTable *st, SymTable *context) {
     FuncStore *cur = new FuncStore(this, context);
     st->insert(this->name, new ValueType(cur, true));
 }
@@ -284,8 +279,12 @@ INTERPRET(FuncCall) {
         st->insert(Name(prm.name), vt);
     }
 
-    if (fn->context != nullptr)
-        fn->context = st->insert(Name("this"), fn->context);
+    if (fn->context != nullptr) {
+        auto clty = AST::TypeDecl(AST::t_class);
+        clty.other = this->function;
+        auto context = st->insert(Name("this"), new ValueType(fn->context, &clty));
+        context->ref_cnt++;
+    }
 
     auto ret = fn->fd->interpret(st);
     st->removeLayer();
@@ -294,7 +293,7 @@ INTERPRET(FuncCall) {
 }
 
 // runtime helper function to create initializer
-void ClassDecl::declare(SymTable *st, ValueType *context) {
+void ClassDecl::declare(SymTable *st, SymTable *context) {
     st->insert(this->name, new ValueType(this, true));
     for (auto&& stmt : this->stmts) {
         switch (stmt->stmtType) {
@@ -311,7 +310,7 @@ void ClassDecl::declare(SymTable *st, ValueType *context) {
     }
 }
 
-void UnionDecl::declare(SymTable *st, ValueType *context) {
+void UnionDecl::declare(SymTable *st, SymTable *context) {
     // TODO: union declaration
 }
 
@@ -450,10 +449,10 @@ INTERPRET(EvalExpr) {
             delete rvt;
             rvt = & rv;
         }
-
         if (lvt->type != rvt->type)
             throw InterpreterException("type mismatch", this);
         lvt->data = rvt->data;
+        *rvt = AST::None;
         return & None;
     }
 

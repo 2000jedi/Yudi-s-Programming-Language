@@ -36,8 +36,10 @@ function main() {
     #     }
     # }
     var bag : Bag = Bag(1, 2.0);
-    var bag2 : Bag = bag;
-    bag.add();
+    # var bag2 : Bag = bag; TODO: initialize with move, copy, and deepcopy
+    var bag2 : Bag;
+    bag2 = bag;
+    bag2.add();
     print(bag2.ival, bag2.fval);
 }
 

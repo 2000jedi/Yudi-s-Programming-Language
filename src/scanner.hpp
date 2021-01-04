@@ -50,7 +50,7 @@ class scanner {
         input = new std::istream(in);
         data = "";
         line = "";
-        row = 1;
+        row = 0;
         col = 0;
     }
     token scan(void);

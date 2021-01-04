@@ -244,24 +244,27 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
     // class constructors
     st->addLayer();
-    AST::Name constructor_name = AST::Name(new AST::Name(fn), "new");
+    auto fn_name = new AST::Name(fn);
+    AST::Name constructor_name = AST::Name(fn_name, "new");
+    delete fn_name;
     auto constructor = st->lookup(constructor_name, call)->data.fs;
 
-    auto clty = new AST::TypeDecl(AST::t_class);
-    clty->other = fn;
+    auto clty = AST::TypeDecl(AST::t_class);
+    clty.other = fn;
     auto fnst = new AST::SymTable();
     fnst->addLayer();
 
-    AST::ValueType *context = new AST::ValueType(fnst, clty);
-
-    context = st->insert(AST::Name("this"), context);
+    AST::ValueType *context = new AST::ValueType(fnst, &clty);
+    context->temp = false;
+    auto context_st = st->insert(AST::Name("this"), context);
+    context_st->ref_cnt++;
 
     auto cl = st->lookup(fn, call)->data.cd;
     for (auto&& stmt : cl->stmts) {
         switch (stmt->stmtType) {
             case AST::gs_var:
             case AST::gs_func: {
-                stmt->declare(fnst, context);
+                stmt->declare(fnst, fnst);
                 break;
             }
             default:
@@ -279,10 +282,10 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     }
 
     constructor->fd->interpret(st);
-    auto ret = new AST::ValueType(* st->lookup(AST::Name("this"), call));
-    st->removeLayer();
 
-    return ret;
+    st->removeLayer();
+    context->temp = true;
+    return context;
 }
 
 void runtime_bind(AST::SymTable *st) {
