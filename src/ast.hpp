@@ -109,8 +109,6 @@ class GenericDecl : public ErrInfo {
 
     GenericDecl() : valid(false) {}
     GenericDecl(scanner *Scanner, std::string n) : ErrInfo(Scanner), valid(true), name(n) {}
-
-    void print(int);
 };
 
 enum Types {
@@ -151,8 +149,6 @@ class TypeDecl : public ErrInfo {
 
     ValueType *newVal(void);
     std::string str(void);
-
-    void print(int);
 };
 static TypeDecl VoidType = TypeDecl(t_void);
 static TypeDecl BoolType = TypeDecl(t_bool);
@@ -274,10 +270,6 @@ enum globalStmtTypes {
 class GlobalStatement {
  public:
     globalStmtTypes stmtType = gs_error;
-
-    virtual void print(int indent) {
-        std::cout << "NOT COMPLETED" << std::endl;
-    }
     virtual ValueType *interpret(SymTable *st) = 0;
     virtual void declare(SymTable *st, ValueType *context) = 0;
     GlobalStatement() {}
@@ -291,9 +283,6 @@ enum exprTypes {
 class Expr {
  public:
     exprTypes exprType = e_empty;
-
-    virtual void print(int indent) {}
-
     virtual ValueType *interpret(SymTable *st) {return nullptr;}
     Expr() {}
     virtual ~Expr() {}
@@ -309,7 +298,6 @@ class Program : public ErrInfo {
             this->stmts.push_back(std::move(s));
     }
 
-    void print(void);
     ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(Program)
@@ -335,8 +323,6 @@ class EvalExpr : public ErrInfo, public Expr {
         ErrInfo(Scanner), isVal(false), op(o), l(std::move(l)), r(std::move(r)) {
         this->exprType = e_eval;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 };
 
@@ -346,8 +332,6 @@ class FuncCall : public ErrInfo {
     Name function;
 
     explicit FuncCall(scanner *Scanner) : ErrInfo(Scanner) {}
-
-    void print(int);
     ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(FuncCall)
@@ -373,8 +357,6 @@ class ExprVal : public ErrInfo {
         if (c != nullptr)
             c->function = n;
     }
-
-    void print(int);
     ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(ExprVal)
@@ -386,8 +368,6 @@ class Param : public ErrInfo  {
     TypeDecl type;
 
     Param(scanner *Scanner, std::string n, TypeDecl t) : ErrInfo(Scanner), name(n), type(t) {}
-
-    void print(int);
 };
 
 class RetExpr : public ErrInfo, public Expr {
@@ -397,8 +377,6 @@ class RetExpr : public ErrInfo, public Expr {
     RetExpr(scanner *Scanner, std::unique_ptr<EvalExpr> s) : ErrInfo(Scanner), stmt(std::move(s)) {
         this->exprType = e_ret;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(RetExpr)
@@ -409,8 +387,6 @@ class ContExpr : public ErrInfo, public Expr {
     explicit ContExpr(scanner *Scanner) : ErrInfo(Scanner) {
         this->exprType = e_cont;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 };
 
@@ -419,8 +395,6 @@ class BreakExpr : public ErrInfo, public Expr {
     explicit BreakExpr(scanner *Scanner) : ErrInfo(Scanner) {
         this->exprType = e_break;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 };
 
@@ -435,8 +409,6 @@ class ClassDecl : public ErrInfo, public GlobalStatement {
         ErrInfo(Scanner), name(Name(n)), genType(g) {
         this->stmtType = gs_class;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("ClassDecl cannot be evaluated");
     }
@@ -463,8 +435,6 @@ class VarDecl : public ErrInfo, public GlobalStatement, public Expr {
         this->stmtType = gs_var;
         this->exprType = e_var;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
     virtual void declare(SymTable *st, ValueType *context) {
         this->interpret(st);
@@ -485,8 +455,6 @@ class FuncDecl : public ErrInfo, public GlobalStatement {
         ErrInfo(Scanner), name(n), genType(g), pars(prms), ret(r) {
         this->stmtType = gs_func;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
     virtual void declare(SymTable *st, ValueType *context);
 
@@ -503,8 +471,6 @@ class UnionDecl : public ErrInfo, public GlobalStatement {
         ErrInfo(Scanner), name(n), gen(gen) {
         this->stmtType = gs_union;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st) {
         throw std::runtime_error("UnionDecl cannot be interpreted");
     }
@@ -523,8 +489,6 @@ class IfExpr : public ErrInfo, public Expr {
         ErrInfo(Scanner), cond(std::move(c)) {
         this->exprType = e_if;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(IfExpr)
@@ -539,8 +503,6 @@ class WhileExpr : public ErrInfo, public Expr {
         ErrInfo(Scanner), cond(std::move(c)) {
         this->exprType = e_while;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(WhileExpr)
@@ -559,8 +521,6 @@ class ForExpr : public ErrInfo, public Expr {
         ErrInfo(Scanner), init(std::move(i)), cond(std::move(c)), step(std::move(s)) {
         this->exprType = e_for;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(ForExpr)
@@ -574,8 +534,6 @@ class MatchLine : public ErrInfo  {
 
     MatchLine(scanner *Scanner, std::string n, std::string cl) :
         ErrInfo(Scanner), name(n), cl_name(cl) {}
-
-    void print(int);
     ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(MatchLine)
@@ -590,8 +548,6 @@ class MatchExpr : public ErrInfo, public Expr {
         ErrInfo(Scanner), var(std::move(v)) {
         this->exprType = e_match;
     }
-
-    void print(int);
     virtual ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(MatchExpr)

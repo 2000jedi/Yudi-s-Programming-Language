@@ -49,7 +49,9 @@ void runtime_debug(AST::FuncCall *call, AST::SymTable *st) {
     for (auto&& par : call->pars) {
         auto pst = par->interpret(st);
         std::cout << "Debug info for: ";
-        par->print(0);
+        if (par->isVal) {
+            std::cout << call->line << std::endl;
+        }
         std::cout << "\tTemp Flag: " << pst->temp << std::endl;
         std::cout << "\tConst Flag: " << pst->isConst << std::endl;
         std::cout << "\tReference Counter: " << pst->ref_cnt << std::endl;
