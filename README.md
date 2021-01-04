@@ -8,13 +8,13 @@ This project is still under development and not all function modules defined in 
 
 - [x] Compiler front-end.
 - [x] Implementation for basic arithmetics and control flow.
-- [x] Class definition.
+- [x] Class definition. (require tests)
 - [ ] Union defintion (support for pattern-matching with tagged union). (ip)
 - [ ] Support for Standard Library.
 - [ ] Generics.
 - [x] Simple error message.
 - [ ] Rework error message format (err.cpp / err.hpp)
-- [ ] Memory management.
+- [x] Memory management. (require tests)
 
 ## File and Directory Layout
 

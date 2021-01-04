@@ -55,6 +55,7 @@ class SymTable {
     std::vector<std::map<Name, ValueType>> d;
 
  public:
+    ~SymTable();
     void reset(void);
     void addLayer(void);
     void removeLayer(void);
@@ -199,7 +200,7 @@ class ValueType {
     }
 
     ~ValueType() {
-        if (this->temp) return;
+        if (this->ref_cnt != 0) return;
         // TODO: determine garbage collection method
         if (this->type.arrayT != 0) {
             // auto arr = (ValueType*) this->data.ptr;

@@ -281,12 +281,15 @@ void SymTable::addLayer(void) {
 }
 
 void SymTable::removeLayer(void) {
-    /*for (auto vt : d.back()) {
-        vt.second->Free();
-        delete vt.second;
-    }*/
-    // TODO: need to find a method to auto-deallocate
+    for (auto&& v : this->d.back()) {
+        v.second.ref_cnt--;
+    }
     d.pop_back();
+}
+
+SymTable::~SymTable() {
+    while (this->d.size() > 0)
+        removeLayer();
 }
 
 ValueType *SymTable::insert(Name name, ValueType *vt) {
@@ -344,9 +347,6 @@ ValueType* SymTable::lookup(ExprVal *name) {
  */
 ValueType *ConstEval(ExprVal *e) {
     switch (e->type.baseType) {
-        case t_void: {
-            throw InterpreterException("no constant type \"void\"", e);
-        }
         case t_int32: {
             return new ValueType(std::stoi(e->constVal));
         }
@@ -364,7 +364,7 @@ ValueType *ConstEval(ExprVal *e) {
             return new ValueType(s, true);
         }
         default: {
-            throw InterpreterException("TypeDecl index not handled", e);
+            throw InterpreterException("Type `" + e->type.str() + "` is invalid", e);
         }
     }
 }
@@ -722,11 +722,13 @@ INTERPRET(EvalExpr) {
 
     auto lv = *lvt;
     if (lvt->temp) {
+        lvt->ref_cnt--;
         delete lvt;
         lvt = & lv;
     }
     auto rv = *rvt;
     if (rvt->temp) {
+        rvt->ref_cnt--;
         delete rvt;
         rvt = & rv;
     }

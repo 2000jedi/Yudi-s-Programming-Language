@@ -36,7 +36,10 @@ void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
                 throw InterpreterException("Unsupported Type: " + pst->type.str(), call);
                 break;
             }
-            if (pst->temp) delete pst;
+            if (pst->temp) {
+                pst->ref_cnt--;
+                delete pst;
+            }
         }
     }
     std::cout << std::endl;
