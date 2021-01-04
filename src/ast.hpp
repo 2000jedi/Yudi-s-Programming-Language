@@ -149,6 +149,7 @@ class TypeDecl : public ErrInfo {
     }
 
     ValueType *newVal(void);
+    std::string str(void);
 
     void print(int);
 };
@@ -189,74 +190,77 @@ class ValueType {
     } data;
 
     TypeDecl type;
+    u_int16_t ref_cnt;  // reference counter
     bool isConst;
     bool temp;
 
-    ValueType() : type(VoidType), temp(true) {
+    ValueType() : type(VoidType), ref_cnt(0), temp(true) {
         data.ival = 0;
     }
 
     ~ValueType() {
-        return;
-        // if (this->temp) return;
+        if (this->temp) return;
         // TODO: determine garbage collection method
         if (this->type.arrayT != 0) {
             // auto arr = (ValueType*) this->data.ptr;
-            for (int i = 0; i < this->type.arrayT; ++i) {
-                this->data.vt[i].~ValueType();
-            }
+            delete []this->data.vt;
             return;
         }
 
         switch (this->type.baseType) {
             case t_str:
                 delete data.str;
+                return;
             case t_fn:
+                if (data.fs->context)
+                    delete data.fs->context;
                 delete data.fs;
+                return;
             case t_class:
                 delete data.st;
+                return;
             default:
                 return;
         }
     }
 
-    ValueType(SymTable *v, TypeDecl *t, bool c = false) : type(*t), isConst(c), temp(true) {
+    ValueType(SymTable *v, TypeDecl *t, bool c = false) : type(*t), ref_cnt(1), isConst(c), temp(true) {
         data.st = v;
     }
 
-    ValueType(ValueType *v, TypeDecl *t, bool c = false) : type(*t), isConst(c), temp(true) {
+    ValueType(ValueType *v, TypeDecl *t, bool c = false) : type(*t), ref_cnt(1), isConst(c), temp(true) {
         data.vt = v;
     }
 
-    explicit ValueType(FuncStore *v, bool c = false) : type(FuncType), isConst(c), temp(true) {
+    explicit ValueType(FuncStore *v, bool c = false) : type(FuncType), ref_cnt(1), isConst(c), temp(true) {
         data.fs = v;
     }
 
-    explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), isConst(c), temp(true) {
+    explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), ref_cnt(1), isConst(c), temp(true) {
         data.cd = v;
     }
 
-    explicit ValueType(std::string *v, bool c = false) : type(StrType), isConst(c), temp(true) {
+    explicit ValueType(std::string *v, bool c = false) : type(StrType), ref_cnt(1), isConst(c), temp(true) {
         data.str = v;
     }
 
-    explicit ValueType(bool b, bool c = true) : type(BoolType), isConst(c), temp(true) {
+    explicit ValueType(bool b, bool c = true) : type(BoolType), ref_cnt(0), isConst(c), temp(true) {
         data.one_bit = b;
     }
 
-    explicit ValueType(char b, bool c = true) : type(CharType), isConst(c), temp(true) {
+    explicit ValueType(char b, bool c = true) : type(CharType), ref_cnt(0), isConst(c), temp(true) {
         data.cval = b;
     }
 
-    explicit ValueType(int b, bool c = true) : type(IntType), isConst(c), temp(true) {
+    explicit ValueType(int b, bool c = true) : type(IntType), ref_cnt(0), isConst(c), temp(true) {
         data.ival = b;
     }
 
-    explicit ValueType(float b, bool c = true) : type(FloatType), isConst(c), temp(true) {
+    explicit ValueType(float b, bool c = true) : type(FloatType), ref_cnt(0), isConst(c), temp(true) {
         data.fval = b;
     }
 
-    explicit ValueType(double b, bool c = true) : type(DoubleType), isConst(c), temp(true) {
+    explicit ValueType(double b, bool c = true) : type(DoubleType), ref_cnt(0), isConst(c), temp(true) {
         data.dval = b;
     }
 };

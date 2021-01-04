@@ -54,4 +54,8 @@ class scanner {
         col = 0;
     }
     token scan(void);
+
+    void Free(void) {
+        delete input;
+    }
 };

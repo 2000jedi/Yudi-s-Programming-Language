@@ -22,6 +22,7 @@ int main(int argc, char** argv) {
     }
     auto result_scanner = scanner(&file);
     auto result_ast = parse(result_scanner);
+    result_scanner.Free();
     // result_ast->print();
 
     AST::interpret(std::move(*result_ast));

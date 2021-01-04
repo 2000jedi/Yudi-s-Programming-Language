@@ -6,14 +6,16 @@
 #include "runtime.hpp"
 
 #include <string>
+
 #include "ast.hpp"
+#include "err.hpp"
 
 void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
     for (auto&& par : call->pars) {
         auto pst = par->interpret(st);
         if (pst != nullptr) {
             if (pst->type.arrayT != 0)
-                throw std::runtime_error("cannot print an array");
+                throw InterpreterException("cannot print an array", call);
             switch (pst->type.baseType) {
             case AST::t_int32:
                 std::cout << pst->data.ival << " ";
@@ -31,21 +33,60 @@ void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
                 std::cout << *pst->data.str << " ";
                 break;
             default:
-                std::cout << "(Unsupported Type: " << pst->type.baseType << ") ";
+                throw InterpreterException("Unsupported Type: " + pst->type.str(), call);
                 break;
             }
+            if (pst->temp) delete pst;
         }
     }
     std::cout << std::endl;
 }
 
+void runtime_debug(AST::FuncCall *call, AST::SymTable *st) {
+    for (auto&& par : call->pars) {
+        auto pst = par->interpret(st);
+        std::cout << "Debug info for: ";
+        par->print(0);
+        std::cout << "\tTemp Flag: " << pst->temp << std::endl;
+        std::cout << "\tConst Flag: " << pst->isConst << std::endl;
+        std::cout << "\tReference Counter: " << pst->ref_cnt << std::endl;
+        std::cout << "\tType: " << pst->type.str() << std::endl;
+        std::cout << "\tValue: ";
+        if (pst != nullptr) {
+            if (pst->type.arrayT != 0)
+                return;
+            switch (pst->type.baseType) {
+            case AST::t_int32:
+                std::cout << pst->data.ival << " ";
+                break;
+            case AST::t_fp32:
+                std::cout << pst->data.fval << " ";
+                break;
+            case AST::t_fp64:
+                std::cout << pst->data.dval << " ";
+                break;
+            case AST::t_char:
+                std::cout << pst->data.cval << " ";
+                break;
+            case AST::t_str:
+                std::cout << *pst->data.str << " ";
+                break;
+            default:
+                std::cout << "Unsupported Type: " << pst->type.str();
+                break;
+            }
+        }
+        std::cout << std::endl;
+    }
+}
+
 AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTable *st) {
     if (call->pars.size() != 1) {
-        throw std::runtime_error("type cast: wrong number of parameters");
+        throw InterpreterException("type cast: wrong number of parameters", call);
     }
     AST::ValueType *v = call->pars[0]->interpret(st);
     if (v->type.arrayT != 0) {
-        throw std::runtime_error("type cast: parameter is an array");
+        throw InterpreterException("type cast: parameter is an array", call);
     }
 
     switch (t) {
@@ -70,7 +111,7 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
                     v->data.cval = (char) v->data.bval;
                     return v;
                 default:
-                    throw std::runtime_error("type cast: unsupported type");
+                    throw InterpreterException("type cast: unsupported type" + v->type.str(), call);
             }
         }
         case AST::t_uint8: {
@@ -94,7 +135,7 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
                 case AST::t_uint8:
                     return v;
                 default:
-                    throw std::runtime_error("type cast: unsupported type");
+                    throw InterpreterException("type cast: unsupported type" + v->type.str(), call);
             }
         }
         case AST::t_int32: {
@@ -118,7 +159,7 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
                     v->data.ival = (int) v->data.bval;
                     return v;
                 default:
-                    throw std::runtime_error("type cast: unsupported type");
+                    throw InterpreterException("type cast: unsupported type" + v->type.str(), call);
             }
         }
         case AST::t_fp32: {
@@ -142,7 +183,7 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
                     v->data.fval = (float) v->data.bval;
                     return v;
                 default:
-                    throw std::runtime_error("type cast: unsupported type");
+                    throw InterpreterException("type cast: unsupported type" + v->type.str(), call);
             }
         }
         case AST::t_fp64: {
@@ -166,7 +207,8 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
                     v->data.dval = (double) v->data.bval;
                     return v;
                 default:
-                    throw std::runtime_error("type cast: unsupported type");
+                    throw InterpreterException("type cast: unsupported type" + v->type.str(), call);
+
             }
         }
         default: {
@@ -178,6 +220,10 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
 AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable *st) {
     if (fn.str() == "print") {
         runtime_print(call, st);
+        return & AST::None;
+    }
+    if (fn.str() == "debug") {
+        runtime_debug(call, st);
         return & AST::None;
     }
     if (fn.str() == "to_char")
@@ -236,6 +282,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
 void runtime_bind(AST::SymTable *st) {
     st->insert(AST::Name("print"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("debug"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
     st->insert(AST::Name("to_char"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
     st->insert(AST::Name("to_uint8"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
     st->insert(AST::Name("to_int32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
