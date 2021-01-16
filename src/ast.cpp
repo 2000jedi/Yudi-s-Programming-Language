@@ -21,11 +21,32 @@ MemStore::~MemStore() {
         delete v;
 }
 
+void MemStore::Free(void) {
+    if (v == nullptr) return;
+    for (auto msi = v->ms.begin(); msi != v->ms.end(); ++msi)
+        if (*msi == this) {
+            v->ms.erase(msi);
+            if (v->ms.size() != 0) {
+                v = nullptr;
+            }
+            return;
+        }
+}
+
+void MemStore::set(ValueType *vt) {
+    Free();
+    v = vt;
+}
+
+ValueType *MemStore::get(void) {
+    return v;
+}
+
 FuncStore::FuncStore(FuncDecl *a, SymTable *b, TypeDecl t) : fd(a) {
     if (b != nullptr) {
         auto vt = new ValueType(b, &t);
         vt->ms.push_back(& context);
-        context = MemStore(vt);
+        context.set(vt);
     }
 }
 
@@ -36,17 +57,7 @@ void SymTable::addLayer(void) {
 
 void SymTable::removeLayer(void) {
     for (auto&& v : this->d.back()) {
-        if (v.second.v == nullptr)
-            continue;
-        for (auto msi = v.second.v->ms.begin();
-             msi != v.second.v->ms.end(); ++msi)
-            if (*msi == &v.second) {
-                v.second.v->ms.erase(msi);
-                if (v.second.v->ms.size() != 0) {
-                    v.second.v = nullptr;
-                }
-                break;
-            }
+        v.second.Free();
     }
     d.pop_back();
 }
@@ -57,16 +68,8 @@ SymTable::~SymTable() {
 }
 
 MemStore SymTable::insert(Name name, ValueType *vt) {
-    if (d.back().find(name) != d.back().end()) {
-        for (auto msi = d.back()[name].v->ms.begin();
-             msi != d.back()[name].v->ms.end(); ++msi)
-            if (*msi == &d.back()[name]) {
-                d.back()[name].v->ms.erase(msi);
-                break;
-            }
-    }
     vt->ms.push_back(& d.back()[name]);
-    d.back()[name] = MemStore(vt);
+    d.back()[name].set(vt);
     return d.back()[name];
 }
 
@@ -78,19 +81,14 @@ MemStore SymTable::update(ExprVal *name, ValueType *vt) {
         throw InterpreterException("cannot replace an array", name);
     }
     MemStore *ms = this->lookup(name->refName, name);
-    for (auto msi = ms->v->ms.begin(); msi != ms->v->ms.end(); ++msi)
-        if (*msi == ms) {
-            ms->v->ms.erase(msi);
-            break;
-        }
     vt->ms.push_back(ms);
-    ms->v = vt;
+    ms->set(vt);
     return *ms;
 }
 
 MemStore *SymTable::lookup(Name name, ErrInfo* ast) {
     if (name.ClassName.size() > 0) {
-        auto owner = this->lookup(name.owner(), ast)->v;
+        auto owner = this->lookup(name.owner(), ast)->get();
         if (!((owner->type.baseType) == t_rtfn && (name.BaseName == "new"))) {
             if (owner->type.baseType != t_class) {
                 throw InterpreterException(name.owner().str() + " is not a compound type", ast);
@@ -113,7 +111,7 @@ MemStore SymTable::lookup(ExprVal *name) {
         throw InterpreterException("cannot lookup a function call", name);
 
     if (name->array != nullptr) {
-        auto arr = this->lookup(name->refName, name)->v;
+        auto arr = this->lookup(name->refName, name)->get();
         auto arr_index_vt = name->array->interpret(this);
         if (arr_index_vt->type != IntType) {
             throw InterpreterException("array index must be an int", name);
@@ -247,7 +245,7 @@ INTERPRET(Program) {
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
         (*stmt)->declare(st, nullptr);
     }
-    auto fs = st->lookup(Name("main"), this)->v->data.fs;
+    auto fs = st->lookup(Name("main"), this)->get()->data.fs;
     st->addLayer();
     fs->fd->interpret(st);
     st->removeLayer();
@@ -286,7 +284,7 @@ INTERPRET(VarDecl) {
     if (this->is_const) {
         t->isConst = true;
     }
-    t = st->insert(this->name, t).v;
+    t = st->insert(this->name, t).get();
     return t;
 }
 
@@ -311,7 +309,7 @@ INTERPRET(FuncDecl) {
 INTERPRET(FuncCall) {
     st->addLayer();
 
-    auto fn_ = st->lookup(this->function, this)->v;
+    auto fn_ = st->lookup(this->function, this)->get();
     if (fn_->type.baseType == t_rtfn) {
         return runtime_handler(this->function, this, st);
     }
@@ -329,8 +327,8 @@ INTERPRET(FuncCall) {
         st->insert(Name(prm.name), vt);
     }
 
-    if (fn->context.v != nullptr) {
-        st->insert(Name("this"), fn->context.v);
+    if (fn->context.get() != nullptr) {
+        st->insert(Name("this"), fn->context.get());
     }
 
     auto ret = fn->fd->interpret(st);
@@ -449,7 +447,7 @@ INTERPRET(ExprVal) {
     if (this->call != nullptr) {
         vt = this->call->interpret(st);
     } else {
-        vt = st->lookup(this).v;
+        vt = st->lookup(this).get();
     }
     return vt;
 }
@@ -488,7 +486,7 @@ INTERPRET(EvalExpr) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is not a variable", this);
         auto lvt = st->lookup(this->l->val.get());
-        if (lvt.v->isConst)
+        if (lvt.get()->isConst)
             throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
         auto rv = *rvt;
@@ -496,14 +494,14 @@ INTERPRET(EvalExpr) {
             delete rvt;
             rvt = & rv;
         }
-        if (lvt.v->type != rvt->type)
+        if (lvt.get()->type != rvt->type)
             throw InterpreterException("type mismatch", this);
 
         if (this->op == move) {
-            lvt.v->data = rvt->data;
+            lvt.get()->data = rvt->data;
             if (rvt->ms.size() != 0) {
-                for (auto msi = rvt->ms.begin(); msi != rvt->ms.end(); msi++) {
-                    (*msi)->v = nullptr;
+                for (auto&& msi : rvt->ms) {
+                    msi->set(nullptr);
                 }
                 rvt->ms.clear();
             }

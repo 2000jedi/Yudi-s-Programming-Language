@@ -52,12 +52,17 @@ class UnionDecl;
 class ExprVal;
 
 class MemStore {
- public:
+ private:
     ValueType *v;
+ public:
 
     MemStore() : v(nullptr) {}
     explicit MemStore(ValueType *vt) : v(vt) {}
     ~MemStore();
+
+    void Free(void);
+    void set(ValueType *v);
+    ValueType *get(void);
 };
 
 class SymTable {
