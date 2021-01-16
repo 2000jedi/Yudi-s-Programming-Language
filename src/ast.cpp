@@ -16,14 +16,24 @@ using namespace AST;
 
 #define INTERPRET(x) ValueType *x::interpret(SymTable *st)
 
+MemStore::~MemStore() {
+    if ((v != nullptr) && (v->ms.size() == 0))
+        delete v;
+}
+
 // Symble Table - record Variable and Type Information
 void SymTable::addLayer(void) {
-    d.push_back(std::map<Name, ValueType>());
+    d.push_back(std::map<Name, MemStore>());
 }
 
 void SymTable::removeLayer(void) {
     for (auto&& v : this->d.back()) {
-        v.second.ref_cnt--;
+        for (auto msi = v.second.v->ms.begin();
+             msi != v.second.v->ms.end(); ++msi)
+            if (*msi == &v.second) {
+                v.second.v->ms.erase(msi);
+                break;
+            }
     }
     d.pop_back();
 }
@@ -33,16 +43,25 @@ SymTable::~SymTable() {
         removeLayer();
 }
 
-ValueType *SymTable::insert(Name name, ValueType *vt) {
-    d.back()[name] = *vt;
-    d.back()[name].temp = false;
-    if (vt->temp) delete vt;
-    return & d.back()[name];
+MemStore SymTable::insert(Name name, ValueType *vt) {
+    if (d.back().find(name) != d.back().end()) {
+        for (auto msi = d.back()[name].v->ms.begin();
+             msi != d.back()[name].v->ms.end(); ++msi)
+            if (*msi == &d.back()[name]) {
+                d.back()[name].v->ms.erase(msi);
+                break;
+            }
+        d.back()[name] = MemStore(vt);
+    } else {
+        d.back().emplace(std::make_pair(name, MemStore(vt)));
+        vt->ms.push_back(& d.back()[name]);
+    }
+    return d.back()[name];
 }
 
-ValueType* SymTable::lookup(Name name, ErrInfo* ast) {
+MemStore SymTable::lookup(Name name, ErrInfo* ast) {
     if (name.ClassName.size() > 0) {
-        auto owner = this->lookup(name.owner(), ast);
+        auto owner = this->lookup(name.owner(), ast).v;
         if (!((owner->type.baseType) == t_rtfn && (name.BaseName == "new"))) {
             if (owner->type.baseType != t_class) {
                 throw InterpreterException(name.owner().str() + " is not a compound type", ast);
@@ -54,18 +73,18 @@ ValueType* SymTable::lookup(Name name, ErrInfo* ast) {
 
     for (int i = d.size() - 1; i >= 0; i--) {
         if (d[i].find(name) != d[i].end()) {
-            return & d[i][name];
+            return d[i][name];
         }
     }
     throw InterpreterException("variable " + name.str() + " is not declared", ast);
 }
 
-ValueType* SymTable::lookup(ExprVal *name) {
+MemStore SymTable::lookup(ExprVal *name) {
     if (name->call != nullptr)
         throw InterpreterException("cannot lookup a function call", name);
 
     if (name->array != nullptr) {
-        auto arr = this->lookup(name->refName, name);
+        auto arr = this->lookup(name->refName, name).v;
         auto arr_index_vt = name->array->interpret(this);
         if (arr_index_vt->type != IntType) {
             throw InterpreterException("array index must be an int", name);
@@ -77,7 +96,7 @@ ValueType* SymTable::lookup(ExprVal *name) {
         }
 
         auto vts = arr->data.vt;
-        return &(vts[arr_index]);
+        return MemStore(&(vts[arr_index]));
     } else {
         return this->lookup(name->refName, name);
     }
@@ -172,7 +191,7 @@ ValueType *TypeDecl::newVal(void) {
         auto td = new TypeDecl(this->baseType);
         for (int i = 0; i < this->arrayT; ++i) {
             arr[i] = ValueType(& None, td, false);
-            arr[i].temp = false;
+            arr[i].ms.push_back(new MemStore(& arr[i]));
         }
         delete td;
         return new ValueType(arr, this, false);
@@ -199,7 +218,7 @@ INTERPRET(Program) {
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
         (*stmt)->declare(st, nullptr);
     }
-    auto fs = st->lookup(Name("main"), this)->data.fs;
+    auto fs = st->lookup(Name("main"), this).v->data.fs;
     st->addLayer();
     fs->fd->interpret(st);
     st->removeLayer();
@@ -238,7 +257,7 @@ INTERPRET(VarDecl) {
     if (this->is_const) {
         t->isConst = true;
     }
-    t = st->insert(this->name, t);
+    t = st->insert(this->name, t).v;
     return t;
 }
 
@@ -261,7 +280,7 @@ INTERPRET(FuncDecl) {
 INTERPRET(FuncCall) {
     st->addLayer();
 
-    auto fn_ = st->lookup(this->function, this);
+    auto fn_ = st->lookup(this->function, this).v;
     if (fn_->type.baseType == t_rtfn) {
         return runtime_handler(this->function, this, st);
     }
@@ -283,7 +302,6 @@ INTERPRET(FuncCall) {
         auto clty = AST::TypeDecl(AST::t_class);
         clty.other = this->function;
         auto context = st->insert(Name("this"), new ValueType(fn->context, &clty));
-        context->ref_cnt++;
     }
 
     auto ret = fn->fd->interpret(st);
@@ -402,7 +420,7 @@ INTERPRET(ExprVal) {
     if (this->call != nullptr) {
         vt = this->call->interpret(st);
     } else {
-        vt = st->lookup(this);
+        vt = st->lookup(this).v;
     }
     return vt;
 }
@@ -440,19 +458,23 @@ INTERPRET(EvalExpr) {
     if (this->op == move) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is not a variable", this);
-        auto lvt = st->lookup(this->l->val.get());
+        auto lvt = st->lookup(this->l->val.get()).v;
         if (lvt->isConst)
             throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
         auto rv = *rvt;
-        if (rvt->temp) {
+        if (rvt->ms.size() == 0) {
             delete rvt;
             rvt = & rv;
         }
         if (lvt->type != rvt->type)
             throw InterpreterException("type mismatch", this);
         lvt->data = rvt->data;
-        *rvt = AST::None;
+        
+        if (rvt->ms.size() != 0) {
+            for (auto msi = rvt->ms.begin(); msi != rvt->ms.end(); msi++)
+                delete *msi;
+        }
         return & None;
     }
 
@@ -464,14 +486,12 @@ INTERPRET(EvalExpr) {
         throw InterpreterException("type mismatch", this);
 
     auto lv = *lvt;
-    if (lvt->temp) {
-        lvt->ref_cnt--;
+    if (lvt->ms.size() == 0) {
         delete lvt;
         lvt = & lv;
     }
     auto rv = *rvt;
-    if (rvt->temp) {
-        rvt->ref_cnt--;
+    if (rvt->ms.size() == 0) {
         delete rvt;
         rvt = & rv;
     }

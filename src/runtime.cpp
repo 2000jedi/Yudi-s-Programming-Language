@@ -36,8 +36,7 @@ void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
                 throw InterpreterException("Unsupported Type: " + pst->type.str(), call);
                 break;
             }
-            if (pst->temp) {
-                pst->ref_cnt--;
+            if (pst->ms.size() == 0) {
                 delete pst;
             }
         }
@@ -52,9 +51,8 @@ void runtime_debug(AST::FuncCall *call, AST::SymTable *st) {
         if (par->isVal) {
             std::cout << call->line << std::endl;
         }
-        std::cout << "\tTemp Flag: " << pst->temp << std::endl;
         std::cout << "\tConst Flag: " << pst->isConst << std::endl;
-        std::cout << "\tReference Counter: " << pst->ref_cnt << std::endl;
+        std::cout << "\tReference Counter: " << pst->ms.size() << std::endl;
         std::cout << "\tType: " << pst->type.str() << std::endl;
         std::cout << "\tValue: ";
         if (pst != nullptr) {
@@ -247,7 +245,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     auto fn_name = new AST::Name(fn);
     AST::Name constructor_name = AST::Name(fn_name, "new");
     delete fn_name;
-    auto constructor = st->lookup(constructor_name, call)->data.fs;
+    auto constructor = st->lookup(constructor_name, call).v->data.fs;
 
     auto clty = AST::TypeDecl(AST::t_class);
     clty.other = fn;
@@ -255,11 +253,9 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     fnst->addLayer();
 
     AST::ValueType *context = new AST::ValueType(fnst, &clty);
-    context->temp = false;
-    auto context_st = st->insert(AST::Name("this"), context);
-    context_st->ref_cnt++;
+    st->insert(AST::Name("this"), context);
 
-    auto cl = st->lookup(fn, call)->data.cd;
+    auto cl = st->lookup(fn, call).v->data.cd;
     for (auto&& stmt : cl->stmts) {
         switch (stmt->stmtType) {
             case AST::gs_var:
@@ -284,7 +280,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     constructor->fd->interpret(st);
 
     st->removeLayer();
-    context->temp = true;
+    context->ms.clear();
     return context;
 }
 
