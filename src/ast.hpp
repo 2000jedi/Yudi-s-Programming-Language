@@ -208,6 +208,7 @@ class FuncStore {
     MemStore context;
 
     FuncStore(FuncDecl *a, SymTable *b, TypeDecl t);
+    ~FuncStore();
 };
 
 class ValueType {

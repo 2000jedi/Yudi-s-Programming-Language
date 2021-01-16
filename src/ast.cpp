@@ -50,6 +50,10 @@ FuncStore::FuncStore(FuncDecl *a, SymTable *b, TypeDecl t) : fd(a) {
     }
 }
 
+FuncStore::~FuncStore() {
+    context.set(nullptr);
+}
+
 // Symble Table - record Variable and Type Information
 void SymTable::addLayer(void) {
     d.push_back(std::map<Name, MemStore>());
