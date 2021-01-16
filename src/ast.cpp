@@ -17,21 +17,19 @@ using namespace AST;
 #define INTERPRET(x) ValueType *x::interpret(SymTable *st)
 
 MemStore::~MemStore() {
-    if (v == nullptr) return;
-    if (placehold) return;
     Free();
 }
 
 void MemStore::Free(void) {
     if (v == nullptr) return;
-    if (placehold) return;
     for (auto msi = v->ms.begin(); msi != v->ms.end(); ++msi)
         if (*msi == this) {
             v->ms.erase(msi);
             if (v->ms.size() != 0) {
                 v = nullptr;
             } else {
-                delete v;
+                if (!placehold)
+                    delete v;
             }
             return;
         }
@@ -65,9 +63,6 @@ void SymTable::addLayer(void) {
 }
 
 void SymTable::removeLayer(void) {
-    for (auto&& v : this->d.back()) {
-        v.second.Free();
-    }
     d.pop_back();
 }
 
@@ -522,6 +517,7 @@ INTERPRET(EvalExpr) {
         }
         if (this->op == copy) {
             st->update(this->l->val.get(), rvt);
+            lvt.placehold = true;  // disable deallocating lvt: already deleted by st->update
             return & None;
         }
     }
