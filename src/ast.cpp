@@ -42,6 +42,9 @@ void SymTable::removeLayer(void) {
              msi != v.second.v->ms.end(); ++msi)
             if (*msi == &v.second) {
                 v.second.v->ms.erase(msi);
+                if (v.second.v->ms.size() != 0) {
+                    v.second.v = nullptr;
+                }
                 break;
             }
     }
