@@ -21,6 +21,14 @@ MemStore::~MemStore() {
         delete v;
 }
 
+FuncStore::FuncStore(FuncDecl *a, SymTable *b, TypeDecl t) : fd(a) {
+    if (b != nullptr) {
+        auto vt = new ValueType(b, &t);
+        vt->ms.push_back(& context);
+        context = MemStore(vt);
+    }
+}
+
 // Symble Table - record Variable and Type Information
 void SymTable::addLayer(void) {
     d.push_back(std::map<Name, MemStore>());
@@ -28,6 +36,8 @@ void SymTable::addLayer(void) {
 
 void SymTable::removeLayer(void) {
     for (auto&& v : this->d.back()) {
+        if (v.second.v == nullptr)
+            continue;
         for (auto msi = v.second.v->ms.begin();
              msi != v.second.v->ms.end(); ++msi)
             if (*msi == &v.second) {
@@ -51,11 +61,9 @@ MemStore SymTable::insert(Name name, ValueType *vt) {
                 d.back()[name].v->ms.erase(msi);
                 break;
             }
-        d.back()[name] = MemStore(vt);
-    } else {
-        d.back().emplace(std::make_pair(name, MemStore(vt)));
-        vt->ms.push_back(& d.back()[name]);
     }
+    vt->ms.push_back(& d.back()[name]);
+    d.back()[name] = MemStore(vt);
     return d.back()[name];
 }
 
@@ -262,7 +270,9 @@ INTERPRET(VarDecl) {
 }
 
 void FuncDecl::declare(SymTable *st, SymTable *context) {
-    FuncStore *cur = new FuncStore(this, context);
+    auto clty = AST::TypeDecl(AST::t_class);
+    clty.other = this->name;
+    FuncStore *cur = new FuncStore(this, context, clty);
     st->insert(this->name, new ValueType(cur, true));
 }
 
@@ -298,10 +308,8 @@ INTERPRET(FuncCall) {
         st->insert(Name(prm.name), vt);
     }
 
-    if (fn->context != nullptr) {
-        auto clty = AST::TypeDecl(AST::t_class);
-        clty.other = this->function;
-        auto context = st->insert(Name("this"), new ValueType(fn->context, &clty));
+    if (fn->context.v != nullptr) {
+        st->insert(Name("this"), fn->context.v);
     }
 
     auto ret = fn->fd->interpret(st);
@@ -318,7 +326,7 @@ void ClassDecl::declare(SymTable *st, SymTable *context) {
             case gs_func: {
                 auto fd = (FuncDecl *)stmt.get();
                 if (fd->name.BaseName == "new") {
-                    st->insert(Name(& this->name, "new"), new ValueType(new FuncStore(fd, nullptr), true));
+                    st->insert(Name(& this->name, "new"), new ValueType(new FuncStore(fd, nullptr, VoidType), true));
                 }
                 break;
             }
@@ -472,8 +480,10 @@ INTERPRET(EvalExpr) {
         lvt->data = rvt->data;
         
         if (rvt->ms.size() != 0) {
-            for (auto msi = rvt->ms.begin(); msi != rvt->ms.end(); msi++)
-                delete *msi;
+            for (auto msi = rvt->ms.begin(); msi != rvt->ms.end(); msi++) {
+                (*msi)->v = nullptr;
+            }
+            rvt->ms.clear();
         }
         return & None;
     }

@@ -40,6 +40,7 @@ function main() {
     var bag2 : Bag;
     bag2 = bag;
     bag2.add();
+    debug(bag);
     print(bag2.ival, bag2.fval);
 }
 

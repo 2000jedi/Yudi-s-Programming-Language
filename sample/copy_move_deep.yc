@@ -1,0 +1,33 @@
+class Bag {
+    var ival : int32;
+    var fval : fp32;
+
+    function new(a : int32, b : fp32){
+        this.ival = a;
+        this.fval = b;
+    }
+
+    function add() {
+        this.ival = this.ival + 1;
+        this.fval = this.fval + 1.0;
+    }
+
+    function print() {
+        print(this.ival, this.fval);
+    }
+}
+
+function move() {
+    print("Display `move` behavior:");
+
+    var bag : Bag = Bag(1, 2.0);
+    var bag2 : Bag;
+    bag2 = bag;  # ownership transfered: bag --> bag2
+    bag2.add();
+    debug(bag);  # debug info shows that bag refers to nothing
+    bag2.print();
+}
+
+function main() {
+    move();
+}

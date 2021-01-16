@@ -47,6 +47,10 @@ void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
 void runtime_debug(AST::FuncCall *call, AST::SymTable *st) {
     for (auto&& par : call->pars) {
         auto pst = par->interpret(st);
+        if (pst == nullptr) {
+            std::cout << "debug(): value vanished" << std::endl;
+            return;
+        }
         std::cout << "Debug info for: ";
         if (par->isVal) {
             std::cout << call->line << std::endl;
@@ -279,8 +283,11 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
     constructor->fd->interpret(st);
 
-    st->removeLayer();
+    for (auto&& msi : context->ms) {
+        msi->v = nullptr;
+    }
     context->ms.clear();
+    st->removeLayer();
     return context;
 }
 

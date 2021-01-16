@@ -199,9 +199,9 @@ static TypeDecl StrType = TypeDecl(t_str);
 class FuncStore {
  public:
     FuncDecl *fd;
-    SymTable *context;
+    MemStore context;
 
-    FuncStore(FuncDecl *a, SymTable *b) : fd(a), context(b) {}
+    FuncStore(FuncDecl *a, SymTable *b, TypeDecl t);
 };
 
 class ValueType {

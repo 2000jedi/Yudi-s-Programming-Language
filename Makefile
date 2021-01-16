@@ -1,18 +1,21 @@
 CXX = c++
-CXXFLAGS = -g -Wall -Wno-overloaded-virtual $(FLAGS) -fexceptions -O3 -std=c++1y
+CXXFLAGS = -g -Wall $(FLAGS) -fexceptions -std=c++1y
 
 TARGET = auto
 SRCS = src/err.cpp src/util.cpp src/ast.cpp src/scanner.cpp src/parser.cpp src/runtime.cpp
 HEADERS = ${SRCS:.cpp=.hpp}
 OBJS = ${SRCS:.cpp=.o}
 
+OUT = ./auto
+
 auto: src/main.cpp $(OBJS) $(SRCS) $(HEADERS)
-	$(CXX) $(CXXFLAGS) -o auto src/main.cpp $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $(OUT) src/main.cpp $(OBJS)
 
 clean:
-	${RM} ${TARGET} ${OBJS}
+	${RM} ${OBJS} $(OUT)
 	-rm -r *.dSYM
 
 test: auto
-	./auto sample/factorial.yc
-	./auto sample/cast.yc
+	$(OUT) sample/factorial.yc
+	$(OUT) sample/cast.yc
+	$(OUT) sample/copy_move_deep.yc
