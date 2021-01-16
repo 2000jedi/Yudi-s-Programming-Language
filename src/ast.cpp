@@ -17,17 +17,21 @@ using namespace AST;
 #define INTERPRET(x) ValueType *x::interpret(SymTable *st)
 
 MemStore::~MemStore() {
-    if ((v != nullptr) && (v->ms.size() == 0))
-        delete v;
+    if (v == nullptr) return;
+    if (placehold) return;
+    Free();
 }
 
 void MemStore::Free(void) {
     if (v == nullptr) return;
+    if (placehold) return;
     for (auto msi = v->ms.begin(); msi != v->ms.end(); ++msi)
         if (*msi == this) {
             v->ms.erase(msi);
             if (v->ms.size() != 0) {
                 v = nullptr;
+            } else {
+                delete v;
             }
             return;
         }
@@ -47,6 +51,7 @@ FuncStore::FuncStore(FuncDecl *a, SymTable *b, TypeDecl t) : fd(a) {
         auto vt = new ValueType(b, &t);
         vt->ms.push_back(& context);
         context.set(vt);
+        context.placehold = true;
     }
 }
 
@@ -67,11 +72,13 @@ void SymTable::removeLayer(void) {
 }
 
 SymTable::~SymTable() {
-    while (this->d.size() > 0)
-        removeLayer();
+    this->d.clear();
 }
 
 MemStore SymTable::insert(Name name, ValueType *vt) {
+    if (name.str() == "this") {
+        d.back()[name].placehold = true;
+    }
     vt->ms.push_back(& d.back()[name]);
     d.back()[name].set(vt);
     return d.back()[name];
@@ -505,7 +512,9 @@ INTERPRET(EvalExpr) {
             lvt.get()->data = rvt->data;
             if (rvt->ms.size() != 0) {
                 for (auto&& msi : rvt->ms) {
+                    msi->placehold = true;
                     msi->set(nullptr);
+                    msi->placehold = false;
                 }
                 rvt->ms.clear();
             }

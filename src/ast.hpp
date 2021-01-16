@@ -55,9 +55,10 @@ class MemStore {
  private:
     ValueType *v;
  public:
+    bool placehold;
 
-    MemStore() : v(nullptr) {}
-    explicit MemStore(ValueType *vt) : v(vt) {}
+    MemStore() : v(nullptr), placehold(false) {}
+    explicit MemStore(ValueType *vt) : v(vt), placehold(false) {}
     ~MemStore();
 
     void Free(void);
