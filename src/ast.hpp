@@ -69,7 +69,8 @@ class SymTable {
     void addLayer(void);
     void removeLayer(void);
     MemStore insert(Name name, ValueType *vt);
-    MemStore lookup(Name name, ErrInfo *ast);
+    MemStore update(ExprVal *name, ValueType *vt);
+    MemStore *lookup(Name name, ErrInfo *ast);
     MemStore lookup(ExprVal *name);
 };
 

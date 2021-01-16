@@ -249,7 +249,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     auto fn_name = new AST::Name(fn);
     AST::Name constructor_name = AST::Name(fn_name, "new");
     delete fn_name;
-    auto constructor = st->lookup(constructor_name, call).v->data.fs;
+    auto constructor = st->lookup(constructor_name, call)->v->data.fs;
 
     auto clty = AST::TypeDecl(AST::t_class);
     clty.other = fn;
@@ -259,7 +259,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
     AST::ValueType *context = new AST::ValueType(fnst, &clty);
     st->insert(AST::Name("this"), context);
 
-    auto cl = st->lookup(fn, call).v->data.cd;
+    auto cl = st->lookup(fn, call)->v->data.cd;
     for (auto&& stmt : cl->stmts) {
         switch (stmt->stmtType) {
             case AST::gs_var:

@@ -28,6 +28,18 @@ function move() {
     bag2.print();
 }
 
+function copy() {
+    print("Display `copy` behavior:");
+
+    var bag : Bag = Bag(1, 2.0);
+    var bag2 : Bag;
+    bag2 := bag;  # bag and bag2 points to the same object
+    bag2.add();   # both bag and bag2 are modified
+    bag.print();
+    bag2.print();
+}
+
 function main() {
     move();
+    copy();
 }

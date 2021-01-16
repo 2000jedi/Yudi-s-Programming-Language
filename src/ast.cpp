@@ -67,9 +67,27 @@ MemStore SymTable::insert(Name name, ValueType *vt) {
     return d.back()[name];
 }
 
-MemStore SymTable::lookup(Name name, ErrInfo* ast) {
+MemStore SymTable::update(ExprVal *name, ValueType *vt) {
+    if (name->call != nullptr)
+        throw InterpreterException("cannot replace a function call", name);
+
+    if (name->array != nullptr) {
+        throw InterpreterException("cannot replace an array", name);
+    }
+    MemStore *ms = this->lookup(name->refName, name);
+    for (auto msi = ms->v->ms.begin(); msi != ms->v->ms.end(); ++msi)
+        if (*msi == ms) {
+            ms->v->ms.erase(msi);
+            break;
+        }
+    vt->ms.push_back(ms);
+    ms->v = vt;
+    return *ms;
+}
+
+MemStore *SymTable::lookup(Name name, ErrInfo* ast) {
     if (name.ClassName.size() > 0) {
-        auto owner = this->lookup(name.owner(), ast).v;
+        auto owner = this->lookup(name.owner(), ast)->v;
         if (!((owner->type.baseType) == t_rtfn && (name.BaseName == "new"))) {
             if (owner->type.baseType != t_class) {
                 throw InterpreterException(name.owner().str() + " is not a compound type", ast);
@@ -81,7 +99,7 @@ MemStore SymTable::lookup(Name name, ErrInfo* ast) {
 
     for (int i = d.size() - 1; i >= 0; i--) {
         if (d[i].find(name) != d[i].end()) {
-            return d[i][name];
+            return & d[i][name];
         }
     }
     throw InterpreterException("variable " + name.str() + " is not declared", ast);
@@ -92,12 +110,12 @@ MemStore SymTable::lookup(ExprVal *name) {
         throw InterpreterException("cannot lookup a function call", name);
 
     if (name->array != nullptr) {
-        auto arr = this->lookup(name->refName, name).v;
+        auto arr = this->lookup(name->refName, name)->v;
         auto arr_index_vt = name->array->interpret(this);
         if (arr_index_vt->type != IntType) {
             throw InterpreterException("array index must be an int", name);
         }
-        int  arr_index = arr_index_vt->data.ival;
+        int arr_index = arr_index_vt->data.ival;
 
         if (arr->type.arrayT <= arr_index) {
             throw InterpreterException("array index out of bound", name);
@@ -106,7 +124,7 @@ MemStore SymTable::lookup(ExprVal *name) {
         auto vts = arr->data.vt;
         return MemStore(&(vts[arr_index]));
     } else {
-        return this->lookup(name->refName, name);
+        return *this->lookup(name->refName, name);
     }
 }
 
@@ -226,7 +244,7 @@ INTERPRET(Program) {
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
         (*stmt)->declare(st, nullptr);
     }
-    auto fs = st->lookup(Name("main"), this).v->data.fs;
+    auto fs = st->lookup(Name("main"), this)->v->data.fs;
     st->addLayer();
     fs->fd->interpret(st);
     st->removeLayer();
@@ -290,7 +308,7 @@ INTERPRET(FuncDecl) {
 INTERPRET(FuncCall) {
     st->addLayer();
 
-    auto fn_ = st->lookup(this->function, this).v;
+    auto fn_ = st->lookup(this->function, this)->v;
     if (fn_->type.baseType == t_rtfn) {
         return runtime_handler(this->function, this, st);
     }
@@ -463,11 +481,11 @@ INTERPRET(EvalExpr) {
         return this->val->interpret(st);
     }
 
-    if (this->op == move) {
+    if ((this->op == move) || (this->op == copy) || (this->op == deepcopy)) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is not a variable", this);
-        auto lvt = st->lookup(this->l->val.get()).v;
-        if (lvt->isConst)
+        auto lvt = st->lookup(this->l->val.get());
+        if (lvt.v->isConst)
             throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
         auto rv = *rvt;
@@ -475,17 +493,23 @@ INTERPRET(EvalExpr) {
             delete rvt;
             rvt = & rv;
         }
-        if (lvt->type != rvt->type)
+        if (lvt.v->type != rvt->type)
             throw InterpreterException("type mismatch", this);
-        lvt->data = rvt->data;
-        
-        if (rvt->ms.size() != 0) {
-            for (auto msi = rvt->ms.begin(); msi != rvt->ms.end(); msi++) {
-                (*msi)->v = nullptr;
+
+        if (this->op == move) {
+            lvt.v->data = rvt->data;
+            if (rvt->ms.size() != 0) {
+                for (auto msi = rvt->ms.begin(); msi != rvt->ms.end(); msi++) {
+                    (*msi)->v = nullptr;
+                }
+                rvt->ms.clear();
             }
-            rvt->ms.clear();
+            return & None;
         }
-        return & None;
+        if (this->op == copy) {
+            st->update(this->l->val.get(), rvt);
+            return & None;
+        }
     }
 
     auto lvt = this->l->interpret(st);
