@@ -220,7 +220,7 @@ class ValueType {
         char cval;
         uint8_t bval;
         bool one_bit;
-        std::vector<MemStore> *vt;
+        MemStore *vt;
         SymTable *st;
         FuncStore* fs;
         UnionDecl* ud;
@@ -239,10 +239,10 @@ class ValueType {
     ~ValueType() {
         if (this->ms.size() == 0) {
             if (this->type.arrayT != 0) {
-                for (auto&& msi : *this->data.vt) {
-                    msi.Free();
+                for (int i = 0; i < this->type.arrayT; ++i) {
+                    this->data.vt[i].Free();
                 }
-                delete this->data.vt;
+                delete[] this->data.vt;
                 return;
             }
 
@@ -272,7 +272,7 @@ class ValueType {
             return;
         }
         if (t->arrayT != 0) {
-            data.vt = new std::vector<MemStore>(t->arrayT);
+            data.vt = new MemStore[t->arrayT];
             return;
         }
     }

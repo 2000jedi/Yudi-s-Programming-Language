@@ -129,7 +129,7 @@ MemStore *SymTable::lookup(ExprVal *name) {
         }
 
         auto vts = arr->data.vt;
-        return &(*vts)[arr_index];
+        return &vts[arr_index];
     } else {
         return this->lookup(name->refName, name);
     }
@@ -223,7 +223,7 @@ ValueType *TypeDecl::newVal(void) {
         ValueType* arr = new ValueType(this, false);
         auto td = new TypeDecl(this->baseType);
         for (int i = 0; i < this->arrayT; ++i) {
-            (*arr->data.vt)[i].set(td->newVal());
+            arr->data.vt[i].set(td->newVal());
         }
         delete td;
         return arr;
