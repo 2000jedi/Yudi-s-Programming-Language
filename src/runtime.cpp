@@ -215,7 +215,6 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
                     return v;
                 default:
                     throw InterpreterException("type cast: unsupported type" + v->type.str(), call);
-
             }
         }
         default: {
@@ -292,11 +291,11 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 }
 
 void runtime_bind(AST::SymTable *st) {
-    st->insert(AST::Name("print"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("debug"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("to_char"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("to_uint8"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("to_int32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("to_fp32"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
-    st->insert(AST::Name("to_fp64"), new AST::ValueType(& AST::None, &AST::RuntimeType, true));
+    st->insert(AST::Name("print"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("debug"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("to_char"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("to_uint8"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("to_int32"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("to_fp32"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("to_fp64"), new AST::ValueType(&AST::RuntimeType, true));
 }

@@ -59,7 +59,6 @@ class MemStore {
 
     MemStore() : v(nullptr), placehold(false) {}
     explicit MemStore(ValueType *vt) : v(vt), placehold(false) {}
-    ~MemStore();
 
     void Free(void);
     void set(ValueType *v);
@@ -77,7 +76,7 @@ class SymTable {
     MemStore insert(Name name, ValueType *vt);
     MemStore update(ExprVal *name, ValueType *vt);
     MemStore *lookup(Name name, ErrInfo *ast);
-    MemStore lookup(ExprVal *name);
+    MemStore *lookup(ExprVal *name);
 };
 
 // Runtime Information
@@ -221,7 +220,7 @@ class ValueType {
         char cval;
         uint8_t bval;
         bool one_bit;
-        ValueType *vt;
+        std::vector<MemStore> *vt;
         SymTable *st;
         FuncStore* fs;
         UnionDecl* ud;
@@ -240,7 +239,10 @@ class ValueType {
     ~ValueType() {
         if (this->ms.size() == 0) {
             if (this->type.arrayT != 0) {
-                delete []this->data.vt;
+                for (auto&& msi : *this->data.vt) {
+                    msi.Free();
+                }
+                delete this->data.vt;
                 return;
             }
 
@@ -264,8 +266,15 @@ class ValueType {
         data.st = v;
     }
 
-    ValueType(ValueType *v, TypeDecl *t, bool c = false) : type(*t), isConst(c) {
-        data.vt = v;
+    explicit ValueType(TypeDecl *t, bool c = false) : type(*t), isConst(c) {
+        if (t->baseType == t_rtfn) {
+            data.ival = 0;
+            return;
+        }
+        if (t->arrayT != 0) {
+            data.vt = new std::vector<MemStore>(t->arrayT);
+            return;
+        }
     }
 
     explicit ValueType(FuncStore *v, bool c = false) : type(FuncType), isConst(c) {
