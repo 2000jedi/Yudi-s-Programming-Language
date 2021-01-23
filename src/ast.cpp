@@ -317,6 +317,7 @@ INTERPRET(FuncCall) {
 
     auto fn_ = st->lookup(this->function, this)->get();
     if (fn_->type.baseType == t_rtfn) {
+        st->removeLayer();
         return runtime_handler(this->function, this, st);
     }
     if (fn_->type.baseType != t_fn)
@@ -384,6 +385,7 @@ INTERPRET(IfExpr) {
         for (auto&& expr : this->iftrue) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
+                st->removeLayer();
                 return ret;
             }
         }
@@ -391,6 +393,7 @@ INTERPRET(IfExpr) {
         for (auto&& expr : this->iffalse) {
             auto ret = expr->interpret(st);
             if (expr->exprType == e_ret) {
+                st->removeLayer();
                 return ret;
             }
         }
@@ -407,6 +410,7 @@ INTERPRET(ForExpr) {
         for (auto&& expr : this->exprs) {
             auto ret = expr->interpret(st);
             if (return_flag) {
+                st->removeLayer();
                 return ret;
             }
             if (continue_flag || break_flag) {
@@ -430,6 +434,7 @@ INTERPRET(WhileExpr) {
         for (auto&& expr : this->exprs) {
             auto ret = expr->interpret(st);
             if (return_flag) {
+                st->removeLayer();
                 return ret;
             }
             if (continue_flag || break_flag) {
