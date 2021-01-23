@@ -491,8 +491,8 @@ INTERPRET(EvalExpr) {
     if ((this->op == move) || (this->op == copy) || (this->op == deepcopy)) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is not a variable", this);
-        auto lvt = st->lookup(this->l->val.get());
-        if (lvt.get()->isConst)
+        auto lvt = st->lookup(this->l->val.get()).get();
+        if (lvt->isConst)
             throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
         auto rv = *rvt;
@@ -500,11 +500,11 @@ INTERPRET(EvalExpr) {
             delete rvt;
             rvt = & rv;
         }
-        if (lvt.get()->type != rvt->type)
+        if (lvt->type != rvt->type)
             throw InterpreterException("type mismatch", this);
 
         if (this->op == move) {
-            lvt.get()->data = rvt->data;
+            lvt->data = rvt->data;
             if (rvt->ms.size() != 0) {
                 for (auto&& msi : rvt->ms) {
                     msi->placehold = true;
@@ -517,7 +517,6 @@ INTERPRET(EvalExpr) {
         }
         if (this->op == copy) {
             st->update(this->l->val.get(), rvt);
-            lvt.placehold = true;  // disable deallocating lvt: already deleted by st->update
             return & None;
         }
     }
