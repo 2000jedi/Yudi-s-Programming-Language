@@ -11,7 +11,7 @@
 
 enum token {
     t_str, t_char, t_float, t_int,
-    t_var, t_const, t_class, t_fn, t_union,
+    t_var, t_const, t_class, t_fn, t_union, t_enum,
     t_if, t_else, t_while, t_for, t_match,
     t_break, t_continue, t_return,
     type_void, type_bool, type_char, type_int32, type_uint8, type_fp32, type_fp64, type_str,

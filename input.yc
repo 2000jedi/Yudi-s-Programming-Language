@@ -1,7 +1,7 @@
-union Optional <T> {
-    class None {}
-    class Some {
-        var val : T;
+union Optional_Bag {
+    enum None {}
+    enum Some {
+        var val : Bag;
     }
 }
 
@@ -28,19 +28,13 @@ class Bag {
 }
 
 function main() {
-    # var bag_opt : Optional<Bag> = Optional.Some(Bag(0, 0));
-    # match (bag_opt) {
-    #     None {}
-    #     Some(b) {
-    #         print(b.ival, b.fval);
-    #     }
-    # }
-    var bag : Bag = Bag(1, 2.0);
+    var bag_opt : Optional_Bag = Optional_Bag.Some(Bag(0, 0));
+    match (bag_opt) {
+        None {}
+        Some(b) {
+            b.val.add();
+            print(b.val.ival, b.val.fval);
+        }
+    }
     # var bag2 : Bag = bag; TODO: initialize with move, copy, and deepcopy
-    var bag2 : Bag;
-    bag2 = bag;
-    bag2.add();
-    debug(bag);
-    print(bag2.ival, bag2.fval);
 }
-

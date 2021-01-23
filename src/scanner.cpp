@@ -232,6 +232,7 @@ token scanner::scan(void) {
                 if (data == "const") return t_const;
                 if (data == "function") return t_fn;
                 if (data == "class") return t_class;
+                if (data == "enum") return t_enum;
                 if (data == "union") return t_union;
                 if (data == "if") return t_if;
                 if (data == "else") return t_else;

@@ -8,6 +8,7 @@ This project is still under development and not all function modules defined in 
 
 - [x] Compiler front-end.
 - [x] Implementation for basic arithmetics and control flow.
+    - [ ] Implementation for `deepcopy`.
 - [x] Class definition. (require tests)
 - [ ] Union defintion (support for pattern-matching with tagged union). (ip)
 - [ ] Support for Standard Library.
@@ -25,6 +26,7 @@ This project is still under development and not all function modules defined in 
 - `sample/`: Directory that includes sample programs.
     - `factorial.yc`: factorial from 1 to 10.
     - `cast.yc`: conversion between basic types.
+    - `copy_move_deep.yc`: illustration difference between copy, move, and deepcopy.
 - `input.yc`: Sample program used for debugging.
 - `Makefile`
 - `LICENSE`

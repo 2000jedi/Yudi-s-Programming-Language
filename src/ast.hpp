@@ -48,6 +48,7 @@ class Name;
 class TypeDecl;
 class FuncDecl;
 class ClassDecl;
+class EnumDecl;
 class UnionDecl;
 class ExprVal;
 
@@ -150,7 +151,7 @@ class GenericDecl : public ErrInfo {
 
 enum Types {
     t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-    t_bool, t_rtfn /* runtime function */
+    t_bool, t_rtfn, t_enum /* runtime function */
 };
 
 class TypeDecl : public ErrInfo {
@@ -201,6 +202,7 @@ static TypeDecl RuntimeType = TypeDecl(t_rtfn);
 static TypeDecl FuncType = TypeDecl(t_fn);
 static TypeDecl ClassType = TypeDecl(t_class);
 static TypeDecl StrType = TypeDecl(t_str);
+static TypeDecl EnumType = TypeDecl(t_enum);
 
 class FuncStore {
  public:
@@ -225,6 +227,7 @@ class ValueType {
         FuncStore* fs;
         UnionDecl* ud;
         ClassDecl* cd;
+        EnumDecl* ed;
         std::string* str;
     } data;
 
@@ -283,6 +286,10 @@ class ValueType {
 
     explicit ValueType(ClassDecl *v, bool c = false) : type(RuntimeType), isConst(c) {
         data.cd = v;
+    }
+
+    explicit ValueType(EnumDecl *v, bool c = false) : type(EnumType), isConst(c) {
+        data.ed = v;
     }
 
     explicit ValueType(std::string *v, bool c = false) : type(StrType), isConst(c) {
@@ -451,7 +458,6 @@ class ClassDecl : public ErrInfo, public GlobalStatement {
     Name name;
     GenericDecl genType;
     std::vector<std::unique_ptr<GlobalStatement>> stmts;
-    // std::vector<std::VarDecl *> var_members;
 
     ClassDecl(scanner *Scanner, std::string n, GenericDecl g) :
         ErrInfo(Scanner), name(Name(n)), genType(g) {
@@ -464,6 +470,17 @@ class ClassDecl : public ErrInfo, public GlobalStatement {
     virtual void declare(SymTable *st, SymTable *context);
 
     D_MOVE_COPY(ClassDecl)
+};
+
+class EnumDecl : public ErrInfo {
+ public:
+    Name name;
+    std::vector<std::unique_ptr<VarDecl>> vars;
+
+    EnumDecl(scanner *Scanner, std::string n) :
+        ErrInfo(Scanner), name(Name(n)) {}
+
+    D_MOVE_COPY(EnumDecl)
 };
 
 class VarDecl : public ErrInfo, public GlobalStatement, public Expr {
@@ -512,7 +529,7 @@ class FuncDecl : public ErrInfo, public GlobalStatement {
 class UnionDecl : public ErrInfo, public GlobalStatement {
  public:
     Name name;
-    std::vector<std::unique_ptr<ClassDecl>> classes;
+    std::vector<std::unique_ptr<EnumDecl>> classes;
     GenericDecl gen;
 
     UnionDecl(scanner *Scanner, Name n, GenericDecl gen) :

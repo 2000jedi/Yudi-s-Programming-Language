@@ -28,6 +28,7 @@
 
 # VSCode
 *.vscode
+.vscode-ctags
 .vscode/*
 
 #latex

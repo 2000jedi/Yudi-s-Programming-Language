@@ -319,6 +319,10 @@ INTERPRET(FuncCall) {
         st->removeLayer();
         return runtime_handler(this->function, this, st);
     }
+    if (fn_->type.baseType == t_enum) {
+        st->removeLayer();
+        return runtime_enum_handler(fn_, this, st);
+    }
     if (fn_->type.baseType != t_fn)
         throw InterpreterException("type cannot be called", this);
 
@@ -362,7 +366,14 @@ void ClassDecl::declare(SymTable *st, SymTable *context) {
 }
 
 void UnionDecl::declare(SymTable *st, SymTable *context) {
-    // TODO: union declaration
+    auto unst = new SymTable();
+    unst->addLayer();
+    for (auto&& cl : this->classes) {
+        unst->insert(cl->name, new ValueType(cl.get(), true));
+    }
+    auto unty = AST::TypeDecl(AST::t_class);
+    unty.other = this->name;
+    st->insert(this->name, new ValueType(unst, &unty));
 }
 
 bool vt_is_true(ValueType *vt, ErrInfo *ast) {

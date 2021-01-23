@@ -50,6 +50,7 @@ AST::TypeDecl type_name(scanner *Scanner);
 std::vector<std::unique_ptr<AST::Expr>> expr_list(scanner *Scanner);
 std::unique_ptr<AST::EvalExpr> eval_expr(scanner *Scanner);
 std::unique_ptr<AST::VarDecl> var_def(scanner *Scanner);
+std::unique_ptr<AST::EnumDecl> enum_def(scanner *Scanner);
 std::unique_ptr<AST::VarDecl> const_def(scanner *Scanner);
 AST::Name name_space(scanner *Scanner);
 
@@ -102,9 +103,8 @@ std::unique_ptr<AST::GlobalStatement> statement(scanner *Scanner) {
             auto gen = generic(Scanner);
             match(Scanner, lbra);
             auto u = std::make_unique<AST::UnionDecl>(Scanner, AST::Name(un), gen);
-            while (input_token == t_class) {
-                auto cl = static_unique_pointer_cast<
-                    AST::ClassDecl, AST::GlobalStatement>(statement(Scanner));
+            while (input_token == t_enum) {
+                auto cl = enum_def(Scanner);
                 u->classes.push_back(std::move(cl));
             }
             match(Scanner, rbra);
@@ -114,6 +114,19 @@ std::unique_ptr<AST::GlobalStatement> statement(scanner *Scanner) {
             return nullptr;
         }
     }
+}
+
+std::unique_ptr<AST::EnumDecl> enum_def(scanner *Scanner) {
+    match(Scanner, t_enum);
+    auto en = match(Scanner, t_name);
+    auto e = std::make_unique<AST::EnumDecl>(Scanner, en);
+    match(Scanner, lbra);
+    while (input_token == t_var) {
+        auto vd = var_def(Scanner);
+        e->vars.push_back(std::move(vd));
+    }
+    match(Scanner, rbra);
+    return e;
 }
 
 std::unique_ptr<AST::FuncDecl> func_decl(scanner *Scanner) {

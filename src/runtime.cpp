@@ -223,7 +223,13 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
     }
 }
 
-AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable *st) {
+AST::ValueType *runtime_enum_handler(
+    AST::ValueType *vt, AST::FuncCall *call, AST::SymTable *st) {
+    throw InterpreterException("debug info", call);
+}
+
+AST::ValueType *runtime_handler(
+    AST::Name fn, AST::FuncCall *call, AST::SymTable *st) {
     if (fn.str() == "print") {
         runtime_print(call, st);
         return & AST::None;
@@ -245,9 +251,7 @@ AST::ValueType *runtime_handler(AST::Name fn, AST::FuncCall *call, AST::SymTable
 
     // class constructors
     st->addLayer();
-    auto fn_name = new AST::Name(fn);
-    AST::Name constructor_name = AST::Name(fn_name, "new");
-    delete fn_name;
+    AST::Name constructor_name = AST::Name(&fn, "new");
     auto constructor = st->lookup(constructor_name, call)->get()->data.fs;
 
     auto clty = AST::TypeDecl(AST::t_class);
