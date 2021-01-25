@@ -27,23 +27,25 @@ class Bag {
     }
 }
 
-function print_bag(b_opt : Optional_Bag) {
+function print_bag(b_opt : Optional_Bag) : int32 {
     match (b_opt) {
         None {
             print("Bag is empty");
+            return 1;
         }
         Some(b) {
             b.val.add();
             print(b.val.ival, b.val.fval);
+            return 0;
         }
     }
 }
 
 function main() {
     var bag_opt : Optional_Bag = Optional_Bag.Some(Bag(0, 1.0));
-    print_bag(bag_opt);
+    print(print_bag(bag_opt));
     bag_opt = Optional_Bag.None();
-    print_bag(bag_opt);
+    print(print_bag(bag_opt));
     
     # var bag2 : Bag = bag; TODO: initialize with move, copy, and deepcopy
 }

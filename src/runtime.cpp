@@ -231,7 +231,7 @@ AST::ValueType *runtime_enum_handler(
     }
     AST::SymTable *enst = new AST::SymTable();
     enst->addLayer();
-    for (int i = 0; i < vars->size(); ++i) {
+    for (unsigned int i = 0; i < vars->size(); ++i) {
         auto init = call->pars[i]->interpret(st);
         (*vars)[i]->interpret(enst);
         auto ms = enst->lookup((*vars)[i]->name, call);

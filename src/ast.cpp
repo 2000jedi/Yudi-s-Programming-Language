@@ -508,14 +508,8 @@ INTERPRET(MatchExpr) {
             st->insert(Name(l.cl_name), vt);
             for (auto&& e : l.exprs) {
                 auto ret = e->interpret(st);
-                if (return_flag) {
-                    return_flag--;
-                    return ret;
-                }
-                if (break_flag) {
-                    return ret;
-                }
-                if (continue_flag) {
+                if (return_flag || break_flag || continue_flag) {
+                    st->removeLayer();
                     return ret;
                 }
             }
