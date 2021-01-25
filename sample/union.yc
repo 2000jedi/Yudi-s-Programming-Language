@@ -1,0 +1,26 @@
+union optional {
+    enum None {}
+    enum Some {
+        var real : int32;
+        var imag : int32;
+    }
+}
+
+function print_o(o : optional) {
+    match (o) {
+        None {
+            print("None");
+        }
+        Some(s) {
+            print("real:", s.real);
+            print("imag:", s.imag);
+        }
+    }
+}
+
+function main() {
+    var opt : optional = optional.None();
+    print_o(opt);
+    opt = optional.Some(1,2);
+    print_o(opt);
+}
