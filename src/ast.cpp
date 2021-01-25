@@ -494,7 +494,7 @@ INTERPRET(BreakExpr) {
     return nullptr;
 }
 
-INTERPRET(MatchExpr) {  // TODO: implementation
+INTERPRET(MatchExpr) {
     auto vt = this->var->interpret(st);
     if ((vt->type.baseType != t_class) || (vt->type.enum_base == "")) {
         throw InterpreterException(
@@ -507,7 +507,17 @@ INTERPRET(MatchExpr) {  // TODO: implementation
             st->addLayer();
             st->insert(Name(l.cl_name), vt);
             for (auto&& e : l.exprs) {
-                e->interpret(st);
+                auto ret = e->interpret(st);
+                if (return_flag) {
+                    return_flag--;
+                    return ret;
+                }
+                if (break_flag) {
+                    return ret;
+                }
+                if (continue_flag) {
+                    return ret;
+                }
             }
             st->removeLayer();
             break;
@@ -517,10 +527,6 @@ INTERPRET(MatchExpr) {  // TODO: implementation
         throw InterpreterException(
             "union option " + vt->type.enum_base + " not processed", this);
     }
-    return & None;
-}
-
-INTERPRET(MatchLine) {  // TODO : implementation
     return & None;
 }
 

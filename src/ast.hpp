@@ -600,7 +600,6 @@ class MatchLine : public ErrInfo  {
 
     MatchLine(scanner *Scanner, std::string n, std::string cl) :
         ErrInfo(Scanner), name(n), cl_name(cl) {}
-    ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(MatchLine)
 };
