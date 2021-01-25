@@ -495,6 +495,28 @@ INTERPRET(BreakExpr) {
 }
 
 INTERPRET(MatchExpr) {  // TODO: implementation
+    auto vt = this->var->interpret(st);
+    if ((vt->type.baseType != t_class) || (vt->type.enum_base == "")) {
+        throw InterpreterException(
+            "type " + vt->type.str() + "is not union type", this);
+    }
+    bool processed = false;
+    for (auto&& l : this->lines) {
+        if (l.name == vt->type.enum_base) {
+            processed = true;
+            st->addLayer();
+            st->insert(Name(l.cl_name), vt);
+            for (auto&& e : l.exprs) {
+                e->interpret(st);
+            }
+            st->removeLayer();
+            break;
+        }
+    }
+    if (!processed) {
+        throw InterpreterException(
+            "union option " + vt->type.enum_base + " not processed", this);
+    }
     return & None;
 }
 

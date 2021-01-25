@@ -351,16 +351,18 @@ std::unique_ptr<AST::WhileExpr> while_expr(scanner *Scanner) {
 std::vector<AST::MatchLine> match_line(scanner *Scanner) {
     std::vector<AST::MatchLine> lines;
     while (input_token == t_name) {
-        match(Scanner, t_name);
+        std::string enum_name = match(Scanner, t_name);
         std::string opt_name = "";
         if (input_token == lpar) {
             match(Scanner, lpar);
-            auto opt_name = match(Scanner, t_name);
+            opt_name = match(Scanner, t_name);
             match(Scanner, rpar);
         }
+        auto ml = AST::MatchLine(Scanner, enum_name, opt_name);
         match(Scanner, lbra);
-        auto exprs = expr_list(Scanner);
+        ml.exprs = expr_list(Scanner);
         match(Scanner, rbra);
+        lines.push_back(std::move(ml));
     }
     return lines;
 }
