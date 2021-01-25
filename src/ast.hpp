@@ -151,7 +151,7 @@ class GenericDecl : public ErrInfo {
 
 enum Types {
     t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-    t_bool, t_rtfn, t_enum /* runtime function */
+    t_bool, t_rtfn, t_enumfn /* runtime function */
 };
 
 class TypeDecl : public ErrInfo {
@@ -160,6 +160,7 @@ class TypeDecl : public ErrInfo {
 
     int arrayT;
     Name other;
+    std::string enum_base;
     GenericDecl gen;
 
     friend bool operator==(const TypeDecl& lhs, const TypeDecl& rhs) {
@@ -202,7 +203,7 @@ static TypeDecl RuntimeType = TypeDecl(t_rtfn);
 static TypeDecl FuncType = TypeDecl(t_fn);
 static TypeDecl ClassType = TypeDecl(t_class);
 static TypeDecl StrType = TypeDecl(t_str);
-static TypeDecl EnumType = TypeDecl(t_enum);
+static TypeDecl EnumType = TypeDecl(t_enumfn);
 
 class FuncStore {
  public:
@@ -477,8 +478,8 @@ class EnumDecl : public ErrInfo {
     Name name;
     std::vector<std::unique_ptr<VarDecl>> vars;
 
-    EnumDecl(scanner *Scanner, std::string n) :
-        ErrInfo(Scanner), name(Name(n)) {}
+    EnumDecl(scanner *Scanner, Name n) :
+        ErrInfo(Scanner), name(n) {}
 
     D_MOVE_COPY(EnumDecl)
 };

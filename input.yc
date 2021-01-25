@@ -28,7 +28,8 @@ class Bag {
 }
 
 function main() {
-    var bag_opt : Optional_Bag = Optional_Bag.Some(Bag(0, 0));
+    var bag_opt : Optional_Bag = Optional_Bag.Some(Bag(0, 1.0));
+    debug(bag_opt);
     match (bag_opt) {
         None {}
         Some(b) {

@@ -225,7 +225,22 @@ AST::ValueType *runtime_typeconv(AST::Types t, AST::FuncCall *call, AST::SymTabl
 
 AST::ValueType *runtime_enum_handler(
     AST::ValueType *vt, AST::FuncCall *call, AST::SymTable *st) {
-    throw InterpreterException("debug info", call);
+    auto vars = & vt->data.ed->vars;
+    if (vars->size() != call->pars.size()) {
+        throw InterpreterException("enum initializer parameters do not match", call);
+    }
+    AST::SymTable *enst = new AST::SymTable();
+    enst->addLayer();
+    for (int i = 0; i < vars->size(); ++i) {
+        auto init = call->pars[i]->interpret(st);
+        (*vars)[i]->interpret(enst);
+        auto ms = enst->lookup((*vars)[i]->name, call);
+        ms->set(init);
+    }
+    auto clty = AST::TypeDecl(AST::t_class);
+    clty.other = vt->data.ed->name.owner();
+    clty.enum_base = vt->data.ed->name.BaseName;
+    return new AST::ValueType(enst, &clty);
 }
 
 AST::ValueType *runtime_handler(

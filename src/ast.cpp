@@ -191,7 +191,11 @@ std::string TypeDecl::str(void) {
             break;
         case t_class:
             ss << other.str();
+            if (enum_base != "")
+                ss << "::" << enum_base;
             break;
+        case t_enumfn:
+            ss << "enum initialzer";
         default:
             ss << "internal";
     }
@@ -280,7 +284,7 @@ INTERPRET(VarDecl) {
             }
             if (t->type != this->type) {
                 throw InterpreterException(
-                    "variable \"" + this->name.str() + "\": type " + this->type.str() + " cannot be assigned to " + t->type.str(), this);
+                    "variable \"" + this->name.str() + "\" type mismatch :" + this->type.str() + " & " + t->type.str(), this);
             }
         } else {
             t = this->type.newVal();
@@ -319,7 +323,7 @@ INTERPRET(FuncCall) {
         st->removeLayer();
         return runtime_handler(this->function, this, st);
     }
-    if (fn_->type.baseType == t_enum) {
+    if (fn_->type.baseType == t_enumfn) {
         st->removeLayer();
         return runtime_enum_handler(fn_, this, st);
     }
@@ -369,7 +373,7 @@ void UnionDecl::declare(SymTable *st, SymTable *context) {
     auto unst = new SymTable();
     unst->addLayer();
     for (auto&& cl : this->classes) {
-        unst->insert(cl->name, new ValueType(cl.get(), true));
+        unst->insert(Name(cl->name.BaseName), new ValueType(cl.get(), true));
     }
     auto unty = AST::TypeDecl(AST::t_class);
     unty.other = this->name;
