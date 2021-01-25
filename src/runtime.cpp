@@ -236,6 +236,7 @@ AST::ValueType *runtime_enum_handler(
         (*vars)[i]->interpret(enst);
         auto ms = enst->lookup((*vars)[i]->name, call);
         ms->set(init);
+        init->ms.push_back(ms);
     }
     auto clty = AST::TypeDecl(AST::t_class);
     clty.other = vt->data.ed->name.owner();
