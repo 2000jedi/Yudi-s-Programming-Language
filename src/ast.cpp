@@ -101,6 +101,12 @@ MemStore *SymTable::lookup(Name name, ErrInfo* ast) {
             }
             auto clst = owner->data.st;
             return clst->lookup(Name(name.BaseName), ast);
+        } else if (name.ClassName.size() > 1) {
+            // form of a.b.new
+            owner = this->lookup(name.owner().owner(), ast)->get();
+            auto clst = owner->data.st;
+            AST::Name owner_ = Name(name.ClassName.back());
+            return clst->lookup(Name(&owner_, name.BaseName), ast);
         }
     }
 
@@ -252,11 +258,15 @@ int AST::interpret(Program prog) {
     return 0;
 }
 
-INTERPRET(Program) {
-    st->addLayer();
+void Program::declare(SymTable *st) {
     for (auto stmt = stmts.begin(); stmt != stmts.end(); stmt++) {
         (*stmt)->declare(st, nullptr);
     }
+}
+
+INTERPRET(Program) {
+    st->addLayer();
+    this->declare(st);
     auto fs = st->lookup(Name("main"), this)->get()->data.fs;
     st->addLayer();
     fs->fd->interpret(st);

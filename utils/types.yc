@@ -1,0 +1,45 @@
+union Optional<T> {
+    enum None {}
+    enum Some {
+        var val : T;
+    }
+}
+
+class Int32 {
+    var val : int32;
+    
+    function new(v : int32) {
+        this.val = v;
+    }
+}
+
+class Fp32 {
+    var val : fp32;
+
+    function new(v : fp32) {
+        this.val = v;
+    }
+}
+
+class String {
+    var val : string;
+
+    function new(v : string) {
+        this.val = v;
+    }
+
+    function size() {
+        return __string_size(val);
+    }
+}
+
+class List<T> {
+    var val  : T;
+    var next : Optional<LinkedList>;
+    var size : int32;
+
+    function new() {
+        this.size = 0;
+        this.next = Optional.None`LinkedList`();
+    }
+}

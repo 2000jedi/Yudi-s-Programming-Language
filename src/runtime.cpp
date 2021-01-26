@@ -6,9 +6,16 @@
 #include "runtime.hpp"
 
 #include <string>
+#include <iostream>
+#include <fstream>
+#include <stack>
 
 #include "ast.hpp"
 #include "err.hpp"
+#include "scanner.hpp"
+#include "parser.hpp"
+
+static std::stack<std::unique_ptr<AST::Program>> imports;
 
 void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
     for (auto&& par : call->pars) {
@@ -274,6 +281,37 @@ AST::ValueType *runtime_handler(
         runtime_debug(call, st);
         return & AST::None;
     }
+    if (fn.str() == "import") {
+        if (call->pars.size() != 1) {
+            throw InterpreterException("import(): wrong number of params",call);
+        }
+        for (auto&& par : call->pars) {
+            auto vt = par->interpret(st);
+            if (vt->type != AST::StrType) {
+                throw InterpreterException(err_type_mismatch(
+                    "", AST::StrType.str(), vt->type.str()
+                ), call);
+            }
+            auto file_name = *vt->data.str;
+            std::filebuf file;
+            if (!file.open(file_name, std::ios::in))
+                std::runtime_error("import(): " + file_name + " not found");
+
+            auto fnst = new AST::SymTable();
+            fnst->addLayer();
+            auto sc = scanner(&file);
+            auto ast = parse(sc);
+            sc.Free();
+            ast->declare(fnst);
+            imports.push(std::move(ast));
+            AST::TypeDecl clty = AST::TypeDecl(AST::Name("import"), 0);
+            return new AST::ValueType(fnst, &clty);
+        }
+        return & AST::None;
+    }
+    if (fn.str() == "open") {
+        // TODO: open()
+    }
     if (fn.str() == "to_char")
         return runtime_typeconv(AST::t_char, call, st);
     if (fn.str() == "to_uint8")
@@ -317,6 +355,9 @@ AST::ValueType *runtime_handler(
         }
     }
 
+    if (call->pars.size() != constructor->fd->pars.size()) {
+        throw InterpreterException("new(): param number mismatch", nullptr);
+    }
     for (unsigned int i = 0; i < call->pars.size(); ++i) {
         auto vt = call->pars[i]->interpret(st);
         auto prm = constructor->fd->pars[i];
@@ -346,4 +387,6 @@ void runtime_bind(AST::SymTable *st) {
     st->insert(AST::Name("to_int32"), new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("to_fp32"), new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("to_fp64"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("import"),new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("open"), new AST::ValueType(&AST::RuntimeType, true));
 }

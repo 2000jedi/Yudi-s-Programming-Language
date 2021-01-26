@@ -365,7 +365,7 @@ class Program : public ErrInfo {
         if (s)
             this->stmts.push_back(std::move(s));
     }
-
+    void declare(SymTable *st);
     ValueType *interpret(SymTable *st);
 
     D_MOVE_COPY(Program)

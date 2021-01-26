@@ -183,6 +183,10 @@ token scanner::scan(void) {
             next();
             return comma;
         }
+        case '`': {
+            next();
+            return gen;
+        }
         case ':': {
             next();
             if (c == '=') {
@@ -221,7 +225,7 @@ token scanner::scan(void) {
                 else
                     return t_int;
             }
-            if (isalpha(c)) {
+            if (isalpha(c) || (c == '_')) {
                 data += c;
                 next();
                 while (isalpha(c) || isdigit(c) || (c == '_')) {

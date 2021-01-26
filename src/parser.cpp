@@ -517,10 +517,10 @@ DEF_EL(e_pars) {
             auto n = name_space(Scanner);
             std::unique_ptr<AST::FuncCall> fc = nullptr;
             AST::Name gen_n;
-            if (input_token == lt) {
-                match(Scanner, lt);
+            if (input_token == gen) {
+                match(Scanner, gen);
                 gen_n = name_space(Scanner);
-                match(Scanner, gt); 
+                match(Scanner, gen); 
             }
             if (input_token == lpar) {
                 // optional function call

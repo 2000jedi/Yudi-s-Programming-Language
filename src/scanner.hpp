@@ -18,7 +18,7 @@ enum token {
     lpar, rpar, lbra, rbra, larr, rarr, equ, neq, lor, land, move, copy, deepcopy,
     bor, band, bxor, gt, ge, lt, le, add, sub, mul, t_div, rem,
     colon, comma, eol,
-    dot, t_name,
+    dot, t_name, gen,
     t_eof
 };
 
@@ -31,7 +31,7 @@ const std::string terms[] = {
     "(", ")", "{", "}", "[", "]", "==", "!=", "||", "&&", "=", ":=", "::="
     "|", "&", "^", ">", ">=", "<", "<=", "+", "-", "*", "/", "%",
     ":", ",", "EOL",
-    ".", "name",
+    ".", "name", "`",
     "EOF"
 };
 
