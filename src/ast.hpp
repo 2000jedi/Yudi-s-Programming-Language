@@ -96,7 +96,7 @@ class Name {
         this->ClassName.push_back(p->BaseName);
     }
 
-    std::string str(void) {
+    std::string str(void) const {
         std::stringstream ss;
         for (auto n : this->ClassName)
             ss << n << ".";
@@ -143,15 +143,15 @@ class Name {
 class GenericDecl : public ErrInfo {
  public:
     bool valid;
-    std::string name;
+    Name name;
 
     GenericDecl() : valid(false) {}
-    GenericDecl(scanner *Scanner, std::string n) : ErrInfo(Scanner), valid(true), name(n) {}
+    GenericDecl(scanner *Scanner, Name n) : ErrInfo(Scanner), valid(true), name(n) {}
 };
 
 enum Types {
     t_void, t_int32, t_uint8, t_fp32, t_fp64, t_char, t_str, t_class, t_fn,
-    t_bool, t_rtfn, t_enumfn /* runtime function */
+    t_bool, t_rtfn, t_enumfn, t_type /* runtime function */
 };
 
 class TypeDecl : public ErrInfo {
@@ -164,6 +164,8 @@ class TypeDecl : public ErrInfo {
     GenericDecl gen;
 
     friend bool operator==(const TypeDecl& lhs, const TypeDecl& rhs) {
+        if ((lhs.gen.valid != rhs.gen.valid) || (lhs.gen.name.str() != rhs.gen.name.str()))  // TODO: modify BaseName to check 
+            return false;
         if (lhs.baseType == t_class) {
             return (lhs.baseType == rhs.baseType) && (lhs.other == rhs.other);
         }
@@ -204,6 +206,7 @@ static TypeDecl FuncType = TypeDecl(t_fn);
 static TypeDecl ClassType = TypeDecl(t_class);
 static TypeDecl StrType = TypeDecl(t_str);
 static TypeDecl EnumType = TypeDecl(t_enumfn);
+static TypeDecl GenType = TypeDecl(t_type);
 
 class FuncStore {
  public:
@@ -230,6 +233,7 @@ class ValueType {
         ClassDecl* cd;
         EnumDecl* ed;
         std::string* str;
+        TypeDecl* gen;
     } data;
 
     TypeDecl type;
@@ -259,6 +263,9 @@ class ValueType {
                     return;
                 case t_class:
                     delete data.st;
+                    return;
+                case t_type:
+                    delete data.gen;
                     return;
                 default:
                     return;
@@ -315,6 +322,11 @@ class ValueType {
 
     explicit ValueType(double b, bool c = true) : type(DoubleType), isConst(c) {
         data.dval = b;
+    }
+
+    ValueType(Name ty) : type(GenType), isConst(true) {
+        data.gen = new TypeDecl(t_class);
+        data.gen->other = ty;
     }
 };
 
@@ -386,6 +398,7 @@ class FuncCall : public ErrInfo {
  public:
     std::vector<std::unique_ptr<EvalExpr>> pars;
     Name function;
+    Name gen_val;  // generic value
 
     explicit FuncCall(scanner *Scanner) : ErrInfo(Scanner) {}
     ValueType *interpret(SymTable *st);
@@ -457,11 +470,11 @@ class BreakExpr : public ErrInfo, public Expr {
 class ClassDecl : public ErrInfo, public GlobalStatement {
  public:
     Name name;
-    GenericDecl genType;
+    GenericDecl gen;
     std::vector<std::unique_ptr<GlobalStatement>> stmts;
 
     ClassDecl(scanner *Scanner, std::string n, GenericDecl g) :
-        ErrInfo(Scanner), name(Name(n)), genType(g) {
+        ErrInfo(Scanner), name(Name(n)), gen(g) {
         this->stmtType = gs_class;
     }
     virtual ValueType *interpret(SymTable *st) {
@@ -476,6 +489,7 @@ class ClassDecl : public ErrInfo, public GlobalStatement {
 class EnumDecl : public ErrInfo {
  public:
     Name name;
+    GenericDecl gen;
     std::vector<std::unique_ptr<VarDecl>> vars;
 
     EnumDecl(scanner *Scanner, Name n) :

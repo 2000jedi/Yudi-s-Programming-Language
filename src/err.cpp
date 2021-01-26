@@ -16,3 +16,10 @@ const char *InterpreterException::what() const throw() {
     std::cout << ss.str();
     return "";
 }
+
+std::string err_type_mismatch(
+    std::string var, std::string ltype, std::string rtype) {
+    std::stringstream ss;
+    ss << "type mismatch (" << var << "): " << ltype << " != " << rtype;
+    return ss.str();
+}

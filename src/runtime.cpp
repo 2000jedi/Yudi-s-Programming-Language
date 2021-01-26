@@ -231,8 +231,24 @@ AST::ValueType *runtime_enum_handler(
     }
     AST::SymTable *enst = new AST::SymTable();
     enst->addLayer();
+    if (call->gen_val.str() != "") {
+        // associate generics
+        enst->insert(AST::Name(vt->data.ed->gen.name),
+            new AST::ValueType(call->gen_val));
+    }
     for (unsigned int i = 0; i < vars->size(); ++i) {
         auto init = call->pars[i]->interpret(st);
+        auto ty = (*vars)[i]->type;
+        if (ty.baseType == AST::t_class) {
+            if (ty.other.str() == vt->data.ed->gen.name.str()) {
+                ty.other = call->gen_val;
+            }
+        }
+        if (ty != init->type) {
+            throw InterpreterException(err_type_mismatch(
+                (*vars)[i]->name.str(), (*vars)[i]->type.str(), init->type.str()
+            ), call);
+        }
         (*vars)[i]->interpret(enst);
         auto ms = enst->lookup((*vars)[i]->name, call);
         ms->set(init);
@@ -241,6 +257,10 @@ AST::ValueType *runtime_enum_handler(
     auto clty = AST::TypeDecl(AST::t_class);
     clty.other = vt->data.ed->name.owner();
     clty.enum_base = vt->data.ed->name.BaseName;
+    if (call->gen_val.str() != "") {
+        clty.gen.valid = true;
+        clty.gen.name = call->gen_val;
+    }
     return new AST::ValueType(enst, &clty);
 }
 
@@ -274,6 +294,12 @@ AST::ValueType *runtime_handler(
     clty.other = fn;
     auto fnst = new AST::SymTable();
     fnst->addLayer();
+    if (call->gen_val.str() != "") {
+        // associate generics
+        auto cl = st->lookup(fn, call)->get()->data.cd;
+        fnst->insert(AST::Name(cl->gen.name),
+            new AST::ValueType(call->gen_val));
+    }
 
     AST::ValueType *context = new AST::ValueType(fnst, &clty);
     st->insert(AST::Name("this"), context);
@@ -295,7 +321,9 @@ AST::ValueType *runtime_handler(
         auto vt = call->pars[i]->interpret(st);
         auto prm = constructor->fd->pars[i];
         if (vt->type != prm.type) {
-            throw InterpreterException("type mismatch for argument " + prm.name, call);
+            throw InterpreterException(err_type_mismatch(
+                prm.name, prm.type.str(), vt->type.str()
+            ), call);
         }
         st->insert(AST::Name(prm.name), vt);
     }

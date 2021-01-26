@@ -150,7 +150,7 @@ std::unique_ptr<AST::FuncDecl> func_decl(scanner *Scanner) {
 AST::GenericDecl generic(scanner *Scanner) {
     if (input_token == lt) {
         match(Scanner, lt);
-        auto gen_name = match(Scanner, t_name);
+        auto gen_name = name_space(Scanner);
         match(Scanner, gt);
         return AST::GenericDecl(Scanner, gen_name);
     } else {
@@ -516,10 +516,17 @@ DEF_EL(e_pars) {
         case t_name: {
             auto n = name_space(Scanner);
             std::unique_ptr<AST::FuncCall> fc = nullptr;
+            AST::Name gen_n;
+            if (input_token == lt) {
+                match(Scanner, lt);
+                gen_n = name_space(Scanner);
+                match(Scanner, gt); 
+            }
             if (input_token == lpar) {
                 // optional function call
                 fc = std::make_unique<AST::FuncCall>(Scanner);
                 fc->function = n;
+                fc->gen_val = gen_n;
                 match(Scanner, lpar);
                 if (input_token == rpar) {
                     match(Scanner, rpar);

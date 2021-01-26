@@ -202,6 +202,9 @@ std::string TypeDecl::str(void) {
     if (this->arrayT != 0) {
         ss << '[' << this->arrayT << ']';
     }
+    if (this->gen.valid) {
+        ss << '<' << this->gen.name.str() << '>';
+    }
     return ss.str();
 }
 
@@ -283,8 +286,10 @@ INTERPRET(VarDecl) {
                     "variable \"" + this->name.str() + "\" has void type", this);
             }
             if (t->type != this->type) {
-                throw InterpreterException(
-                    "variable \"" + this->name.str() + "\" type mismatch :" + this->type.str() + " & " + t->type.str(), this);
+                throw InterpreterException(err_type_mismatch(
+                    this->name.str(),
+                    this->type.str(), t->type.str()
+                ), this);
             }
         } else {
             t = this->type.newVal();
@@ -335,8 +340,20 @@ INTERPRET(FuncCall) {
     for (unsigned int i = 0; i < this->pars.size(); ++i) {
         auto vt = this->pars[i]->interpret(st);
         auto prm = fn->fd->pars[i];
-        if (vt->type != prm.type) {
-            throw InterpreterException("type mismatch for argument " + prm.name, this);
+
+        // replace generic symbols
+        auto ty = prm.type;
+        if (ty.baseType == AST::t_class) {
+            if (ty.other.str() == fn->fd->genType.name.str()) {
+                ty.other = this->gen_val;
+            } else if (ty.gen.name.str() == fn->fd->genType.name.str()) {
+                ty.gen.name = this->gen_val;
+            }
+        }
+        if (vt->type != ty) {
+            throw InterpreterException(err_type_mismatch(
+                prm.name, vt->type.str(), ty.str()
+            ), this);
         }
         st->insert(Name(prm.name), vt);
     }
@@ -373,6 +390,7 @@ void UnionDecl::declare(SymTable *st, SymTable *context) {
     auto unst = new SymTable();
     unst->addLayer();
     for (auto&& cl : this->classes) {
+        cl->gen = this->gen;
         unst->insert(Name(cl->name.BaseName), new ValueType(cl.get(), true));
     }
     auto unty = AST::TypeDecl(AST::t_class);
@@ -537,7 +555,9 @@ INTERPRET(EvalExpr) {
             throw InterpreterException("constant cannot be assigned", this);
         auto rvt = this->r->interpret(st);
         if (lvt->type != rvt->type)
-            throw InterpreterException("type mismatch", this);
+            throw InterpreterException(err_type_mismatch(
+                this->l->val->refName.str(),
+                lvt->type.str(), rvt->type.str()), this);
 
         if (this->op == move) {
             for (auto&& msi : rvt->ms) {
@@ -561,7 +581,8 @@ INTERPRET(EvalExpr) {
     if ((lvt->type.arrayT != 0) || (rvt->type.arrayT != 0))
         throw InterpreterException(terms[this->op] + " cannot operate on " + lvt->type.str(), this);
     if (lvt->type != rvt->type)
-        throw InterpreterException("type mismatch", this);
+        throw InterpreterException(err_type_mismatch(
+            "", lvt->type.str(), rvt->type.str()), this);
 
     auto lv = *lvt;
     if (lvt->ms.size() == 0) {

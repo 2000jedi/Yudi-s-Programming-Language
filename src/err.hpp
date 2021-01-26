@@ -30,3 +30,6 @@ class InterpreterException : public std::exception {
 
     virtual const char* what() const throw();
 };
+
+extern std::string err_type_mismatch(
+    std::string var, std::string ltype, std::string rtype);

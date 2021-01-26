@@ -24,7 +24,7 @@ enum token {
 
 const std::string terms[] = {
     "str", "char", "fp32", "int32",
-    "var", "const", "class", "function", "union",
+    "var", "const", "class", "function", "union", "enum",
     "if", "else", "while", "for", "match",
     "break", "continue", "return",
     "type_void", "type_bool", "type_char", "type_int32", "type_uint8", "type_fp32", "type_fp64", "type_str",
