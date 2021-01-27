@@ -1,0 +1,26 @@
+{
+    "name": "yudi_s-programming-language",
+    "publisher": "yudi",
+    "displayName": "yc",
+    "description": "",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.52.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "yc",
+            "aliases": ["YC", "yc"],
+            "extensions": [".yc"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "yc",
+            "scopeName": "source.yc",
+            "path": "./syntaxes/yc.tmLanguage.json"
+        }]
+    }
+}

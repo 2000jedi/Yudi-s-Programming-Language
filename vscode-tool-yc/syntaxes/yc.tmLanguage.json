@@ -1,0 +1,74 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "YC",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		}, 
+		{
+			"include": "#chars"
+		},
+		{
+			"include": "#number"
+		},
+		{
+			"include": "#comment"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.yc",
+				"match": "\\b(if|while|for|else|match|return|continue|break)\\b"
+			}, {
+				"name": "keyword.defs.yc",
+				"match": "\\b(class|function|union|enum|var|const)\\b"
+			}, {
+				"name": "keyword.types.yc",
+				"match": "\\b(int32|uint8|str|char|fp32|fp64|bool|void)\\b"
+			}]
+		},
+		"strings": {
+			"name": "string.quoted.double.yc",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.yc",
+					"match": "\\\\."
+				}
+			]
+		},
+		"chars": {
+			"name": "string.character.yc",
+			"begin": "'",
+			"end": "'",
+			"patterns": [
+				{
+					"name": "constant.character.escape.yc",
+					"match": "\\\\."
+				}
+			]
+		},
+		"number": {
+			"patterns": [
+				{
+					"name": "constant.numeric.float.yc",
+					"match": "\\b(-?[0-9]+\\.[0-9]*|[0-9]*\\.[0-9]+)\\b"
+				},
+				{
+					"name": "constant.numeric.int.yc",
+					"match": "\\b(-?[0-9]+)\\b"
+				}
+			]
+		},
+		"comment": {
+			"name": "comment.line",
+			"match": "(#.*)$"
+		}
+	},
+	"scopeName": "source.yc"
+}
