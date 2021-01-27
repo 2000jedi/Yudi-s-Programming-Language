@@ -306,6 +306,7 @@ AST::ValueType *runtime_handler(
                 ), call);
             }
             auto file_name = *vt->data.str;
+            delete vt;
             std::filebuf file;
             if (!file.open(file_name, std::ios::in))
                 std::runtime_error("import(): " + file_name + " not found");
