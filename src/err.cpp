@@ -23,3 +23,9 @@ std::string err_type_mismatch(
     ss << "type mismatch (" << var << "): " << ltype << " != " << rtype;
     return ss.str();
 }
+
+std::string err_par_size_mismatch(std::string fn, int lsize, int rsize) {
+    std::stringstream ss;
+    ss << "parameter size mismatch (" << fn << "): " << lsize << " != " << rsize;
+    return ss.str();
+}

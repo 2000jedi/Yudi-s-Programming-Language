@@ -24,4 +24,7 @@ function main() {
     print_o`types.Int32`(opt);
     opt = optional.Some`types.Int32`(types.Int32(1), types.Int32(2));
     print_o`types.Int32`(opt);
+    const s = types.String("123");
+    print(s.size());
+    print(s.val);
 }

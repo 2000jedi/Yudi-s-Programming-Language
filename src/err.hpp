@@ -33,3 +33,6 @@ class InterpreterException : public std::exception {
 
 extern std::string err_type_mismatch(
     std::string var, std::string ltype, std::string rtype);
+
+extern std::string err_par_size_mismatch(
+    std::string fn, int lsize, int rsize);

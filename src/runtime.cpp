@@ -271,6 +271,19 @@ AST::ValueType *runtime_enum_handler(
     return new AST::ValueType(enst, &clty);
 }
 
+AST::ValueType *runtime_string_size(AST::FuncCall *call, AST::SymTable *st) {
+    if (call->pars.size() != 1) {
+        throw InterpreterException(err_par_size_mismatch("size()", 1, call->pars.size()), call);
+    }
+    auto vt = call->pars[0]->interpret(st);
+    if (vt->type != AST::StrType) {
+        throw InterpreterException(err_type_mismatch(
+            "size()", AST::StrType.str(), vt->type.str()), call);
+    }
+    int s = vt->data.str->size();
+    return new AST::ValueType(s, true);
+}
+
 AST::ValueType *runtime_handler(
     AST::Name fn, AST::FuncCall *call, AST::SymTable *st) {
     if (fn.str() == "print") {
@@ -322,6 +335,8 @@ AST::ValueType *runtime_handler(
         return runtime_typeconv(AST::t_fp32, call, st);
     if (fn.str() == "to_fp64")
         return runtime_typeconv(AST::t_fp64, call, st);
+    if (fn.str() == "__string_size")
+        return runtime_string_size(call, st);
 
     // class constructors
     st->addLayer();
@@ -389,4 +404,5 @@ void runtime_bind(AST::SymTable *st) {
     st->insert(AST::Name("to_fp64"), new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("import"),new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("open"), new AST::ValueType(&AST::RuntimeType, true));
+    st->insert(AST::Name("__string_size"), new AST::ValueType(&AST::RuntimeType, true));
 }

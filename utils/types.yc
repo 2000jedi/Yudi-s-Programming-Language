@@ -22,14 +22,14 @@ class Fp32 {
 }
 
 class String {
-    var val : string;
+    var val : str;
 
-    function new(v : string) {
+    function new(v : str) {
         this.val = v;
     }
 
     function size() {
-        return __string_size(val);
+        return __string_size(this.val);
     }
 }
 
