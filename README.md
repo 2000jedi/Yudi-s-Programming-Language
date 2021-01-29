@@ -7,19 +7,16 @@ Yudi's Programming Language (YCPL) is a new programming language that enforces m
 This project is still under development and not all function modules defined in specification coherce with the implementation. Below is the todo-list of the project.
 
 - [x] Compiler front-end.
-- [x] Implementation for basic arithmetics and control flow.
-    - [ ] Remove `deepcopy`.
-- [x] Class.
-- [x] Tagged Union.
-- [x] Simple error message.
+- [x] Language interpreter implementation.
 - [x] Memory management.
-- [x] Generics.
 - [ ] Support for Standard Library.
+    - [x] `import()` function.
+    - [ ] `open()` function.
 - [ ] Rework error message format (err.cpp / err.hpp)
+- [ ] Rework generics.
 - [ ] Testing
     - [ ] Class.
     - [ ] Tagged Union.
-    - [ ] Generics.
 
 ## File and Directory Layout
 

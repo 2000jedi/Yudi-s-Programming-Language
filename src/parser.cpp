@@ -56,6 +56,15 @@ AST::Name name_space(scanner *Scanner);
 
 std::unique_ptr<AST::Program> statements(scanner *Scanner) {
     std::unique_ptr<AST::Program> program = std::make_unique<AST::Program>(Scanner);
+    while (input_token == t_import) {
+        match(Scanner, t_import);
+        match(Scanner, lpar);
+        auto path = match(Scanner, t_str);
+        path = path.substr(1, path.size() - 2);  // remove '' from string
+        match(Scanner, rpar);
+        match(Scanner, eol);
+        program->imports.push_back(path);
+    }
     while (input_token != t_eof) {
         auto gs = statement(Scanner);
         if (gs != nullptr)
@@ -746,13 +755,6 @@ DEF_ER(e_assign) {
             auto r = e_logical_or(Scanner);
             auto ex = std::make_unique<AST::EvalExpr>(
                 Scanner, copy, std::move(l), std::move(r));
-            return e_assign(Scanner, std::move(ex));
-        }
-        case deepcopy: {
-            match(Scanner, deepcopy);
-            auto r = e_logical_or(Scanner);
-            auto ex = std::make_unique<AST::EvalExpr>(
-                Scanner, deepcopy, std::move(l), std::move(r));
             return e_assign(Scanner, std::move(ex));
         }
         default:

@@ -1,3 +1,5 @@
+import("utils/types.yc");
+
 union optional<T> {
     enum None {}
     enum Some {
@@ -19,7 +21,6 @@ function print_o<T>(o : optional<T>) {
 }
 
 function main() {
-    const types = import("utils/types.yc");
     var opt : optional<types.Int32> = optional.None`types.Int32`();
     print_o`types.Int32`(opt);
     opt = optional.Some`types.Int32`(types.Int32(1), types.Int32(2));

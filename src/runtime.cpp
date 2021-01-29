@@ -8,14 +8,17 @@
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <stack>
+#include <map>
+#include <filesystem>
 
 #include "ast.hpp"
 #include "err.hpp"
 #include "scanner.hpp"
 #include "parser.hpp"
 
-static std::stack<std::unique_ptr<AST::Program>> imports;
+namespace fs = std::filesystem;
+
+static std::map<std::string, std::unique_ptr<AST::Program>> imports;
 
 void runtime_print(AST::FuncCall *call, AST::SymTable *st) {
     for (auto&& par : call->pars) {
@@ -294,35 +297,6 @@ AST::ValueType *runtime_handler(
         runtime_debug(call, st);
         return & AST::None;
     }
-    if (fn.str() == "import") {
-        if (call->pars.size() != 1) {
-            throw InterpreterException("import(): wrong number of params",call);
-        }
-        for (auto&& par : call->pars) {
-            auto vt = par->interpret(st);
-            if (vt->type != AST::StrType) {
-                throw InterpreterException(err_type_mismatch(
-                    "", AST::StrType.str(), vt->type.str()
-                ), call);
-            }
-            auto file_name = *vt->data.str;
-            delete vt;
-            std::filebuf file;
-            if (!file.open(file_name, std::ios::in))
-                std::runtime_error("import(): " + file_name + " not found");
-
-            auto fnst = new AST::SymTable();
-            fnst->addLayer();
-            auto sc = scanner(&file);
-            auto ast = parse(sc);
-            sc.Free();
-            ast->declare(fnst);
-            imports.push(std::move(ast));
-            AST::TypeDecl clty = AST::TypeDecl(AST::Name("import"), 0);
-            return new AST::ValueType(fnst, &clty);
-        }
-        return & AST::None;
-    }
     if (fn.str() == "open") {
         // TODO: open()
     }
@@ -403,7 +377,43 @@ void runtime_bind(AST::SymTable *st) {
     st->insert(AST::Name("to_int32"), new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("to_fp32"), new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("to_fp64"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("import"),new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("open"), new AST::ValueType(&AST::RuntimeType, true));
     st->insert(AST::Name("__string_size"), new AST::ValueType(&AST::RuntimeType, true));
+}
+
+void runtime_imports(std::vector<std::string> import_vector, AST::SymTable *st) {
+    std::vector<std::string> import_queue = import_vector; 
+    const auto c_path = fs::current_path();
+    while (!import_queue.empty()) {
+        // preprocess filenames
+        auto file_name = fs::path(*import_queue.begin());
+        auto base_name = file_name.filename().string();
+        base_name = base_name.substr(0, base_name.find_first_of("."));
+
+        import_queue.erase(import_queue.begin());
+        std::filebuf file;
+        if (!file.open(file_name, std::ios::in))
+            std::runtime_error("import(): " + file_name.relative_path().string() + " not found");
+        
+        auto it = imports.find(base_name);
+        if (it == imports.end()) {
+            // avoid recursive imports
+            auto fnst = new AST::SymTable();
+            fnst->addLayer();
+            auto sc = scanner(&file);
+            auto ast = parse(sc);
+            sc.Free();
+            ast->declare(fnst);
+            auto this_path = file_name.parent_path();
+            fs::current_path(this_path);
+            for (auto import_path : ast->imports) {
+                // preprocess file directory
+                import_queue.push_back(fs::absolute(import_path).string());
+            }
+
+            AST::TypeDecl clty = AST::TypeDecl(AST::Name("import"), 0);
+            st->insert(AST::Name(base_name), new AST::ValueType(fnst, &clty));
+            imports[base_name] = std::move(ast);
+        }
+    }
 }

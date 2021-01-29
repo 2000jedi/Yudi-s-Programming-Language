@@ -1,5 +1,5 @@
 CXX = c++
-CXXFLAGS = -g -Wall $(FLAGS) -fexceptions -std=c++1y
+CXXFLAGS = -g -Wall $(FLAGS) -fexceptions -std=c++17
 
 TARGET = auto
 SRCS = src/err.cpp src/util.cpp src/ast.cpp src/scanner.cpp src/parser.cpp src/runtime.cpp

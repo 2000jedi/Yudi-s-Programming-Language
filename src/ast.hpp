@@ -358,6 +358,7 @@ class Expr {
 
 class Program : public ErrInfo {
  public:
+    std::vector<std::string> imports;
     std::vector<std::unique_ptr<GlobalStatement>> stmts;
     explicit Program(scanner *Scanner) : ErrInfo(Scanner) {}
 

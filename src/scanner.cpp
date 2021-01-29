@@ -193,17 +193,7 @@ token scanner::scan(void) {
                 next();
                 return copy;
             } else {
-                if (c == ':') {
-                    next();
-                    if (c == '=') {
-                        next();
-                        return deepcopy;
-                    } else {
-                        LogError("Scanner: unknown token: ::" << c);
-                    }
-                } else {
-                    return colon;
-                }
+                return colon;
             }
         }
         case ';': {
@@ -232,6 +222,7 @@ token scanner::scan(void) {
                     data += c;
                     next();
                 }
+                if (data == "import") return t_import;
                 if (data == "var") return t_var;
                 if (data == "const") return t_const;
                 if (data == "function") return t_fn;

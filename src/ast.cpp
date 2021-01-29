@@ -266,6 +266,7 @@ void Program::declare(SymTable *st) {
 
 INTERPRET(Program) {
     st->addLayer();
+    runtime_imports(this->imports, st);
     this->declare(st);
     auto fs = st->lookup(Name("main"), this)->get()->data.fs;
     st->addLayer();
@@ -557,7 +558,7 @@ INTERPRET(EvalExpr) {
         return this->val->interpret(st);
     }
 
-    if ((this->op == move) || (this->op == copy) || (this->op == deepcopy)) {
+    if ((this->op == move) || (this->op == copy)) {
         if (!this->l->isVal)
             throw InterpreterException("lvalue is not a variable", this);
         auto lvt = st->lookup(this->l->val.get())->get();
