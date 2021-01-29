@@ -28,4 +28,7 @@ function main() {
     const s = types.String("123");
     print(s.size());
     print(s.val);
+    const file = read("input.yc");
+    write("temp", "123\n");
+    print(file);
 }

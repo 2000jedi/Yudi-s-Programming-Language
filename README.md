@@ -9,9 +9,7 @@ This project is still under development and not all function modules defined in 
 - [x] Compiler front-end.
 - [x] Language interpreter implementation.
 - [x] Memory management.
-- [ ] Support for Standard Library.
-    - [x] `import()` function.
-    - [ ] `open()` function.
+- [ ] Library. (ip)
 - [ ] Rework error message format (err.cpp / err.hpp)
 - [ ] Rework generics.
 - [ ] Testing

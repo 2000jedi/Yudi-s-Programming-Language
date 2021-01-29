@@ -287,6 +287,59 @@ AST::ValueType *runtime_string_size(AST::FuncCall *call, AST::SymTable *st) {
     return new AST::ValueType(s, true);
 }
 
+AST::ValueType *runtime_read(AST::FuncCall *call, AST::SymTable *st) {
+    if (call->pars.size() != 1)
+        throw InterpreterException(err_par_size_mismatch(
+            "read(filename)", 1, call->pars.size()
+        ), call);
+    auto filename_vt = call->pars[0]->interpret(st);
+    if (filename_vt->type != AST::StrType) {
+        throw InterpreterException(err_type_mismatch(
+            "filename", AST::StrType.str(), filename_vt->type.str()
+        ), call);
+    }
+    auto filename = *filename_vt->data.str;
+    delete filename_vt;
+    std::ifstream f(filename);
+    std::stringstream ss;
+    std::string buffer;
+    while (f) {
+        std::getline(f, buffer);
+        ss << buffer << "\n";
+    }
+    f.close();
+    buffer = ss.str();
+
+    return new AST::ValueType(new std::string(buffer), true);
+}
+
+void runtime_write(AST::FuncCall *call, AST::SymTable *st) {
+    if (call->pars.size() != 2)
+        throw InterpreterException(err_par_size_mismatch(
+            "write(filename, data)", 2, call->pars.size()
+        ), call);
+    auto filename_vt = call->pars[0]->interpret(st);
+    if (filename_vt->type != AST::StrType) {
+        throw InterpreterException(err_type_mismatch(
+            "filename", AST::StrType.str(), filename_vt->type.str()
+        ), call);
+    }
+    auto filename = *filename_vt->data.str;
+    delete filename_vt;
+    auto data_vt = call->pars[1]->interpret(st);
+    if (data_vt->type != AST::StrType) {
+        throw InterpreterException(err_type_mismatch(
+            "data", AST::StrType.str(), data_vt->type.str()
+        ), call);
+    }
+    auto data = *data_vt->data.str;
+    delete data_vt;
+
+    std::ofstream f(filename);
+    f << data;
+    f.close();
+}
+
 AST::ValueType *runtime_handler(
     AST::Name fn, AST::FuncCall *call, AST::SymTable *st) {
     if (fn.str() == "print") {
@@ -297,8 +350,12 @@ AST::ValueType *runtime_handler(
         runtime_debug(call, st);
         return & AST::None;
     }
-    if (fn.str() == "open") {
-        // TODO: open()
+    if (fn.str() == "read") {
+        return runtime_read(call, st);
+    }
+    if (fn.str() == "write") {
+        runtime_write(call, st);
+        return & AST::None;
     }
     if (fn.str() == "to_char")
         return runtime_typeconv(AST::t_char, call, st);
@@ -369,16 +426,18 @@ AST::ValueType *runtime_handler(
     return context;
 }
 
+#define BIND(x) st->insert(AST::Name(x), new AST::ValueType(&AST::RuntimeType, true))
 void runtime_bind(AST::SymTable *st) {
-    st->insert(AST::Name("print"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("debug"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("to_char"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("to_uint8"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("to_int32"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("to_fp32"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("to_fp64"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("open"), new AST::ValueType(&AST::RuntimeType, true));
-    st->insert(AST::Name("__string_size"), new AST::ValueType(&AST::RuntimeType, true));
+    BIND("print");
+    BIND("debug");
+    BIND("to_char");
+    BIND("to_uint8");
+    BIND("to_int32");
+    BIND("to_fp32");
+    BIND("to_fp64");
+    BIND("read");
+    BIND("write");
+    BIND("__string_size");
 }
 
 void runtime_imports(std::vector<std::string> import_vector, AST::SymTable *st) {
@@ -410,6 +469,7 @@ void runtime_imports(std::vector<std::string> import_vector, AST::SymTable *st) 
                 // preprocess file directory
                 import_queue.push_back(fs::absolute(import_path).string());
             }
+            fs::current_path(c_path);
 
             AST::TypeDecl clty = AST::TypeDecl(AST::Name("import"), 0);
             st->insert(AST::Name(base_name), new AST::ValueType(fnst, &clty));
