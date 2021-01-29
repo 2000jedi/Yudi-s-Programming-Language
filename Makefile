@@ -18,4 +18,4 @@ clean:
 test: auto
 	$(OUT) sample/factorial.yc
 	$(OUT) sample/cast.yc
-	$(OUT) sample/copy_move_deep.yc
+	$(OUT) sample/copy_move.yc

@@ -25,7 +25,7 @@ This project is still under development and not all function modules defined in 
 - `sample/`: Directory that includes sample programs.
     - `factorial.yc`: factorial from 1 to 10.
     - `cast.yc`: conversion between basic types.
-    - `copy_move_deep.yc`: illustration difference between copy, move, and deepcopy.
+    - `copy_move_deep.yc`: illustration difference between copy and move.
     - `union.yc`: demo of tagged union.
 - `input.yc`: Sample program used for debugging.
 - `Makefile`
