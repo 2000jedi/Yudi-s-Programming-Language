@@ -60,7 +60,6 @@ std::unique_ptr<AST::Program> statements(scanner *Scanner) {
         match(Scanner, t_import);
         match(Scanner, lpar);
         auto path = match(Scanner, t_str);
-        path = path.substr(1, path.size() - 2);  // remove '' from string
         match(Scanner, rpar);
         match(Scanner, eol);
         program->imports.push_back(path);
@@ -517,7 +516,6 @@ DEF_EL(e_pars) {
         }
         case t_str: {
             auto raw = match(Scanner, t_str);
-            raw = raw.substr(1, raw.size() - 2);
             auto val = std::make_unique<AST::ExprVal>(
                 Scanner, raw, AST::TypeDecl(AST::t_str));
             return std::make_unique<AST::EvalExpr>(Scanner, std::move(val));

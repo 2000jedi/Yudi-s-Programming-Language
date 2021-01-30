@@ -47,6 +47,8 @@ token scanner::scan(void) {
             } while (c != '"');
             data += c;
             next();
+
+            data = unescape(data);
             return t_str;
         }
         case '\'': {
