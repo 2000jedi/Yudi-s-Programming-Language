@@ -167,7 +167,8 @@ class TypeDecl : public ErrInfo {
         if ((lhs.gen.valid != rhs.gen.valid) || (lhs.gen.name.str() != rhs.gen.name.str()))  // TODO: modify BaseName to check 
             return false;
         if (lhs.baseType == t_class) {
-            return (lhs.baseType == rhs.baseType) && (lhs.other == rhs.other);
+            return (lhs.baseType == rhs.baseType) && (lhs.other.BaseName == rhs.other.BaseName);
+            // FIXME: lhs.other != rhs.other when imported
         }
         return (lhs.baseType == rhs.baseType) &&
                 (lhs.arrayT == rhs.arrayT);

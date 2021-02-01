@@ -2,9 +2,8 @@ import("utils/types.yc");
 import("utils/list.yc");
 
 function main() {
-    # FIXME: imported class have different names
-    # fix: give a unique reference for class type
     var IntList : list.List<Int32> = list.List`Int32`();
     IntList.append(Int32(1));
+    # FIXME: auto deduction of generic values
     print(IntList.size);
 }
