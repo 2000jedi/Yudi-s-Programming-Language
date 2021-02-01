@@ -10,6 +10,7 @@ This project is still under development and not all function modules defined in 
 - [x] Language interpreter implementation.
 - [x] Memory management.
 - [ ] Library. (ip)
+- [ ] Operation overloading.
 - [ ] Rework error message format (err.cpp / err.hpp)
 - [ ] Rework generics.
 - [ ] Testing
@@ -25,7 +26,7 @@ This project is still under development and not all function modules defined in 
 - `sample/`: Directory that includes sample programs.
     - `factorial.yc`: factorial from 1 to 10.
     - `cast.yc`: conversion between basic types.
-    - `copy_move_deep.yc`: illustration difference between copy and move.
+    - `copy_move.yc`: illustration difference between copy and move.
     - `union.yc`: demo of tagged union.
 - `input.yc`: Sample program used for debugging.
 - `Makefile`

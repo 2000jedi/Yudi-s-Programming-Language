@@ -40,13 +40,15 @@ class scanner {
     std::istream *input;
     void next(void);
  public:
+    std::string filename;
     std::string data;
     std::string line;
     int row, col;
 
     char c = ' ';  // current (look ahead) char
 
-    explicit scanner(std::filebuf *in) {
+    explicit scanner(std::filebuf *in, std::string filename) {
+        this->filename = filename;
         input = new std::istream(in);
         data = "";
         line = "";

@@ -459,7 +459,7 @@ void runtime_imports(std::vector<std::string> import_vector, AST::SymTable *st) 
             // avoid recursive imports
             auto fnst = new AST::SymTable();
             fnst->addLayer();
-            auto sc = scanner(&file);
+            auto sc = scanner(&file, file_name.filename().string());
             auto ast = parse(sc);
             sc.Free();
             ast->declare(fnst);

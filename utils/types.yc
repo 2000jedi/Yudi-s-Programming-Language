@@ -32,14 +32,3 @@ class String {
         return __string_size(this.val);
     }
 }
-
-class List<T> {
-    var val  : T;
-    var next : Optional<LinkedList>;
-    var size : int32;
-
-    function new() {
-        this.size = 0;
-        this.next = Optional.None`LinkedList`();
-    }
-}

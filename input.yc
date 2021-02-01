@@ -1,34 +1,10 @@
 import("utils/types.yc");
-
-union optional<T> {
-    enum None {}
-    enum Some {
-        var v : T; # T: type variable
-        var s : T;
-    }
-}
-
-function print_o<T>(o : optional<T>) {
-    match (o) {
-        None {
-            print("None");
-        }
-        Some(s) {
-            print("v:", s.v.val);
-            print("s:", s.s.val);
-        }
-    }
-}
+import("utils/list.yc");
 
 function main() {
-    var opt : optional<types.Int32> = optional.None`types.Int32`();
-    print_o`types.Int32`(opt);
-    opt = optional.Some`types.Int32`(types.Int32(1), types.Int32(2));
-    print_o`types.Int32`(opt);
-    const s = types.String("123");
-    print(s.size());
-    print(s.val);
-    const file = read("input.yc");
-    write("temp", "123\n");
-    print(file);
+    # FIXME: imported class have different names
+    # fix: give a unique reference for class type
+    var IntList : list.List<Int32> = list.List`Int32`();
+    IntList.append(Int32(1));
+    print(IntList.size);
 }

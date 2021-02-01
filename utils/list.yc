@@ -1,0 +1,44 @@
+import("types.yc");
+
+class List<T> {
+    var val  : T;
+    var next : types.Optional<List>;
+    var size : int32;
+
+    function new() {
+        this.size = 0;
+        this.next = types.Optional.None`List`();
+    }
+
+    function append(v : T) {
+        this.size = this.size + 1;
+        match (this.next) {
+            None {
+                this.next = types.Optional.Some`T`(v);
+            }
+            Some(s) {
+                s.val.append(v);
+            }
+        }
+    }
+
+    function get(i : int32) : types.Optional<T> {
+        if (this.size <= i) {
+            return types.Optional.None`T`();
+        } else {
+            if (i == 0) {
+                return types.Optional.Some`T`(this.val);
+            } else {
+                match (this.next) {
+                    None {
+                        return types.Optional.None`T`();
+                    }
+                    Some(s) {
+                        return s.val.get(i - 1);
+                    }
+                }
+                
+            }
+        }
+    }
+}

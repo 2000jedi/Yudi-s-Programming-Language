@@ -207,7 +207,7 @@ AST::TypeDecl ret_decl(scanner *Scanner) {
 
 AST::TypeDecl type_name(scanner *Scanner) {
     AST::Types base = AST::t_void;
-    std::string other;
+    AST::Name other;
     switch (input_token) {
         case type_void:
             base = AST::t_void;
@@ -243,7 +243,7 @@ AST::TypeDecl type_name(scanner *Scanner) {
             break;
         case t_name: {
             base = AST::t_class;
-            other = match(Scanner, input_token);
+            other = name_space(Scanner);
             break;
         }
         default:

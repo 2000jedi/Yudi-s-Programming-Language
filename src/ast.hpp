@@ -186,8 +186,8 @@ class TypeDecl : public ErrInfo {
         this->baseType = t_class;
     }
 
-    TypeDecl(scanner *Scanner, Types t, std::string o, GenericDecl g, int i) :
-        ErrInfo(Scanner), baseType(t), arrayT(i), other(Name(o)), gen(g) {
+    TypeDecl(scanner *Scanner, Types t, Name o, GenericDecl g, int i) :
+        ErrInfo(Scanner), baseType(t), arrayT(i), other(o), gen(g) {
         if ((t != t_class) && (g.valid))
             throw std::runtime_error("no generic is possible");
     }

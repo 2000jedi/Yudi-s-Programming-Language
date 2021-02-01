@@ -11,7 +11,7 @@
 const char *InterpreterException::what() const throw() {
     std::stringstream ss;
     if (ast)
-        ss << "line " << ast->row << ':' << ast->col << ": " << ast->line << std::endl;
+        ss << "file \"" << ast->filename << "\" " << ast->row << ':' << ast->col << ": " << ast->line << std::endl;
     ss << "AST Error: " << message << std::endl;
     std::cout << ss.str();
     return "";

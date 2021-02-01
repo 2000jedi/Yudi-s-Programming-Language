@@ -15,8 +15,9 @@ class ErrInfo {
     int row;
     int col;
     std::string line;
+    std::string filename;
     ErrInfo() {}
-    explicit ErrInfo(scanner *Scanner) : row(Scanner->row), col(Scanner->col), line(Scanner->line) {}
+    explicit ErrInfo(scanner *Scanner) : row(Scanner->row), col(Scanner->col), line(Scanner->line), filename(Scanner->filename) {}
 };
 
 class InterpreterException : public std::exception {
